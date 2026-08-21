@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odprs
+      POSTGRES_PASSWORD: odprs
+      POSTGRES_DB: odprs
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5434:5432" # host port, so `npm start` outside Docker can reach it too
+      # (not 5432/5433: this machine already has native PostgreSQL 16/17 services on those)
+
+  app:
+    build: ./server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      # Overrides the .env value (meant for local `npm start`) so the
+      # containerized app reaches Postgres via the Compose network instead.
+      DATABASE_URL: postgresql://odprs:odprs@db:5432/odprs?schema=public
+      # Also set in the Dockerfile; repeated here so it takes effect on a
+      # plain `restart` too, without needing a full image rebuild.
+      TZ: Asia/Bangkok
+    volumes:
+      - ./server:/app
+      # Anonymous volume so the bind mount above doesn't shadow the
+      # container's own (Linux-built) node_modules with the host's
+      # Windows-built one — Prisma's query engine binary is platform-specific.
+      - /app/node_modules
+    command: npm run dev # nodemon --legacy-watch — polling, since Docker Desktop on Windows
+      # doesn't propagate native fs-change events through the bind mount above
+    depends_on:
+      - db
+    ports:
+      - "3000:3000" # direct access; matches GOOGLE_CALLBACK_URL=http://localhost:3000/...
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    ports:
+      - "8080:80" # reverse-proxied path, per file.md Appendix C step 2 (real deploy will front port 80/443 this way)
+    depends_on:
+      - app
+
+volumes:
+  pgdata:

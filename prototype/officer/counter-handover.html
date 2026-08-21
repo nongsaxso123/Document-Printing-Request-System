@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODPRS — จุดส่งมอบเอกสาร</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="app-sidebar">
+    <a class="brand" href="../index.html" title="กลับหน้าแรก">
+      <div class="mark">OD</div>
+      <div>
+        <div class="name">ODPRS</div>
+        <div class="sub" data-i18n="brand.sub">ฝ่ายทะเบียน · มฟล.</div>
+      </div>
+    </a>
+
+    <div class="nav-section-label" data-i18n="nav.section.officer">สำหรับเจ้าหน้าที่</div>
+    <a class="nav-item" href="dashboard.html">
+      <span class="icon" data-icon="bar-chart"></span> <span data-i18n="nav.dashboard">แดชบอร์ดสรุปข้อมูล</span>
+    </a>
+    <a class="nav-item" href="officer-queue.html">
+      <span class="icon" data-icon="inbox"></span> <span data-i18n="nav.officerQueue">คิวรอเอกสารต้นฉบับ</span>
+    </a>
+    <a class="nav-item" href="printing-jobs.html">
+      <span class="icon" data-icon="printer"></span> <span data-i18n="nav.printingJobs">งานที่กำลังปริ้น</span>
+    </a>
+    <a class="nav-item active" href="counter-handover.html">
+      <span class="icon" data-icon="user-check"></span> <span data-i18n="nav.counterHandover">จุดส่งมอบเอกสาร</span>
+    </a>
+    <a class="nav-item" href="history.html">
+      <span class="icon" data-icon="archive"></span> <span data-i18n="nav.history">ประวัติคำขอทั้งหมด</span>
+    </a>
+
+    <div class="nav-section-label" data-i18n="nav.section.admin">สำหรับผู้ดูแลระบบ</div>
+    <a class="nav-item" href="../admin/admin-officers.html">
+      <span class="icon" data-icon="users"></span> <span data-i18n="nav.adminOfficers">จัดการบัญชีเจ้าหน้าที่</span>
+    </a>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumb" data-i18n="crumb.counterHandover">จุดส่งมอบเอกสาร / <strong>ยืนยันตัวตนผู้รับ</strong></div>
+    <div class="header-actions">
+      <div class="lang-toggle">
+        <span data-lang="en">EN</span> / <span data-lang="th" class="active">TH</span>
+      </div>
+      <div class="user-chip">
+        <div class="avatar">สธ</div>
+        <div class="who">
+          <span data-i18n="user.name.officer">คุณจริยา ทองดี</span>
+          <small><span data-i18n="user.role.officer">เจ้าหน้าที่</span> · Sorrawit.tha@mfu.ac.th</small>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="handover.title">จุดส่งมอบเอกสาร</h1>
+    <p class="page-subtitle" data-i18n="handover.subtitle">ตรวจสอบ Claim Code และบัตรประชาชนของผู้รับก่อนยืนยันส่งมอบ</p>
+
+    <div class="card">
+      <div class="card-header"><span data-i18n="handover.searchTitle">ค้นหาด้วย Claim Code</span></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field">
+            <label data-i18n="handover.claimCodeLabel">Claim Code (6 หลัก)</label>
+            <input type="text" id="claim-code-input" inputmode="numeric" maxlength="6" placeholder="000000">
+          </div>
+        </div>
+        <div class="form-actions" style="justify-content:flex-start; margin-top:14px;">
+          <button class="btn btn-primary" id="search-btn" data-i18n="handover.searchBtn">ค้นหา</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice notice-warning" id="handover-error" style="display:none;">
+      <span class="icon" data-icon="alert-triangle"></span>
+      <div id="handover-error-text"></div>
+    </div>
+
+    <div class="card" id="handover-result" style="display:none;">
+      <div class="card-header"><span data-i18n="handover.matchTitle">พบคำขอที่ตรงกัน — ตรวจสอบบัตรประชาชนก่อนส่งมอบ</span></div>
+      <div class="card-body">
+        <dl class="summary-list">
+          <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd id="h-name">—</dd>
+          <dt>RUN NUMBER</dt><dd id="h-runno">—</dd>
+          <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="h-items">—</dd>
+        </dl>
+
+        <div class="form-grid" style="margin-top:20px;">
+          <div class="field" id="receiver-name-field">
+            <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
+            <input type="text" id="receiver-name">
+            <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
+          </div>
+          <div class="field" id="receiver-id-field">
+            <label data-i18n="handover.receiverId">เลขบัตรประชาชน / ข้อมูลยืนยันตัวตน *</label>
+            <input type="text" id="receiver-id">
+            <span class="field-error" data-i18n="handover.receiverId.required">กรุณากรอกข้อมูลยืนยันตัวตน</span>
+          </div>
+        </div>
+
+        <div class="form-actions" style="justify-content:flex-start;">
+          <button class="btn btn-primary" id="confirm-handover-btn" data-i18n="handover.confirmBtn">ยืนยันส่งมอบ</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice notice-success" id="handover-success" style="display:none;">
+      <span class="icon" data-icon="check-circle"></span>
+      <div>
+        <div data-i18n="handover.successNotice">ส่งมอบเอกสารสำเร็จ — บันทึกผู้ขอ+เจ้าหน้าที่+ผู้รับ+เวลาไว้ในระบบแล้ว</div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-secondary" id="search-again-btn" data-i18n="handover.searchAgain">ค้นหารายการถัดไป</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script src="../assets/js/app.js"></script>
+<script>
+  const claimInput = document.getElementById("claim-code-input");
+  const errorNotice = document.getElementById("handover-error");
+  const resultCard = document.getElementById("handover-result");
+  const successNotice = document.getElementById("handover-success");
+  const nameField = document.getElementById("receiver-name-field");
+  const idField = document.getElementById("receiver-id-field");
+
+  let currentMatch = null;
+
+  function resetView() {
+    errorNotice.style.display = "none";
+    resultCard.style.display = "none";
+    successNotice.style.display = "none";
+    nameField.classList.remove("invalid");
+    idField.classList.remove("invalid");
+    document.getElementById("receiver-name").value = "";
+    document.getElementById("receiver-id").value = "";
+    claimInput.value = "";
+    currentMatch = null;
+    claimInput.focus();
+  }
+
+  function renderMatch() {
+    document.getElementById("h-name").textContent = currentMatch.requesterName;
+    document.getElementById("h-runno").textContent = currentMatch.runNumber;
+    document.getElementById("h-items").textContent = currentMatch.itemList;
+  }
+
+  function doSearch() {
+    const code = claimInput.value.trim();
+    errorNotice.style.display = "none";
+    resultCard.style.display = "none";
+    successNotice.style.display = "none";
+
+    const match = code ? findMockRequestByClaimCode(code) : null;
+    if (!match || match.statusCode !== "ready") {
+      document.getElementById("handover-error-text").textContent = t("handover.notFound");
+      errorNotice.style.display = "";
+      currentMatch = null;
+      return;
+    }
+
+    currentMatch = match;
+    renderMatch();
+    resultCard.style.display = "";
+  }
+
+  document.getElementById("search-btn").addEventListener("click", doSearch);
+  claimInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doSearch();
+  });
+
+  document.getElementById("confirm-handover-btn").addEventListener("click", function () {
+    const name = document.getElementById("receiver-name").value.trim();
+    const idInfo = document.getElementById("receiver-id").value.trim();
+
+    nameField.classList.toggle("invalid", !name);
+    idField.classList.toggle("invalid", !idInfo);
+    if (!name || !idInfo || !currentMatch) return;
+
+    updateMockRequest(currentMatch.referenceNo, {
+      statusCode: "completed",
+      receiverName: name,
+      receiverIdInfo: idInfo,
+      completedTimestamp: new Date().toISOString(),
+      handedOverByOfficer: CURRENT_OFFICER
+    });
+
+    resultCard.style.display = "none";
+    successNotice.style.display = "";
+  });
+
+  document.getElementById("search-again-btn").addEventListener("click", resetView);
+
+  document.addEventListener("odprs:langchange", function () {
+    if (currentMatch) renderMatch();
+  });
+</script>
+</body>
+</html>

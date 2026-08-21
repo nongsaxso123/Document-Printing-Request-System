@@ -1,0 +1,146 @@
+<%- include("../partials/head", { title: "ODPRS — ใบคำขอพิมพ์เอกสาร" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "requestForm.crumb", crumbFallback: "ใบคำขอพิมพ์เอกสาร" }) %>
+
+  <main class="app-main">
+
+    <div id="not-found" style="display:none;">
+      <h1 class="page-title" data-i18n="detail.notFound">ไม่พบคำขอนี้</h1>
+      <a class="btn btn-secondary" href="/officer/history" data-i18n="requestForm.backToHistory">กลับไปที่ประวัติคำขอ</a>
+    </div>
+
+    <div id="form-content" style="display:none;">
+      <div class="no-print" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px;">
+        <div>
+          <h1 class="page-title" style="margin-bottom:4px;" id="f-title">—</h1>
+          <p class="page-subtitle" style="margin:0;" data-i18n="requestForm.subtitle">ใบคำขอพิมพ์เอกสารฉบับเต็ม สำหรับตรวจสอบหรือพิมพ์ซ้ำ</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <a class="btn btn-secondary" href="/officer/request-form-view/pdf?ref=<%= encodeURIComponent(ref) %>" target="_blank">
+            <span class="icon" data-icon="download"></span>
+            <span data-i18n="submitted.downloadPdfBtn">ดาวน์โหลด PDF</span>
+          </a>
+          <button class="btn btn-primary" onclick="window.print()">
+            <span class="icon" data-icon="printer"></span>
+            <span data-i18n="submitted.printBtn">พิมพ์ใบคำขอ</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div style="text-align:center; margin-bottom:20px;">
+            <div style="font-weight:700; font-size:18px;" data-i18n="submitted.formHeading">ใบคำขอพิมพ์เอกสาร — ODPRS</div>
+            <div style="color:var(--color-muted); font-size:13px;" data-i18n="submitted.formSub">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</div>
+          </div>
+          <dl class="summary-list">
+            <dt data-i18n="summary.refno">เลขอ้างอิงคำขอ</dt><dd id="f-refno">—</dd>
+            <dt id="f-runno-row-label" style="display:none;" data-i18n="detail.runNumberLabel">RUN NUMBER</dt><dd id="f-runno-row" style="display:none;">—</dd>
+            <dt id="f-claimcode-row-label" style="display:none;" data-i18n="detail.claimCodeLabel">Claim Code</dt><dd id="f-claimcode-row" style="display:none;">—</dd>
+            <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd id="f-name">—</dd>
+            <dt data-i18n="summary.agencyCategory">ประเภทหน่วยงาน</dt><dd id="f-agency-category">—</dd>
+            <dt data-i18n="summary.agencyUnit">หน่วยงาน</dt><dd id="f-agency-unit">—</dd>
+            <dt data-i18n="summary.tel">เบอร์โทรศัพท์</dt><dd id="f-tel">—</dd>
+            <dt data-i18n="summary.documentType">ประเภทเอกสาร</dt><dd id="f-documenttype">—</dd>
+            <dt data-i18n="summary.paperSize">ขนาดกระดาษ</dt><dd id="f-papersize">—</dd>
+            <dt data-i18n="summary.colorMode">โหมดสี</dt><dd id="f-colormode">—</dd>
+            <dt data-i18n="summary.printSide">รูปแบบการพิมพ์ (หน้า)</dt><dd id="f-printside">—</dd>
+            <dt data-i18n="summary.finishingMethod">งานตกแต่ง / การเข้าเล่ม</dt><dd id="f-finishing">—</dd>
+            <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="f-itemlist">—</dd>
+            <dt data-i18n="summary.pages">จำนวนหน้าต้นฉบับ</dt><dd id="f-pages">—</dd>
+            <dt data-i18n="summary.copies">จำนวนชุด</dt><dd id="f-copies">—</dd>
+            <dt data-i18n="summary.totalPages">จำนวนหน้าที่ต้องพิมพ์ทั้งหมด (หน้าต้นฉบับ × จำนวนชุด)</dt><dd id="f-totalpages">—</dd>
+            <dt data-i18n="newRequest.calc.totalSheets">จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด</dt><dd id="f-totalsheets">—</dd>
+            <dt data-i18n="summary.paperSource">การจัดเตรียมกระดาษ</dt><dd id="f-paperresponsibility">—</dd>
+            <dt data-i18n="summary.copyLabel">เลขรันประจำชุด (Copy Label)</dt><dd id="f-copylabel">—</dd>
+            <dt data-i18n="summary.submitted">วันที่ส่งคำขอ</dt><dd id="f-submitted">—</dd>
+            <dt data-i18n="summary.completion">วันที่ต้องการรับเอกสาร</dt><dd id="f-completion">—</dd>
+            <dt data-i18n="summary.deadline">กำหนดส่งเอกสารต้นฉบับ</dt><dd id="f-deadline">—</dd>
+            <dt data-i18n="summary.status">สถานะ</dt><dd><span class="badge" id="f-status">—</span></dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="form-actions no-print">
+        <a class="btn btn-secondary" href="/officer/history" data-i18n="requestForm.backToHistory">กลับไปที่ประวัติคำขอ</a>
+      </div>
+    </div>
+
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const refNo = new URLSearchParams(window.location.search).get("ref");
+  let record = null;
+
+  async function fetchRecord() {
+    if (!refNo) { record = null; return; }
+    const res = await fetch("/api/requests/" + encodeURIComponent(refNo));
+    record = res.ok ? await res.json() : null;
+  }
+
+  function render() {
+    const lang = getLang();
+
+    if (!record) {
+      document.getElementById("not-found").style.display = "block";
+      document.getElementById("form-content").style.display = "none";
+      return;
+    }
+    document.getElementById("not-found").style.display = "none";
+    document.getElementById("form-content").style.display = "block";
+
+    document.getElementById("f-title").textContent = record.runNumber
+      ? record.runNumber + " (" + record.referenceNo + ")"
+      : record.referenceNo;
+
+    document.getElementById("f-refno").textContent = record.referenceNo;
+
+    if (record.runNumber) {
+      document.getElementById("f-runno-row-label").style.display = "block";
+      document.getElementById("f-runno-row").style.display = "block";
+      document.getElementById("f-runno-row").textContent = record.runNumber;
+      document.getElementById("f-claimcode-row-label").style.display = "block";
+      document.getElementById("f-claimcode-row").style.display = "block";
+      document.getElementById("f-claimcode-row").textContent = record.claimCode;
+    }
+
+    document.getElementById("f-name").textContent = record.requesterName;
+    document.getElementById("f-agency-category").textContent = lang === "en"
+      ? (AGENCY_CATEGORY_EN[record.agencyCategory] || record.agencyCategory)
+      : record.agencyCategory;
+    document.getElementById("f-agency-unit").textContent = record.agencyUnit;
+    document.getElementById("f-tel").textContent = record.tel;
+    document.getElementById("f-documenttype").textContent = translateValue(record.documentType);
+    document.getElementById("f-papersize").textContent = translateValue(record.paperSize);
+    document.getElementById("f-colormode").textContent = translateValue(record.colorMode);
+    document.getElementById("f-printside").textContent = translateValue(record.printSide);
+    document.getElementById("f-finishing").textContent = translateList(record.finishing);
+    document.getElementById("f-itemlist").textContent = record.itemList;
+    document.getElementById("f-pages").textContent = record.originalPages;
+    document.getElementById("f-copies").textContent = record.copies;
+    const numFmt = lang === "en" ? "en-US" : "th-TH";
+    document.getElementById("f-totalpages").textContent = (Number(record.originalPages) * Number(record.copies)).toLocaleString(numFmt);
+    const totalSheets = computeTotalSheets(record.originalPages, record.copies, record.printSide);
+    document.getElementById("f-totalsheets").textContent = totalSheets.toLocaleString(numFmt);
+    document.getElementById("f-paperresponsibility").textContent = paperResponsibilityText(record.paperSource, totalSheets, lang);
+    const copyLabelRange = record.copyLabelEnabled ? copyLabelRangeText(record.copyLabelPrefix, record.copyLabelStart, record.copies) : null;
+    document.getElementById("f-copylabel").textContent = copyLabelRange || t("option.none");
+    document.getElementById("f-submitted").textContent = formatDateTime(new Date(record.submissionDate), lang);
+    document.getElementById("f-completion").textContent = formatDate(new Date(record.completionDateProposed + "T00:00:00"), lang);
+
+    const sameDay = new Date(record.submissionDate).toDateString() === new Date(record.dropoffDeadlineDate).toDateString();
+    document.getElementById("f-deadline").textContent = formatDropoffLabel({ date: new Date(record.dropoffDeadlineDate), sameDay }, lang);
+
+    const statusEl = document.getElementById("f-status");
+    statusEl.textContent = t("status." + record.statusCode);
+    statusEl.className = "badge badge-" + record.statusCode;
+
+    applyIcons();
+  }
+
+  document.addEventListener("odprs:langchange", render);
+  fetchRecord().then(render);
+</script>
+</body>
+</html>

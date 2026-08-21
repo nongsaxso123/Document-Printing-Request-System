@@ -1,0 +1,137 @@
+// Schema generated from file.md Appendix A (Data Dictionary).
+// Field names below are camelCase Prisma convention; @map keeps the
+// underlying column name close to the SRS's Snake_Case attribute names.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RequestStatus {
+  AWAITING_ORIGINAL_DOCUMENT
+  REJECTED
+  PRINTING_IN_PROGRESS
+  READY_FOR_PICKUP
+  COMPLETED
+
+  @@map("request_status")
+}
+
+// "Officer Account (Role Assignment)" — Appendix A.
+// Admin is not a stored entity: there is no FR for self-service Admin
+// creation (FR-02 only covers Admin managing Officers), so the Admin role
+// is bootstrapped from the ADMIN_EMAILS env var instead (see server/src/auth.js).
+model Officer {
+  email        String   @id @map("officer_email")
+  name         String   @map("officer_name")
+  assignedBy   String   @map("assigned_by")
+  assignedDate DateTime @default(now()) @map("assigned_date") @db.Date
+
+  @@map("officers")
+}
+
+// "Print Request" — Appendix A. Request_Reference_No / RUN_NUMBER are
+// app-assigned (see Counter model below), never DB auto-increment, so both
+// the primary key and the run number are plain strings.
+model Request {
+  requestReferenceNo String    @id @map("request_reference_no")
+  runNumber          String?   @unique @map("run_number")
+
+  requesterEmail String @map("requester_email")
+  requesterName  String @map("requester_name")
+  requesterTel   String @map("requester_tel")
+
+  // Appendix A only lists a single "Agency" string, but the actual Request
+  // Form UI (prototype/requester/new-request.html) picks a category first,
+  // then a specific unit within it — both need to be stored and shown
+  // separately (see request-detail.html's d-agency-category/d-agency-unit).
+  agencyCategory String @map("agency_category")
+  agencyUnit     String @map("agency_unit")
+
+  paperSize        String  @map("paper_size")
+  // v0.4: Color Mode and Print Side replace the old single printOption
+  // combined value, to support the Total Sheets to Print calculation
+  // (FR-17). Nullable — application-level validation in requests.js
+  // enforces these as required for new submissions, so ADD COLUMN never
+  // needs a data-loss-forcing default against existing demo rows.
+  colorMode        String? @map("color_mode")
+  printSide        String? @map("print_side")
+  // v0.6: Finishing and Binding merged into one multi-select field (v0.5
+  // had made it a single mutually-exclusive choice, on the assumption that
+  // a print job only ever gets one finishing technique — the Registrar
+  // Division counter's own Officer/stakeholder corrected this: since a
+  // human finishes jobs by hand rather than one dedicated machine per
+  // technique, several methods genuinely can be combined). Only two
+  // combinations are hard-blocked, both for reasons true regardless of who
+  // finishes the job: Corner Staple + Side Staple together (redundant —
+  // pick one staple position), and two or more of the four true Binding
+  // methods together (Saddle-stitch/Coil/Cloth Tape/Glue — each defines a
+  // mutually exclusive final bound state of the whole document). All other
+  // combinations (e.g. staple + hole punch, staple + a Binding method) are
+  // allowed pending further stakeholder confirmation — see file.md
+  // Appendix B and FINISHING_METHOD_TH / EXCLUSIVE_FINISHING_GROUPS in
+  // requests.js.
+  finishingMethods String[] @default([]) @map("finishing_methods")
+  // v0.4: classifies the request and drives the Paper Source rule (FR-03,
+  // FR-17). A request may not mix Exam and General Document items.
+  documentType     String? @map("document_type")
+  paperSource      String? @map("paper_source")
+  // v0.4 (FR-18) — optional per-copy running number ("Copy Label"),
+  // entirely independent of Request_Reference_No / RUN_NUMBER. Ending
+  // number is derived (start + copies - 1), not stored separately.
+  copyLabelEnabled Boolean @default(false) @map("copy_label_enabled")
+  copyLabelPrefix  String? @map("copy_label_prefix")
+  copyLabelStart   Int?    @map("copy_label_start")
+  itemList         String  @map("item_list") @db.Text
+  originalPages    Int     @map("original_pages")
+  numberOfCopies   Int     @map("number_of_copies")
+
+  submissionDate                DateTime  @default(now()) @map("submission_date")
+  originalDocDeadline            DateTime  @map("original_doc_deadline")
+  originalDocReceivedTimestamp   DateTime? @map("original_doc_received_timestamp")
+  appointmentDateProposed         DateTime  @map("appointment_date_proposed") @db.Date
+  appointmentDateConfirmed        DateTime? @map("appointment_date_confirmed") @db.Date
+
+  requestFormFile String? @map("request_form_file")
+  claimCode       String? @map("claim_code")
+  status          RequestStatus @default(AWAITING_ORIGINAL_DOCUMENT)
+
+  // Appendix A has a single "Officer_ID", but request-detail.html /
+  // history.html track two distinct audit facts: who approved/rejected at
+  // the drop-off counter, and who later handed the finished job over —
+  // often different Officers. Stored as plain denormalized email+name
+  // (not a Officer relation/FK): Admin can also perform these actions
+  // (see requireRole in server/src/auth.js) without being listed in the
+  // officers table, so a strict FK would reject Admin-performed actions.
+  reviewedByOfficerEmail String? @map("reviewed_by_officer_email")
+  reviewedByOfficerName  String? @map("reviewed_by_officer_name")
+
+  handedOverByOfficerEmail String? @map("handed_over_by_officer_email")
+  handedOverByOfficerName  String? @map("handed_over_by_officer_name")
+
+  rejectionReason String? @map("rejection_reason") @db.Text
+
+  receiverName   String? @map("receiver_name")
+  receiverIdInfo String? @map("receiver_id_info")
+
+  completedTimestamp DateTime? @map("completed_timestamp")
+
+  @@map("requests")
+}
+
+// Atomic per-year counters backing Request_Reference_No ("REQ-") and
+// RUN_NUMBER ("RN-") — see the numbering-scheme note at the top of
+// Appendix A. Incremented via a single UPDATE ... RETURNING, never
+// "SELECT MAX + 1", to stay race-free under concurrent submissions.
+model Counter {
+  counterType String @map("counter_type")
+  year        Int
+  lastValue   Int    @default(0) @map("last_value")
+
+  @@id([counterType, year])
+  @@map("counters")
+}

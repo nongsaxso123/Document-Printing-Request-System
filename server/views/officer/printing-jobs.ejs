@@ -1,0 +1,108 @@
+<%- include("../partials/head", { title: "ODPRS — งานที่กำลังปริ้น" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.printingJobs", crumbFallback: 'งานที่กำลังปริ้น / <strong>ภาพรวม</strong>' }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="printingJobs.title">งานที่กำลังปริ้น</h1>
+    <p class="page-subtitle" data-i18n="printingJobs.subtitle">คำขอที่อนุมัติแล้วและกำลังพิมพ์/แพ็กเอกสารอยู่</p>
+
+    <div class="card">
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="printingJobs.th.runno">RUN NUMBER</th>
+              <th data-i18n="printingJobs.th.requester">ผู้ขอ</th>
+              <th data-i18n="printingJobs.th.item">รายการ</th>
+              <th data-i18n="printingJobs.th.totalPages">จำนวนหน้ารวม</th>
+              <th data-i18n="printingJobs.th.completion">วันนัดรับ (ยืนยันแล้ว)</th>
+              <th data-i18n="printingJobs.th.action">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="printing-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  async function loadRequests() {
+    const res = await fetch("/api/requests");
+    return res.json();
+  }
+
+  async function renderPrintingJobs() {
+    const lang = getLang();
+    const all = await loadRequests();
+    const records = all
+      .filter(function (r) { return r.statusCode === "printing"; })
+      .sort(function (a, b) { return new Date(a.originalDocReceivedTimestamp) - new Date(b.originalDocReceivedTimestamp); });
+
+    const tbody = document.getElementById("printing-body");
+
+    if (records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + t("printingJobs.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = records.map(function (r) {
+      const total = Number(r.originalPages) * Number(r.copies);
+      const totalLabel = t("printingJobs.totalPagesUnit").replace("{total}", total.toLocaleString(lang === "en" ? "en-US" : "th-TH"));
+      const breakdownLabel = t("printingJobs.pagesBreakdown").replace("{pages}", r.originalPages).replace("{copies}", r.copies);
+
+      return '<tr data-ref="' + r.referenceNo + '">' +
+        '<td>' + r.runNumber + '</td>' +
+        '<td>' + r.requesterName + '</td>' +
+        '<td>' + r.itemList + '</td>' +
+        '<td>' +
+          '<div style="font-weight:700;">' + totalLabel + '</div>' +
+          '<div class="hint">' + breakdownLabel + '</div>' +
+        '</td>' +
+        '<td>' + formatDate(new Date(r.completionDateConfirmed + "T00:00:00"), lang) + '</td>' +
+        '<td><button class="btn btn-secondary" data-ref="' + r.referenceNo + '">' + t("printingJobs.markReady") + '</button></td>' +
+        '</tr>';
+    }).join("");
+
+    tbody.querySelectorAll("tr[data-ref]").forEach(function (tr) {
+      tr.style.cursor = "pointer";
+      tr.title = t("printingJobs.clickForDetail");
+      tr.addEventListener("click", function (e) {
+        if (e.target.closest("button")) return;
+        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref"));
+      });
+    });
+
+    tbody.querySelectorAll("button[data-ref]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const ref = this.getAttribute("data-ref");
+        const record = records.find(function (r) { return r.referenceNo === ref; });
+        if (!record) return;
+
+        const total = Number(record.originalPages) * Number(record.copies);
+        const message = t("printingJobs.confirmReady.message")
+          .replace("{runno}", record.runNumber)
+          .replace("{requester}", record.requesterName)
+          .replace("{item}", record.itemList)
+          .replace("{total}", total.toLocaleString(lang === "en" ? "en-US" : "th-TH"))
+          .replace("{pages}", record.originalPages)
+          .replace("{copies}", record.copies);
+
+        showConfirmModal({
+          title: t("printingJobs.confirmReady.title"),
+          message: message,
+          confirmText: t("printingJobs.confirmReady.confirmBtn"),
+          onConfirm: async function () {
+            await fetch("/api/requests/" + encodeURIComponent(ref) + "/ready", { method: "POST" });
+            renderPrintingJobs();
+          }
+        });
+      });
+    });
+  }
+
+  document.addEventListener("odprs:langchange", renderPrintingJobs);
+  renderPrintingJobs();
+</script>
+</body>
+</html>

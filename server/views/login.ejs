@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODPRS — เข้าสู่ระบบ</title>
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+  body { background: var(--color-bg); }
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 40px 32px;
+    text-align: center;
+  }
+  .login-mark {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--color-primary); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 20px; margin: 0 auto 18px;
+  }
+  .login-card h1 { margin: 0 0 6px; font-size: 19px; }
+  .login-card .subtitle { color: var(--color-muted); font-size: 13.5px; margin: 0 0 24px; }
+  .login-card .hint { color: var(--color-muted); font-size: 12.5px; margin: 14px 0 0; }
+  .login-lang-toggle { position: fixed; top: 20px; right: 24px; font-size: 13px; }
+  .login-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 12px 20px;
+    background: var(--color-primary); color: #fff;
+    border: none; border-radius: var(--radius);
+    font-family: var(--font-family); font-size: 14.5px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+  }
+  .login-btn:hover { background: var(--color-primary-dark); }
+</style>
+</head>
+<body>
+
+<div class="lang-toggle login-lang-toggle">
+  <span data-lang="en">EN</span> / <span data-lang="th" class="active">TH</span>
+</div>
+
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-mark">OD</div>
+    <h1 data-i18n="login.title">ระบบขอพิมพ์เอกสารออนไลน์</h1>
+    <p class="subtitle" data-i18n="login.subtitle">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</p>
+
+    <% if (deniedDomain) { %>
+    <div class="notice notice-error" style="text-align:left;">
+      <span class="icon" data-icon="alert-triangle"></span>
+      <div id="denied-notice"></div>
+    </div>
+    <% } %>
+
+    <a class="login-btn" href="/auth/google">
+      <span data-i18n="login.btn">เข้าสู่ระบบด้วย Google</span>
+    </a>
+    <p class="hint" data-i18n="login.hint">เข้าสู่ระบบด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th)</p>
+  </div>
+</div>
+
+<script src="/assets/js/app.js"></script>
+<% if (deniedDomain) { %>
+<script>
+  function renderDeniedNotice() {
+    document.getElementById("denied-notice").textContent = t("login.deniedNotice").replace("{domain}", "<%= deniedDomain %>");
+  }
+  document.addEventListener("odprs:langchange", renderDeniedNotice);
+  document.addEventListener("DOMContentLoaded", renderDeniedNotice);
+</script>
+<% } %>
+</body>
+</html>

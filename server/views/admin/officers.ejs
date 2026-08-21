@@ -1,0 +1,142 @@
+<%- include("../partials/head", { title: "ODPRS — จัดการบัญชีเจ้าหน้าที่" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.admin", crumbFallback: "จัดการบัญชีเจ้าหน้าที่ / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="admin.title">จัดการบัญชีเจ้าหน้าที่</h1>
+    <p class="page-subtitle" data-i18n="admin.subtitle">กำหนดว่าอีเมลมหาวิทยาลัยใดได้รับสิทธิ์เป็นเจ้าหน้าที่ (Officer) — อีเมลที่ไม่อยู่ในรายชื่อนี้จะเป็นสิทธิ์ผู้ขอ (Requester) โดยอัตโนมัติ</p>
+
+    <div class="card">
+      <div class="card-header"><span data-i18n="admin.addTitle">เพิ่มเจ้าหน้าที่ใหม่</span></div>
+      <div class="card-body">
+        <form id="add-officer-form" novalidate>
+          <div class="form-grid">
+            <div class="field" id="name-field">
+              <label data-i18n="admin.nameLabel">ชื่อ-นามสกุล *</label>
+              <input type="text" id="new-officer-name" placeholder="คุณสมชาย ใจดี">
+              <span class="field-error" data-i18n="admin.nameError">กรุณากรอกชื่อ-นามสกุล</span>
+            </div>
+            <div class="field" id="email-field">
+              <label data-i18n="admin.emailLabel">อีเมลมหาวิทยาลัย *</label>
+              <input type="text" id="new-officer-email" placeholder="name.surname@mfu.ac.th">
+              <span class="field-error" id="email-error" data-i18n="admin.emailError.invalid">ต้องเป็นอีเมลที่ลงท้ายด้วย @mfu.ac.th เท่านั้น</span>
+            </div>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start; margin-top:14px;">
+            <button type="submit" class="btn btn-primary" data-i18n="admin.addBtn">เพิ่มเจ้าหน้าที่</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span data-i18n="admin.tableTitle">รายชื่อเจ้าหน้าที่ปัจจุบัน</span></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="admin.th.name">ชื่อ-นามสกุล</th>
+              <th data-i18n="admin.th.email">อีเมล</th>
+              <th data-i18n="admin.th.assignedBy">มอบสิทธิ์โดย</th>
+              <th data-i18n="admin.th.assignedDate">วันที่มอบสิทธิ์</th>
+              <th data-i18n="admin.th.action">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="officer-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const nameField = document.getElementById("name-field");
+  const emailField = document.getElementById("email-field");
+  const nameInput = document.getElementById("new-officer-name");
+  const emailInput = document.getElementById("new-officer-email");
+  const emailErrorEl = document.getElementById("email-error");
+
+  let officers = [];
+
+  async function loadOfficers() {
+    const res = await fetch("/api/admin/officers");
+    officers = await res.json();
+  }
+
+  function renderTable() {
+    const lang = getLang();
+    const tbody = document.getElementById("officer-table-body");
+
+    if (officers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("admin.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = officers.map(function (a) {
+      return '<tr>' +
+        '<td>' + a.name + '</td>' +
+        '<td>' + a.email + '</td>' +
+        '<td>' + a.assignedBy + '</td>' +
+        '<td>' + formatDate(new Date(a.assignedDate + "T00:00:00"), lang) + '</td>' +
+        '<td><button type="button" class="btn btn-danger" style="padding:6px 12px; font-size:13px;" data-email="' + a.email + '" data-name="' + a.name + '">' + t("admin.revokeBtn") + '</button></td>' +
+        '</tr>';
+    }).join("");
+
+    tbody.querySelectorAll("button[data-email]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const email = this.getAttribute("data-email");
+        const name = this.getAttribute("data-name");
+        showConfirmModal({
+          title: t("admin.revokeModalTitle"),
+          message: t("admin.revokeModalMessage").replace("{name}", name).replace("{email}", email),
+          confirmText: t("admin.confirmRevokeBtn"),
+          danger: true,
+          onConfirm: async function () {
+            await fetch("/api/admin/officers/" + encodeURIComponent(email) + "/remove", { method: "POST" });
+            await loadOfficers();
+            renderTable();
+          }
+        });
+      });
+    });
+  }
+
+  document.getElementById("add-officer-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const emailValid = /^[^\s@]+@(lamduan\.)?mfu\.ac\.th$/i.test(email);
+    const isDuplicate = emailValid && officers.some(function (a) { return a.email.toLowerCase() === email.toLowerCase(); });
+
+    nameField.classList.toggle("invalid", !name);
+    emailField.classList.toggle("invalid", !emailValid || isDuplicate);
+    emailErrorEl.textContent = isDuplicate ? t("admin.emailError.duplicate") : t("admin.emailError.invalid");
+
+    if (!name || !emailValid || isDuplicate) return;
+
+    showConfirmModal({
+      title: t("admin.addModalTitle"),
+      message: t("admin.addModalMessage").replace("{name}", name).replace("{email}", email),
+      confirmText: t("admin.addBtn"),
+      danger: false,
+      onConfirm: async function () {
+        await fetch("/api/admin/officers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name, email: email })
+        });
+        nameInput.value = "";
+        emailInput.value = "";
+        nameField.classList.remove("invalid");
+        emailField.classList.remove("invalid");
+        await loadOfficers();
+        renderTable();
+      }
+    });
+  });
+
+  document.addEventListener("odprs:langchange", renderTable);
+  loadOfficers().then(renderTable);
+</script>
+</body>
+</html>

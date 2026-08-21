@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit real .env files, only .env.example
+.env
+.env.*
+!.env.example
+
+# Claude Code local-only settings (personal tool-permission allowlist)
+.claude/settings.local.json
+
+# OS / editor junk
+Thumbs.db
+desktop.ini
+~$*
+
+# Docker
+*.pid

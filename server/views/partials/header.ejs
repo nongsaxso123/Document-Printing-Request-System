@@ -1,0 +1,22 @@
+  <header class="app-header">
+    <div class="crumb" data-i18n="<%= crumbKey %>"><%- crumbFallback %></div>
+    <div class="header-actions">
+      <div class="lang-toggle">
+        <span data-lang="en">EN</span> / <span data-lang="th" class="active">TH</span>
+      </div>
+      <div class="user-chip">
+        <% if (user.picture) { %>
+        <div class="avatar"><img src="<%= user.picture %>" alt="" referrerpolicy="no-referrer"></div>
+        <% } else { %>
+        <div class="avatar"><%= user.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() %></div>
+        <% } %>
+        <div class="who">
+          <span><%= user.name %></span>
+          <small><span data-i18n="user.role.<%= user.role.toLowerCase() %>"><%= user.role %></span> · <%= user.email %></small>
+        </div>
+      </div>
+      <a class="logout-link" href="/logout" title="Log out" data-i18n-title="user.logout">
+        <span class="icon" data-icon="log-out"></span>
+      </a>
+    </div>
+  </header>

@@ -1,0 +1,676 @@
+<%- include("../partials/head", { title: "ODPRS — สร้างคำขอพิมพ์เอกสาร" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.newRequest", crumbFallback: "สร้างคำขอพิมพ์เอกสาร / <strong>กรอกแบบฟอร์ม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="newRequest.title">สร้างคำขอพิมพ์เอกสาร</h1>
+    <p class="page-subtitle" data-i18n="newRequest.subtitle">กรอกรายละเอียดคำขอพิมพ์เอกสาร — ระบบจะยังไม่มีการแนบไฟล์ในขั้นตอนนี้</p>
+
+    <div class="notice notice-info">
+      <span class="icon" data-icon="info"></span>
+      <div>
+        <strong data-i18n="newRequest.notice.title">ไม่ต้องแนบไฟล์เอกสาร</strong><br>
+        <span data-i18n="newRequest.notice.body">หลังส่งคำขอสำเร็จ ระบบจะออกใบคำขอให้พิมพ์ และแจ้งกำหนดเวลาที่ต้อง<strong>นำเอกสารต้นฉบับมาส่งด้วยตัวเอง</strong>ที่เคาน์เตอร์ฝ่ายทะเบียน</span>
+      </div>
+    </div>
+
+    <% if (typeof error !== "undefined" && error) { %>
+    <div class="notice notice-error">
+      <span class="icon" data-icon="alert-triangle"></span>
+      <div>
+        <% if (error === "missing-required-field") { %>
+        <strong data-i18n="newRequest.error.missingField">กรอกข้อมูลไม่ครบ</strong><br>
+        <span data-i18n="newRequest.error.missingField.body">กรุณาเลือกโหมดสี รูปแบบการพิมพ์ ประเภทเอกสาร และผู้จัดเตรียมกระดาษ (ถ้าเป็นข้อสอบ) ให้ครบก่อนส่งคำขอ</span>
+        <% } else if (error === "finishing-not-allowed-for-exam") { %>
+        <strong data-i18n="newRequest.error.finishingNotAllowedForExam">ตัวเลือกงานตกแต่งไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.finishingNotAllowedForExam.body">ข้อสอบเลือกได้เฉพาะ "ไม่ต้องการ" หรือ "เย็บมุม" เท่านั้น</span>
+        <% } else if (error === "finishing-conflict") { %>
+        <strong data-i18n="newRequest.error.finishingConflict">ตัวเลือกงานตกแต่งขัดแย้งกัน</strong><br>
+        <span data-i18n="newRequest.error.finishingConflict.body">เลือก "เย็บมุม"/"เย็บข้าง" ได้ทีละอย่าง และเลือกวิธีเข้าเล่ม (มุงหลังคา/ห่วงสัน/เทปผ้า/สันกาว) ได้ทีละแบบเท่านั้น</span>
+        <% } else if (error === "finishing-requires-double-side") { %>
+        <strong data-i18n="newRequest.error.finishingRequiresDoubleSide">ตัวเลือกงานตกแต่งไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.finishingRequiresDoubleSide.body">เย็บมุงหลังคาต้องพิมพ์สองหน้าเท่านั้น</span>
+        <% } else if (error === "finishing-page-count-invalid") { %>
+        <strong data-i18n="newRequest.error.finishingPageCount">จำนวนหน้าไม่เหมาะกับงานตกแต่งที่เลือก</strong><br>
+        <span data-i18n="newRequest.error.finishingPageCount.body">กรุณาตรวจสอบจำนวนหน้าต้นฉบับให้เหมาะกับงานตกแต่ง/เข้าเล่มที่เลือก</span>
+        <% } else { %>
+        <strong data-i18n="newRequest.error.dateTooSoon">วันที่เลือกไม่ถูกต้อง</strong><br>
+        <% if (error === "completion-date-weekend") { %>
+        <span data-i18n="field.completionDate.weekendError">วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ — กรุณาเลือกวันทำการ (จันทร์-ศุกร์)</span>
+        <% } else { %>
+        <span data-i18n="field.completionDate.error">กรุณาเลือกวันที่ห่างจากวันนี้อย่างน้อย 3 วันทำการ</span>
+        <% } %>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <form id="request-form" method="post" novalidate>
+
+      <div class="card">
+        <div class="card-header">
+          <span data-i18n="newRequest.cardTitle.requester">ข้อมูลผู้ขอ</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+
+            <div class="field">
+              <label data-i18n="field.requesterName">ชื่อผู้ขอ *</label>
+              <input type="text" name="requesterName" value="<%= user.name %>" required>
+              <span class="hint" data-i18n="field.requesterName.hint">ดึงจากบัญชีที่ล็อกอินให้อัตโนมัติ แก้ไขได้ เช่น เพิ่มคำนำหน้า/ยศ หรือแก้ให้ตรงกับชื่อจริง</span>
+            </div>
+
+            <div class="field">
+              <label data-i18n="field.tel">เบอร์โทรศัพท์ *</label>
+              <input type="tel" name="tel" data-i18n-placeholder="field.tel.placeholder" placeholder="08X-XXX-XXXX" required>
+              <span class="hint" data-i18n="field.tel.hint">ใช้เบอร์มือถือส่วนตัวหรือเบอร์สำนักงานก็ได้</span>
+            </div>
+
+            <div class="field">
+              <label data-i18n="field.agencyCategory">ประเภทหน่วยงาน *</label>
+              <select name="agencyCategory" id="agency-category" required></select>
+            </div>
+
+            <div class="field">
+              <label data-i18n="field.agencyUnit">หน่วยงาน *</label>
+              <select name="agencyUnit" id="agency-unit-select" required></select>
+              <input type="text" name="agencyUnit" id="agency-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span data-i18n="newRequest.cardTitle.printJob">รายละเอียดงานพิมพ์</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+
+          <div class="field">
+            <label data-i18n="field.documentType">ประเภทเอกสาร *</label>
+            <div class="radio-group" id="document-type-group">
+              <label class="radio-option">
+                <input type="radio" name="documentType" value="exam" required>
+                <span data-i18n="option.documentType.exam">ข้อสอบ</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="documentType" value="general">
+                <span data-i18n="option.documentType.general">เอกสารทั่วไป</span>
+              </label>
+            </div>
+            <span class="hint" data-i18n="field.documentType.hint">คำขอนี้ต้องเป็นข้อสอบหรือเอกสารทั่วไปอย่างใดอย่างหนึ่งเท่านั้น หากมีทั้งสองประเภทต้องแยกส่งคนละคำขอ</span>
+          </div>
+
+          <div class="field" id="paper-source-field">
+            <label data-i18n="field.paperSource">ผู้จัดเตรียมกระดาษ *</label>
+            <div class="radio-group" id="paper-source-group" style="display:none;">
+              <label class="radio-option">
+                <input type="radio" name="paperSource" value="office">
+                <span data-i18n="option.paperSource.office">ฝ่ายทะเบียนจัดเตรียมให้</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="paperSource" value="requester">
+                <span data-i18n="option.paperSource.requester">ผู้ขอจัดเตรียมเอง</span>
+              </label>
+            </div>
+            <span class="hint" id="paper-source-fixed-notice" data-i18n="field.paperSource.fixedNotice" style="display:none;">เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) — ไม่มีตัวเลือกอื่น</span>
+            <span class="hint" id="paper-source-empty-hint" data-i18n="field.paperSource.selectDocTypeFirst">เลือกประเภทเอกสารก่อน</span>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.paperSize">ขนาดกระดาษ *</label>
+            <select name="paperSize" id="paper-size-select" required>
+              <option value="" data-i18n="option.select">— เลือก —</option>
+              <option value="A4" data-i18n="option.paperSize.a4">A4</option>
+              <option value="A3" data-i18n="option.paperSize.a3">A3</option>
+              <option value="A5" data-i18n="option.paperSize.a5">A5</option>
+              <option value="อื่นๆ" data-i18n="option.paperSize.other">อื่นๆ</option>
+            </select>
+            <input type="text" name="paperSizeOther" id="paper-size-other" data-i18n-placeholder="field.paperSize.other.placeholder" placeholder="ระบุขนาดกระดาษ เช่น B5, Letter, F4" style="display:none; margin-top:8px;" disabled>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.colorMode">โหมดสี *</label>
+            <div class="radio-group" id="color-mode-group">
+              <label class="radio-option">
+                <input type="radio" name="colorMode" value="bw" required>
+                <span data-i18n="option.colorMode.bw">ขาวดำ</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="colorMode" value="color">
+                <span data-i18n="option.colorMode.color">สี</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.printSide">รูปแบบการพิมพ์ (หน้า) *</label>
+            <div class="radio-group" id="print-side-group">
+              <label class="radio-option">
+                <input type="radio" name="printSide" value="single" required>
+                <span data-i18n="option.printSide.single">พิมพ์หน้าเดียว</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="printSide" value="double">
+                <span data-i18n="option.printSide.double">พิมพ์สองหน้า</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field span-2">
+            <label data-i18n="field.finishingMethod">งานตกแต่ง / การเข้าเล่ม</label>
+            <div class="check-group" id="finishing-method-group">
+              <label class="check-option">
+                <input type="checkbox" id="finishing-none" value="none" checked>
+                <span data-i18n="option.finishingMethod.none">ไม่ต้องการ</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="corner">
+                <span data-i18n="option.finishing.corner">เย็บมุม</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="side">
+                <span data-i18n="option.finishing.side">เย็บข้าง</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="hole">
+                <span data-i18n="option.finishing.hole">เจาะรู</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="saddleStitch">
+                <span data-i18n="option.binding.saddleStitch">เย็บมุงหลังคา (Saddle-stitch)</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="coil">
+                <span data-i18n="option.binding.coil">เข้าเล่มห่วงสัน (Coil)</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="clothTape">
+                <span data-i18n="option.binding.clothTape">เข้าเล่มเทปผ้า</span>
+              </label>
+              <label class="check-option">
+                <input type="checkbox" name="finishingMethods" value="glue">
+                <span data-i18n="option.binding.glue">เข้าเล่มสันกาว</span>
+              </label>
+            </div>
+            <span class="hint" id="finishing-method-dynamic-hint"></span>
+          </div>
+
+          <div class="field span-2">
+            <label data-i18n="field.itemList">รายการเอกสารที่ต้องการพิมพ์ *</label>
+            <textarea name="itemList" data-i18n-placeholder="field.itemList.placeholder" placeholder="เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า" required></textarea>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.originalPages">จำนวนหน้าต้นฉบับ *</label>
+            <input type="number" name="originalPages" id="original-pages" min="1" value="1" required>
+            <span class="field-error" id="original-pages-error"></span>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.copies">จำนวนชุดที่ต้องการ *</label>
+            <input type="number" name="copies" id="copies" min="1" value="1" required>
+            <span class="hint" data-i18n="field.copies.hint">ไม่จำกัดจำนวนชุด</span>
+          </div>
+
+          <div class="field span-2">
+            <label data-i18n="newRequest.calc.title">สรุปจำนวนกระดาษที่ต้องใช้</label>
+            <div class="calc-box">
+              <div class="calc-row">
+                <span data-i18n="newRequest.calc.totalPages">จำนวนหน้าที่ต้องพิมพ์ทั้งหมด</span>
+                <span class="calc-value" id="calc-total-pages">0</span>
+              </div>
+              <div class="calc-row">
+                <span data-i18n="newRequest.calc.totalSheets">จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด</span>
+                <span class="calc-value" id="calc-total-sheets">0</span>
+              </div>
+              <div class="calc-responsibility" id="calc-responsibility"></div>
+            </div>
+          </div>
+
+          <div class="field span-2">
+            <label class="check-option" style="display:inline-flex;">
+              <input type="checkbox" name="copyLabelEnabled" id="copy-label-toggle">
+              <span data-i18n="field.copyLabel.toggle">ต้องการเลขรันประจำชุด (Copy Label) หรือไม่</span>
+            </label>
+            <span class="hint" data-i18n="field.copyLabel.toggle.hint">เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER</span>
+
+            <div class="copy-label-fields" id="copy-label-fields" style="display:none;">
+              <div class="field">
+                <label data-i18n="field.copyLabel.prefix">คำนำหน้า (ถ้ามี)</label>
+                <input type="text" name="copyLabelPrefix" id="copy-label-prefix" data-i18n-placeholder="field.copyLabel.prefix.placeholder" placeholder="เช่น M-" disabled>
+              </div>
+              <div class="field">
+                <label data-i18n="field.copyLabel.start">เลขเริ่มต้น *</label>
+                <input type="number" name="copyLabelStart" id="copy-label-start" min="1" value="1" disabled>
+              </div>
+            </div>
+            <span class="hint" id="copy-label-preview"></span>
+          </div>
+
+          <div class="field span-2" id="date-field">
+            <label data-i18n="field.completionDate">วันที่ต้องการรับเอกสาร *</label>
+            <input type="date" name="completionDate" id="completion-date" required>
+            <span class="hint" id="date-preview"></span>
+            <span class="hint" id="date-hint"></span>
+            <span class="field-error" id="date-error"></span>
+          </div>
+
+        </div>
+      </div>
+        <div class="card-body" style="padding-top:0; display:flex; justify-content:flex-end; gap:12px; border-top:1px solid var(--color-border);">
+          <a class="btn btn-secondary" href="/requester/my-requests" data-i18n="btn.cancel">ยกเลิก</a>
+          <button type="submit" class="btn btn-primary" id="submit-btn" data-i18n="btn.submit" disabled>ส่งคำขอ</button>
+        </div>
+      </div>
+
+    </form>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const agencyCategorySelect = document.getElementById("agency-category");
+  const agencyUnitSelect = document.getElementById("agency-unit-select");
+  const agencyUnitText = document.getElementById("agency-unit-text");
+
+  function renderAgencyUnitOptions() {
+    const category = agencyCategorySelect.value;
+
+    if (category === "หน่วยงานอื่นๆ") {
+      agencyUnitSelect.style.display = "none";
+      agencyUnitSelect.disabled = true;
+      agencyUnitSelect.required = false;
+
+      agencyUnitText.style.display = "block";
+      agencyUnitText.disabled = false;
+      agencyUnitText.required = true;
+      return;
+    }
+
+    agencyUnitText.style.display = "none";
+    agencyUnitText.disabled = true;
+    agencyUnitText.required = false;
+
+    agencyUnitSelect.style.display = "block";
+    agencyUnitSelect.disabled = false;
+    agencyUnitSelect.required = true;
+
+    const previousUnit = agencyUnitSelect.value;
+    agencyUnitSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = category ? t("option.select") : t("option.selectCategoryFirst");
+    agencyUnitSelect.appendChild(placeholder);
+
+    (AGENCY_DATA[category] || []).forEach(function (unit) {
+      const opt = document.createElement("option");
+      opt.value = unit;
+      opt.textContent = unit;
+      agencyUnitSelect.appendChild(opt);
+    });
+    agencyUnitSelect.value = previousUnit;
+  }
+
+  function renderAgencyCategoryOptions() {
+    const previousCategory = agencyCategorySelect.value;
+    agencyCategorySelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = t("option.select");
+    agencyCategorySelect.appendChild(placeholder);
+
+    Object.keys(AGENCY_DATA).forEach(function (category) {
+      const opt = document.createElement("option");
+      opt.value = category;
+      opt.textContent = getLang() === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
+      agencyCategorySelect.appendChild(opt);
+    });
+
+    agencyCategorySelect.value = previousCategory;
+    renderAgencyUnitOptions();
+  }
+
+  agencyCategorySelect.addEventListener("change", renderAgencyUnitOptions);
+  document.addEventListener("odprs:langchange", renderAgencyCategoryOptions);
+  renderAgencyCategoryOptions();
+
+  const paperSizeSelect = document.getElementById("paper-size-select");
+  const paperSizeOther = document.getElementById("paper-size-other");
+
+  paperSizeSelect.addEventListener("change", function () {
+    const isOther = this.value === "อื่นๆ";
+    paperSizeOther.style.display = isOther ? "block" : "none";
+    paperSizeOther.disabled = !isOther;
+    paperSizeOther.required = isOther;
+    if (!isOther) paperSizeOther.value = "";
+  });
+
+  // ---------- Document Type -> Paper Source rule (FR-03, FR-17) ----------
+  const documentTypeInputs = document.querySelectorAll('input[name="documentType"]');
+  const paperSourceGroup = document.getElementById("paper-source-group");
+  const paperSourceInputs = document.querySelectorAll('input[name="paperSource"]');
+  const paperSourceFixedNotice = document.getElementById("paper-source-fixed-notice");
+  const paperSourceEmptyHint = document.getElementById("paper-source-empty-hint");
+
+  function renderPaperSource() {
+    const checked = document.querySelector('input[name="documentType"]:checked');
+    const docType = checked ? checked.value : "";
+
+    if (docType === "exam") {
+      paperSourceGroup.style.display = "flex";
+      paperSourceFixedNotice.style.display = "none";
+      paperSourceEmptyHint.style.display = "none";
+      paperSourceInputs.forEach(function (input) { input.required = true; input.disabled = false; });
+    } else if (docType === "general") {
+      paperSourceGroup.style.display = "none";
+      paperSourceFixedNotice.style.display = "block";
+      paperSourceEmptyHint.style.display = "none";
+      paperSourceInputs.forEach(function (input) {
+        input.required = false;
+        input.disabled = true;
+        input.checked = input.value === "requester";
+      });
+    } else {
+      paperSourceGroup.style.display = "none";
+      paperSourceFixedNotice.style.display = "none";
+      paperSourceEmptyHint.style.display = "block";
+      paperSourceInputs.forEach(function (input) { input.required = false; input.disabled = true; input.checked = false; });
+    }
+    renderCalc();
+  }
+
+  documentTypeInputs.forEach(function (input) { input.addEventListener("change", renderPaperSource); });
+  paperSourceInputs.forEach(function (input) { input.addEventListener("change", renderCalc); });
+
+  // ---------- Total Pages / Total Sheets to Print + paper responsibility (FR-17) ----------
+  const originalPagesInput = document.getElementById("original-pages");
+  const copiesInput = document.getElementById("copies");
+  const printSideInputs = document.querySelectorAll('input[name="printSide"]');
+  const calcTotalPages = document.getElementById("calc-total-pages");
+  const calcTotalSheets = document.getElementById("calc-total-sheets");
+  const calcResponsibility = document.getElementById("calc-responsibility");
+
+  function renderCalc() {
+    const lang = getLang();
+    const pages = parseInt(originalPagesInput.value, 10) || 0;
+    const copies = parseInt(copiesInput.value, 10) || 0;
+    const sideChecked = document.querySelector('input[name="printSide"]:checked');
+    const side = sideChecked ? sideChecked.value : "";
+
+    const totalPages = pages * copies;
+    let totalSheets = 0;
+    if (side === "double") {
+      totalSheets = Math.ceil(pages / 2) * copies;
+    } else if (side === "single") {
+      totalSheets = pages * copies;
+    }
+
+    const numFmt = lang === "en" ? "en-US" : "th-TH";
+    calcTotalPages.textContent = totalPages.toLocaleString(numFmt);
+    calcTotalSheets.textContent = totalSheets.toLocaleString(numFmt);
+
+    const docTypeChecked = document.querySelector('input[name="documentType"]:checked');
+    const docType = docTypeChecked ? docTypeChecked.value : "";
+    let paperSource = "";
+    if (docType === "general") {
+      paperSource = "requester";
+    } else if (docType === "exam") {
+      const paperSourceChecked = document.querySelector('input[name="paperSource"]:checked');
+      paperSource = paperSourceChecked ? paperSourceChecked.value : "";
+    }
+
+    if (!docType || !side || !pages || !copies || !paperSource) {
+      calcResponsibility.textContent = t("newRequest.calc.responsibility.pending");
+      return;
+    }
+
+    const key = paperSource === "office" ? "newRequest.calc.responsibility.office" : "newRequest.calc.responsibility.requester";
+    calcResponsibility.textContent = t(key).replace("{n}", totalSheets.toLocaleString(numFmt));
+  }
+
+  originalPagesInput.addEventListener("input", renderCalc);
+  copiesInput.addEventListener("input", renderCalc);
+  printSideInputs.forEach(function (input) { input.addEventListener("change", renderCalc); });
+
+  // ---------- Finishing Method: real-world conflict rules ----------
+  // 1. Exam jobs only ever get a quick corner-staple (or nothing) at the
+  //    counter — none of the book-binding methods apply to exams.
+  // 2. Saddle-stitch folds the sheet stack in half and staples through the
+  //    spine, which physically requires double-sided printing.
+  // 3. Each finishing method has assumed equipment limits tied to the
+  //    original page count (fold thickness, spine glue area, staple
+  //    throat depth) — generic office copy-shop figures, not yet
+  //    confirmed against the Registrar Division's actual equipment (see
+  //    file.md Appendix B).
+  // Only two conflicts are hard-blocked (true regardless of who finishes
+  // the job by hand, so they don't need stakeholder confirmation): Corner
+  // vs. Side staple is a choice of position, not both at once, and the
+  // four true Binding methods each define a mutually exclusive final
+  // bound state of the document. Everything else may be combined —
+  // confirmed possible by the Registrar Division's own stakeholder — until
+  // further specific combinations are ruled out. All of this is mirrored
+  // server-side in requests.js so a request that isn't valid can never be
+  // submitted even by bypassing this client-side JS.
+  const EXAM_ALLOWED_FINISHING = ["corner"];
+  const EXCLUSIVE_FINISHING_GROUPS = [
+    ["corner", "side"],
+    ["saddleStitch", "coil", "clothTape", "glue"]
+  ];
+  const FINISHING_PAGE_LIMITS = {
+    saddleStitch: { min: 4, max: 60, multipleOf: 4, hintKey: "field.finishingMethod.pageCount.saddleStitch" },
+    glue: { min: 20, hintKey: "field.finishingMethod.pageCount.glue" },
+    corner: { max: 80, hintKey: "field.finishingMethod.pageCount.corner" }
+  };
+
+  const finishingMethodInputs = document.querySelectorAll('input[name="finishingMethods"]');
+  const finishingNoneInput = document.getElementById("finishing-none");
+  const finishingSingleSideInput = document.querySelector('input[name="printSide"][value="single"]');
+  const finishingDoubleSideInput = document.querySelector('input[name="printSide"][value="double"]');
+  const finishingDynamicHint = document.getElementById("finishing-method-dynamic-hint");
+  const originalPagesError = document.getElementById("original-pages-error");
+
+  function currentFinishingMethods() {
+    return Array.prototype.filter.call(finishingMethodInputs, function (input) { return input.checked; })
+      .map(function (input) { return input.value; });
+  }
+
+  // "None" is just a one-click way to clear everything else — the two
+  // stay in sync (ticking None clears the rest; ticking anything else
+  // clears None) inside renderFinishingConstraints below, so there's no
+  // separate "nothing selected" state to explain in a hint.
+  finishingNoneInput.addEventListener("change", function () {
+    if (finishingNoneInput.checked) {
+      finishingMethodInputs.forEach(function (input) { input.checked = false; });
+    }
+    renderFinishingConstraints();
+  });
+
+  // Enforce "at most one per group" the moment a box is checked, by
+  // unchecking any other already-checked member of the same group —
+  // mirrors how a native radio group behaves, but nested inside a
+  // checkbox group since only these specific pairs are exclusive.
+  finishingMethodInputs.forEach(function (input) {
+    input.addEventListener("change", function () {
+      if (!input.checked) return;
+      const group = EXCLUSIVE_FINISHING_GROUPS.find(function (g) { return g.indexOf(input.value) !== -1; });
+      if (!group) return;
+      finishingMethodInputs.forEach(function (other) {
+        if (other !== input && group.indexOf(other.value) !== -1) other.checked = false;
+      });
+    });
+  });
+
+  function renderFinishingConstraints() {
+    const docType = document.querySelector('input[name="documentType"]:checked');
+    const isExam = docType && docType.value === "exam";
+
+    // Rule 1 — lock exam jobs down to Corner Staple only (or nothing).
+    finishingMethodInputs.forEach(function (input) {
+      const allowed = !isExam || EXAM_ALLOWED_FINISHING.indexOf(input.value) !== -1;
+      input.disabled = !allowed;
+      input.closest(".check-option").classList.toggle("disabled", !allowed);
+      if (!allowed && input.checked) input.checked = false;
+    });
+
+    const methods = currentFinishingMethods();
+    finishingNoneInput.checked = methods.length === 0;
+
+    // Rule 2 — saddle-stitch requires double-sided printing.
+    const needsDoubleSide = methods.indexOf("saddleStitch") !== -1;
+    finishingSingleSideInput.disabled = needsDoubleSide;
+    finishingSingleSideInput.closest(".radio-option").classList.toggle("disabled", needsDoubleSide);
+    if (needsDoubleSide && !finishingDoubleSideInput.checked) {
+      finishingDoubleSideInput.checked = true;
+    }
+
+    // Rule 3 — page-count limits: every selected method's own limit must
+    // hold at once (they're independent physical constraints, not
+    // alternatives — e.g. Corner Staple's max and Glue Binding's min can
+    // both apply if both are somehow selected together).
+    const pages = parseInt(originalPagesInput.value, 10) || 0;
+    const violatedHints = methods
+      .map(function (method) { return FINISHING_PAGE_LIMITS[method]; })
+      .filter(function (limit) {
+        if (!limit) return false;
+        const tooFew = limit.min !== undefined && pages < limit.min;
+        const tooMany = limit.max !== undefined && pages > limit.max;
+        const notMultiple = limit.multipleOf !== undefined && pages % limit.multipleOf !== 0;
+        return tooFew || tooMany || notMultiple;
+      })
+      .map(function (limit) { return t(limit.hintKey); });
+    const pageError = violatedHints.join(" / ");
+    originalPagesInput.setCustomValidity(pageError);
+    originalPagesError.textContent = pageError;
+    originalPagesInput.closest(".field").classList.toggle("invalid", !!pageError);
+
+    finishingDynamicHint.textContent = isExam
+      ? t("field.finishingMethod.examLocked")
+      : (needsDoubleSide ? t("field.finishingMethod.saddleStitchForcesDouble") : "");
+
+    renderCalc();
+  }
+
+  documentTypeInputs.forEach(function (input) { input.addEventListener("change", renderFinishingConstraints); });
+  finishingMethodInputs.forEach(function (input) { input.addEventListener("change", renderFinishingConstraints); });
+  printSideInputs.forEach(function (input) { input.addEventListener("change", renderFinishingConstraints); });
+  originalPagesInput.addEventListener("input", renderFinishingConstraints);
+  document.addEventListener("odprs:langchange", renderFinishingConstraints);
+
+  // ---------- Copy Label (FR-18) ----------
+  const copyLabelToggle = document.getElementById("copy-label-toggle");
+  const copyLabelFields = document.getElementById("copy-label-fields");
+  const copyLabelPrefix = document.getElementById("copy-label-prefix");
+  const copyLabelStart = document.getElementById("copy-label-start");
+  const copyLabelPreview = document.getElementById("copy-label-preview");
+
+  function renderCopyLabel() {
+    const enabled = copyLabelToggle.checked;
+    copyLabelFields.style.display = enabled ? "flex" : "none";
+    copyLabelPrefix.disabled = !enabled;
+    copyLabelStart.disabled = !enabled;
+    copyLabelStart.required = enabled;
+
+    if (!enabled) {
+      copyLabelPreview.textContent = "";
+      return;
+    }
+
+    const copies = parseInt(copiesInput.value, 10) || 0;
+    const start = parseInt(copyLabelStart.value, 10);
+    const prefix = copyLabelPrefix.value || "";
+
+    if (!copies || !start && start !== 0) {
+      copyLabelPreview.textContent = "";
+      return;
+    }
+
+    const end = start + copies - 1;
+    copyLabelPreview.textContent = t("field.copyLabel.preview").replace("{range}", `${prefix}${start} – ${prefix}${end}`);
+  }
+
+  copyLabelToggle.addEventListener("change", renderCopyLabel);
+  copyLabelPrefix.addEventListener("input", renderCopyLabel);
+  copyLabelStart.addEventListener("input", renderCopyLabel);
+  copiesInput.addEventListener("input", renderCopyLabel);
+
+  document.addEventListener("odprs:langchange", function () {
+    renderCalc();
+    renderCopyLabel();
+  });
+
+  renderPaperSource();
+  renderCalc();
+  renderFinishingConstraints();
+  renderCopyLabel();
+
+  const submissionDate = new Date();
+  const minDate = minCompletionDate(submissionDate);
+  const dateInput = document.getElementById("completion-date");
+  const datePreview = document.getElementById("date-preview");
+  const dateField = document.getElementById("date-field");
+  const dateHint = document.getElementById("date-hint");
+  const submitBtn = document.getElementById("submit-btn");
+
+  dateInput.min = toDateInputValue(minDate);
+
+  function renderDateHint() {
+    const lang = getLang();
+    dateHint.textContent = lang === "en"
+      ? `Must be on or after ${formatDate(minDate, lang)}, at least 3 business days after submission, and a business day (Mon-Fri, not Sat/Sun). Counter hours are 09:00-15:00.`
+      : `ต้องเป็นวันที่ตั้งแต่ ${formatDate(minDate, lang)} เป็นต้นไป อย่างน้อย 3 วันทำการหลังวันส่งคำขอ และต้องเป็นวันทำการ (จันทร์-ศุกร์ ไม่ใช่เสาร์-อาทิตย์) เจ้าหน้าที่ให้บริการเวลา 09:00-15:00 น.`;
+  }
+  renderDateHint();
+
+  function renderDatePreview() {
+    const lang = getLang();
+    if (!dateInput.value) { datePreview.textContent = ""; return; }
+    const [y, m, d] = dateInput.value.split("-").map(Number);
+    const label = lang === "en" ? "Selected" : "วันที่เลือก";
+    datePreview.textContent = `${label}: ${formatDate(new Date(y, m - 1, d), lang)}`;
+  }
+
+  const dateError = document.getElementById("date-error");
+
+  function validateDate() {
+    if (!dateInput.value) {
+      dateField.classList.remove("invalid");
+      submitBtn.disabled = true;
+      return false;
+    }
+    const chosen = new Date(dateInput.value + "T00:00:00");
+    const min = new Date(toDateInputValue(minDate) + "T00:00:00");
+    const isWeekend = !isBusinessDay(chosen);
+    const tooSoon = chosen < min;
+    const valid = !tooSoon && !isWeekend;
+    dateField.classList.toggle("invalid", !valid);
+    submitBtn.disabled = !valid;
+    dateError.textContent = isWeekend ? t("field.completionDate.weekendError") : t("field.completionDate.error");
+    return valid;
+  }
+
+  dateInput.addEventListener("change", function () {
+    validateDate();
+    renderDatePreview();
+  });
+  dateInput.addEventListener("input", function () {
+    validateDate();
+    renderDatePreview();
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    renderDateHint();
+    renderDatePreview();
+    validateDate();
+  });
+
+  document.getElementById("request-form").addEventListener("submit", function (e) {
+    if (!validateDate() || !this.checkValidity()) {
+      e.preventDefault();
+      this.reportValidity();
+    }
+  });
+</script>
+</body>
+</html>

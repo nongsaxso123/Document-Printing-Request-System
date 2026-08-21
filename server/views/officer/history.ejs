@@ -1,0 +1,278 @@
+<%- include("../partials/head", { title: "ODPRS — ประวัติคำขอทั้งหมด" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.history", crumbFallback: 'ประวัติคำขอทั้งหมด / <strong>ภาพรวม</strong>' }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="history.title">ประวัติคำขอทั้งหมด</h1>
+    <p class="page-subtitle" data-i18n="history.subtitle">ค้นหาและตรวจสอบคำขอทุกรายการในระบบ ไม่ว่าจะอยู่สถานะใด</p>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label data-i18n="history.searchLabel">ค้นหา</label>
+            <input type="text" id="search-input" data-i18n-placeholder="history.searchPlaceholder"
+                   placeholder="RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code">
+          </div>
+          <div class="field">
+            <label data-i18n="history.filterStatus">สถานะ</label>
+            <select id="status-filter">
+              <option value="" data-i18n="history.filterStatus.all">ทุกสถานะ</option>
+              <option value="awaiting" data-i18n="status.awaiting">รอส่งเอกสารต้นฉบับ</option>
+              <option value="printing" data-i18n="status.printing">กำลังปริ้น</option>
+              <option value="ready" data-i18n="status.ready">พร้อมส่งมอบ</option>
+              <option value="completed" data-i18n="status.completed">เสร็จสมบูรณ์</option>
+              <option value="rejected" data-i18n="status.rejected">ถูกปฏิเสธ</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="history.filterAgency">ประเภทหน่วยงาน</label>
+            <select id="agency-filter"></select>
+          </div>
+          <div class="field">
+            <label data-i18n="history.filterYear">ปีที่ส่งคำขอ</label>
+            <select id="year-filter"></select>
+          </div>
+          <div class="field">
+            <label data-i18n="history.filterMonth">เดือนที่ส่งคำขอ</label>
+            <select id="month-filter"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span id="result-count"></span>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;">
+          <span data-i18n="history.rowsPerPage">แสดงต่อหน้า</span>
+          <select id="page-size-select" style="padding:6px 10px; border:1px solid var(--color-border); border-radius:8px; font-family:var(--font-family); font-size:13px;">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="history.th.ref">เลขอ้างอิง / RUN NUMBER</th>
+              <th data-i18n="history.th.requester">ผู้ขอ</th>
+              <th data-i18n="history.th.agency">หน่วยงาน</th>
+              <th data-i18n="history.th.item">รายการ</th>
+              <th data-i18n="history.th.submitted">วันที่ส่งคำขอ</th>
+              <th data-i18n="history.th.status">สถานะ</th>
+              <th data-i18n="history.th.officer">เจ้าหน้าที่ผู้ดำเนินการ</th>
+              <th data-i18n="history.th.form">ใบคำขอ</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+      <div class="card-body" style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--color-border);">
+        <span id="page-info" style="font-size:13px; color:var(--color-muted);"></span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" id="prev-page-btn" data-i18n="history.prevPage">‹ ก่อนหน้า</button>
+          <button class="btn btn-secondary" id="next-page-btn" data-i18n="history.nextPage">ถัดไป ›</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const searchInput = document.getElementById("search-input");
+  const statusFilter = document.getElementById("status-filter");
+  const agencyFilter = document.getElementById("agency-filter");
+  const yearFilter = document.getElementById("year-filter");
+  const monthFilter = document.getElementById("month-filter");
+
+  let allRequests = [];
+
+  async function loadRequests() {
+    const res = await fetch("/api/requests");
+    allRequests = await res.json();
+  }
+
+  function renderAgencyFilterOptions() {
+    const lang = getLang();
+    const previous = agencyFilter.value;
+    agencyFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("history.filterAgency.all");
+    agencyFilter.appendChild(allOpt);
+
+    Object.keys(AGENCY_DATA).forEach(function (category) {
+      const opt = document.createElement("option");
+      opt.value = category;
+      opt.textContent = lang === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
+      agencyFilter.appendChild(opt);
+    });
+
+    agencyFilter.value = previous;
+  }
+
+  function renderYearFilterOptions() {
+    const lang = getLang();
+    const previous = yearFilter.value;
+    yearFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("history.filterYear.all");
+    yearFilter.appendChild(allOpt);
+
+    const years = Array.from(new Set(allRequests.map(function (r) {
+      return new Date(r.submissionDate).getFullYear();
+    }))).sort(function (a, b) { return b - a; });
+
+    years.forEach(function (year) {
+      const opt = document.createElement("option");
+      opt.value = String(year);
+      opt.textContent = lang === "en" ? String(year) : String(year + 543);
+      yearFilter.appendChild(opt);
+    });
+
+    yearFilter.value = previous;
+  }
+
+  function renderMonthFilterOptions() {
+    const lang = getLang();
+    const previous = monthFilter.value;
+    monthFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("history.filterMonth.all");
+    monthFilter.appendChild(allOpt);
+
+    const months = lang === "en" ? ENG_MONTHS : THAI_MONTHS;
+    months.forEach(function (label, index) {
+      const opt = document.createElement("option");
+      opt.value = String(index);
+      opt.textContent = label;
+      monthFilter.appendChild(opt);
+    });
+
+    monthFilter.value = previous;
+  }
+
+  function matchesSearch(record, query) {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return [record.referenceNo, record.runNumber, record.requesterName, record.receiverName, record.claimCode, record.reviewedByOfficer, record.handedOverByOfficer]
+      .some(function (v) { return v && v.toLowerCase().indexOf(q) !== -1; });
+  }
+
+  const pageSizeSelect = document.getElementById("page-size-select");
+  const prevPageBtn = document.getElementById("prev-page-btn");
+  const nextPageBtn = document.getElementById("next-page-btn");
+  let currentPage = 1;
+
+  function renderHistory() {
+    const lang = getLang();
+    const query = searchInput.value.trim();
+
+    const records = allRequests
+      .filter(function (r) { return !statusFilter.value || r.statusCode === statusFilter.value; })
+      .filter(function (r) { return !agencyFilter.value || r.agencyCategory === agencyFilter.value; })
+      .filter(function (r) { return !yearFilter.value || new Date(r.submissionDate).getFullYear() === Number(yearFilter.value); })
+      .filter(function (r) { return monthFilter.value === "" || new Date(r.submissionDate).getMonth() === Number(monthFilter.value); })
+      .filter(function (r) { return matchesSearch(r, query); })
+      .sort(function (a, b) { return new Date(b.submissionDate) - new Date(a.submissionDate); });
+
+    const pageSize = Number(pageSizeSelect.value);
+    const total = records.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIdx = (currentPage - 1) * pageSize;
+    const pageRecords = records.slice(startIdx, startIdx + pageSize);
+    const from = total === 0 ? 0 : startIdx + 1;
+    const to = Math.min(startIdx + pageSize, total);
+
+    document.getElementById("result-count").textContent = t("history.resultCount")
+      .replace("{from}", from).replace("{to}", to).replace("{total}", total);
+    document.getElementById("page-info").textContent = t("history.pageInfo")
+      .replace("{page}", currentPage).replace("{pages}", totalPages);
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+
+    const tbody = document.getElementById("history-body");
+
+    if (pageRecords.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">' + t("history.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = pageRecords.map(function (r) {
+      const agencyLabel = lang === "en" ? (AGENCY_CATEGORY_EN[r.agencyCategory] || r.agencyCategory) : r.agencyCategory;
+      const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
+      const officerLabel = r.handedOverByOfficer || r.reviewedByOfficer || "—";
+
+      return '<tr data-ref="' + r.referenceNo + '">' +
+        '<td>' + idLabel + '</td>' +
+        '<td>' + r.requesterName + '</td>' +
+        '<td>' + agencyLabel + '</td>' +
+        '<td>' + r.itemList + '</td>' +
+        '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
+        '<td><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span></td>' +
+        '<td>' + officerLabel + '</td>' +
+        '<td><a class="btn btn-secondary" style="padding:6px 12px; font-size:13px;" href="request-form-view?ref=' + encodeURIComponent(r.referenceNo) + '" target="_blank">' +
+          '<span class="icon" data-icon="eye" style="width:14px; height:14px;"></span> ' + t("history.viewForm") +
+        '</a></td>' +
+        '</tr>';
+    }).join("");
+
+    tbody.querySelectorAll("tr[data-ref]").forEach(function (tr) {
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", function (e) {
+        if (e.target.closest("a")) return;
+        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref"));
+      });
+    });
+
+    applyIcons();
+  }
+
+  function onFilterChange() {
+    currentPage = 1;
+    renderHistory();
+  }
+
+  searchInput.addEventListener("input", onFilterChange);
+  statusFilter.addEventListener("change", onFilterChange);
+  agencyFilter.addEventListener("change", onFilterChange);
+  yearFilter.addEventListener("change", onFilterChange);
+  monthFilter.addEventListener("change", onFilterChange);
+  pageSizeSelect.addEventListener("change", onFilterChange);
+
+  prevPageBtn.addEventListener("click", function () {
+    currentPage -= 1;
+    renderHistory();
+  });
+  nextPageBtn.addEventListener("click", function () {
+    currentPage += 1;
+    renderHistory();
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    renderAgencyFilterOptions();
+    renderYearFilterOptions();
+    renderMonthFilterOptions();
+    renderHistory();
+  });
+
+  loadRequests().then(function () {
+    renderAgencyFilterOptions();
+    renderYearFilterOptions();
+    renderMonthFilterOptions();
+    renderHistory();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODPRS — คำขอของฉัน</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <aside class="app-sidebar">
+    <a class="brand" href="../index.html" title="กลับหน้าแรก">
+      <div class="mark">OD</div>
+      <div>
+        <div class="name">ODPRS</div>
+        <div class="sub" data-i18n="brand.sub">ฝ่ายทะเบียน · มฟล.</div>
+      </div>
+    </a>
+
+    <div class="nav-section-label" data-i18n="nav.section.requester">สำหรับผู้ขอ</div>
+    <a class="nav-item" href="new-request.html">
+      <span class="icon" data-icon="file-plus"></span> <span data-i18n="nav.newRequest">สร้างคำขอพิมพ์เอกสาร</span>
+    </a>
+    <a class="nav-item active" href="my-requests.html">
+      <span class="icon" data-icon="clipboard"></span> <span data-i18n="nav.myRequests">คำขอของฉัน</span>
+    </a>
+  </aside>
+
+  <header class="app-header">
+    <div class="crumb" data-i18n="crumb.myRequests">คำขอของฉัน / <strong>ภาพรวม</strong></div>
+    <div class="header-actions">
+      <div class="lang-toggle">
+        <span data-lang="en">EN</span> / <span data-lang="th" class="active">TH</span>
+      </div>
+      <div class="user-chip">
+        <div class="avatar">สจ</div>
+        <div class="who">
+          <span data-i18n="user.name">ดร. สมชาย ใจดี</span>
+          <small><span data-i18n="user.role.requester">ผู้ขอ</span> · somchai.j@mfu.ac.th</small>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="myRequests.title">คำขอของฉัน</h1>
+    <p class="page-subtitle" data-i18n="myRequests.subtitle">ติดตามสถานะคำขอพิมพ์เอกสารที่คุณส่งทั้งหมด</p>
+
+    <div class="card">
+      <div class="card-header">
+        <span data-i18n="myRequests.cardTitle">คำขอล่าสุด</span>
+        <a class="btn btn-primary" href="new-request.html" data-i18n="myRequests.newBtn">ขอพิมพ์เอกสาร</a>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="myRequests.th.ref">เลขอ้างอิง / RUN NUMBER</th>
+              <th data-i18n="myRequests.th.item">รายการ</th>
+              <th data-i18n="myRequests.th.submitted">วันที่ส่งคำขอ</th>
+              <th data-i18n="myRequests.th.completion">วันนัดรับ</th>
+              <th data-i18n="myRequests.th.status">สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>REQ-2026-00532</td>
+              <td data-i18n="row1.item">เอกสารประมวลรายวิชา (60 ชุด)</td>
+              <td data-i18n="row1.submitted">20 ก.ค. 2569, 09:15</td>
+              <td data-i18n="row1.completion">24 ก.ค. 2569</td>
+              <td><span class="badge badge-awaiting" data-i18n="status.awaiting">รอส่งเอกสารต้นฉบับ</span></td>
+            </tr>
+            <tr>
+              <td>RN-2026-00147</td>
+              <td data-i18n="row2.item">ข้อสอบ (30 ชุด)</td>
+              <td data-i18n="row2.submitted">15 ก.ค. 2569, 13:40</td>
+              <td data-i18n="row2.completion">20 ก.ค. 2569</td>
+              <td><span class="badge badge-printing" data-i18n="status.printing">กำลังปริ้น</span></td>
+            </tr>
+            <tr>
+              <td>RN-2026-00139</td>
+              <td data-i18n="row3.item">เอกสารประกอบการประชุม (15 ชุด)</td>
+              <td data-i18n="row3.submitted">10 ก.ค. 2569, 10:02</td>
+              <td data-i18n="row3.completion">15 ก.ค. 2569</td>
+              <td><span class="badge badge-ready" data-i18n="status.ready">พร้อมส่งมอบ</span></td>
+            </tr>
+            <tr>
+              <td>RN-2026-00120</td>
+              <td data-i18n="row4.item">เล่มประกาศนียบัตร (5 ชุด)</td>
+              <td data-i18n="row4.submitted">02 ก.ค. 2569, 08:50</td>
+              <td data-i18n="row4.completion">07 ก.ค. 2569</td>
+              <td><span class="badge badge-completed" data-i18n="status.completed">เสร็จสมบูรณ์</span></td>
+            </tr>
+            <tr>
+              <td>REQ-2026-00498</td>
+              <td data-i18n="row5.item">บันทึกข้อความภายใน (10 ชุด)</td>
+              <td data-i18n="row5.submitted">28 มิ.ย. 2569, 16:20</td>
+              <td data-i18n="row5.completion">03 ก.ค. 2569</td>
+              <td><span class="badge badge-rejected" data-i18n="status.rejected">ถูกปฏิเสธ</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script src="../assets/js/app.js"></script>
+</body>
+</html>

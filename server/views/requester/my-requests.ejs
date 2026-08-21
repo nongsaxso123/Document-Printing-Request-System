@@ -1,0 +1,81 @@
+<%- include("../partials/head", { title: "ODPRS — คำขอของฉัน" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.myRequests", crumbFallback: "คำขอของฉัน / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="myRequests.title">คำขอของฉัน</h1>
+    <p class="page-subtitle" data-i18n="myRequests.subtitle">ติดตามสถานะคำขอพิมพ์เอกสารที่คุณส่งทั้งหมด</p>
+
+    <div class="card">
+      <div class="card-header">
+        <span data-i18n="myRequests.cardTitle">คำขอล่าสุด</span>
+        <a class="btn btn-primary" href="/requester/new-request" data-i18n="myRequests.newBtn">ขอพิมพ์เอกสาร</a>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="myRequests.th.ref">เลขอ้างอิง / RUN NUMBER</th>
+              <th data-i18n="myRequests.th.item">รายการ</th>
+              <th data-i18n="myRequests.th.submitted">วันที่ส่งคำขอ</th>
+              <th data-i18n="myRequests.th.completion">วันนัดรับ</th>
+              <th data-i18n="myRequests.th.status">สถานะ</th>
+            </tr>
+          </thead>
+          <tbody id="my-requests-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  function renderRows(records) {
+    const lang = getLang();
+    const tbody = document.getElementById("my-requests-body");
+
+    if (records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("myRequests.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = records.map(function (r) {
+      const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
+      const completionLabel = r.completionDateConfirmed
+        ? formatDate(new Date(r.completionDateConfirmed + "T00:00:00"), lang)
+        : formatDate(new Date(r.completionDateProposed + "T00:00:00"), lang);
+
+      return '<tr data-ref="' + r.referenceNo + '">' +
+        '<td>' + idLabel + '</td>' +
+        '<td>' + r.itemList + '</td>' +
+        '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
+        '<td>' + completionLabel + '</td>' +
+        '<td><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span></td>' +
+        '</tr>';
+    }).join("");
+
+    tbody.querySelectorAll("tr[data-ref]").forEach(function (tr) {
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", function () {
+        window.location.href = "/requester/request-submitted/" + encodeURIComponent(this.getAttribute("data-ref"));
+      });
+    });
+  }
+
+  let myRequests = [];
+
+  async function loadMyRequests() {
+    const res = await fetch("/api/my-requests");
+    myRequests = await res.json();
+  }
+
+  document.addEventListener("odprs:langchange", function () {
+    renderRows(myRequests);
+  });
+
+  loadMyRequests().then(function () {
+    renderRows(myRequests);
+  });
+</script>
+</body>
+</html>

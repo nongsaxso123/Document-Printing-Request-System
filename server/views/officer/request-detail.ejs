@@ -1,0 +1,246 @@
+<%- include("../partials/head", { title: "ODPRS — รายละเอียดคำขอ" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.requestDetail", crumbFallback: 'คิวรอเอกสารต้นฉบับ / <strong>รายละเอียดคำขอ</strong>' }) %>
+
+  <main class="app-main">
+
+    <div id="not-found" style="display:none;">
+      <h1 class="page-title" data-i18n="detail.notFound">ไม่พบคำขอนี้</h1>
+      <a class="btn btn-secondary" href="/officer/queue" data-i18n="detail.backToQueue">กลับไปที่คิว</a>
+    </div>
+
+    <div id="detail-content" style="display:none;">
+      <h1 class="page-title" id="d-title">—</h1>
+      <p class="page-subtitle" data-i18n="detail.compareNotice">เทียบรายการด้านล่างกับเอกสารต้นฉบับและใบคำขอที่ผู้ขอนำมาส่งจริงที่เคาน์เตอร์</p>
+
+      <div class="card">
+        <div class="card-header"><span data-i18n="detail.specTitle">รายละเอียดคำขอที่ผู้ขอส่งไว้ในระบบ</span></div>
+        <div class="card-body">
+          <dl class="summary-list">
+            <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd id="d-name">—</dd>
+            <dt data-i18n="summary.agencyCategory">ประเภทหน่วยงาน</dt><dd id="d-agency-category">—</dd>
+            <dt data-i18n="summary.agencyUnit">หน่วยงาน</dt><dd id="d-agency-unit">—</dd>
+            <dt data-i18n="summary.tel">เบอร์โทรศัพท์</dt><dd id="d-tel">—</dd>
+            <dt data-i18n="summary.documentType">ประเภทเอกสาร</dt><dd id="d-documenttype">—</dd>
+            <dt data-i18n="summary.paperSize">ขนาดกระดาษ</dt><dd id="d-papersize">—</dd>
+            <dt data-i18n="summary.colorMode">โหมดสี</dt><dd id="d-colormode">—</dd>
+            <dt data-i18n="summary.printSide">รูปแบบการพิมพ์ (หน้า)</dt><dd id="d-printside">—</dd>
+            <dt data-i18n="summary.finishingMethod">งานตกแต่ง / การเข้าเล่ม</dt><dd id="d-finishing">—</dd>
+            <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="d-itemlist">—</dd>
+            <dt data-i18n="summary.pages">จำนวนหน้าต้นฉบับ</dt><dd id="d-pages">—</dd>
+            <dt data-i18n="summary.copies">จำนวนชุด</dt><dd id="d-copies">—</dd>
+            <dt data-i18n="summary.totalPages">จำนวนหน้าที่ต้องพิมพ์ทั้งหมด (หน้าต้นฉบับ × จำนวนชุด)</dt><dd id="d-totalpages">—</dd>
+            <dt data-i18n="newRequest.calc.totalSheets">จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด</dt><dd id="d-totalsheets">—</dd>
+            <dt data-i18n="summary.paperSource">การจัดเตรียมกระดาษ</dt><dd id="d-paperresponsibility">—</dd>
+            <dt data-i18n="summary.copyLabel">เลขรันประจำชุด (Copy Label)</dt><dd id="d-copylabel">—</dd>
+            <dt data-i18n="summary.submitted">วันที่ส่งคำขอ</dt><dd id="d-submitted">—</dd>
+            <dt data-i18n="summary.completion">วันที่ต้องการรับเอกสาร</dt><dd id="d-completion">—</dd>
+            <dt data-i18n="summary.status">สถานะ</dt><dd><span class="badge" id="d-status">—</span></dd>
+          </dl>
+        </div>
+      </div>
+
+      <div id="action-panels">
+        <div class="card">
+          <div class="card-header"><span data-i18n="detail.approveTitle">อนุมัติและรับต้นฉบับ</span></div>
+          <div class="card-body">
+            <p class="page-subtitle" style="margin-bottom:14px;" data-i18n="detail.approveHint">ยืนยันหรือปรับวันที่รับเอกสารจริง ระบบจะออก RUN NUMBER และ Claim Code ทันที</p>
+            <div class="form-grid">
+              <div class="field">
+                <label data-i18n="detail.confirmDateLabel">วันที่รับเอกสารจริง (ยืนยัน/ปรับ)</label>
+                <input type="date" id="confirm-date">
+              </div>
+            </div>
+            <div class="form-actions" style="justify-content:flex-start; margin-top:14px;">
+              <button class="btn btn-primary" id="approve-btn" data-i18n="detail.approveBtn">อนุมัติและรับต้นฉบับ</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span data-i18n="detail.rejectTitle">ปฏิเสธคำขอ</span></div>
+          <div class="card-body">
+            <p class="page-subtitle" style="margin-bottom:14px;" data-i18n="detail.rejectHint">ใช้เมื่อเอกสารต้นฉบับไม่ตรงกับสเปกที่ยื่นไว้ในระบบ</p>
+            <div class="field" id="reject-field">
+              <label data-i18n="detail.rejectReasonLabel">เหตุผลที่ปฏิเสธ *</label>
+              <textarea id="reject-reason" data-i18n-placeholder="detail.rejectReasonPlaceholder" placeholder="เช่น จำนวนหน้าต้นฉบับไม่ตรงกับที่ระบุไว้"></textarea>
+              <span class="field-error" data-i18n="detail.rejectReasonRequired">กรุณาระบุเหตุผลที่ปฏิเสธ</span>
+            </div>
+            <div class="form-actions" style="justify-content:flex-start; margin-top:6px;">
+              <button class="btn btn-danger" id="reject-btn" data-i18n="detail.rejectBtn">ปฏิเสธคำขอ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notice notice-success" id="approved-result" style="display:none;">
+        <span class="icon" data-icon="check-circle"></span>
+        <div>
+          <div data-i18n="detail.approvedNotice">อนุมัติคำขอเรียบร้อย — RUN NUMBER และ Claim Code ด้านล่างนี้ (ระบบจริงจะส่งอีเมลนี้ให้ผู้ขอทันที)</div>
+          <div style="margin-top:8px;">
+            <strong data-i18n="detail.runNumberLabel">RUN NUMBER</strong>: <span id="d-runno"></span>
+            <button type="button" class="copy-btn" data-copy-target="d-runno" data-i18n-title="detail.copyBtn" title="Copy">
+              <span class="icon" data-icon="copy"></span>
+            </button>
+            &nbsp;&nbsp;
+            <strong data-i18n="detail.claimCodeLabel">Claim Code</strong>: <span id="d-claimcode"></span>
+            <button type="button" class="copy-btn" data-copy-target="d-claimcode" data-i18n-title="detail.copyBtn" title="Copy">
+              <span class="icon" data-icon="copy"></span>
+            </button>
+          </div>
+          <div style="margin-top:4px;"><strong data-i18n="detail.reviewedByLabel">ดำเนินการโดย (เจ้าหน้าที่)</strong>: <span id="d-reviewed-by"></span></div>
+        </div>
+      </div>
+
+      <div class="notice notice-warning" id="rejected-result" style="display:none;">
+        <span class="icon" data-icon="x-circle"></span>
+        <div>
+          <div data-i18n="detail.rejectedNotice">ปฏิเสธคำขอเรียบร้อย (ระบบจริงจะส่งอีเมลแจ้งเหตุผลให้ผู้ขอทันที)</div>
+          <div style="margin-top:8px;"><strong data-i18n="detail.rejectionReasonLabel">เหตุผลที่ปฏิเสธ</strong>: <span id="d-rejection-reason"></span></div>
+          <div style="margin-top:4px;"><strong data-i18n="detail.reviewedByLabel">ดำเนินการโดย (เจ้าหน้าที่)</strong>: <span id="d-reviewed-by-rejected"></span></div>
+        </div>
+      </div>
+
+      <div class="notice notice-success" id="completed-result" style="display:none;">
+        <span class="icon" data-icon="user-check"></span>
+        <div>
+          <div data-i18n="detail.completedNotice">ส่งมอบเอกสารให้ผู้รับเรียบร้อยแล้ว</div>
+          <div style="margin-top:8px;">
+            <strong data-i18n="detail.receiverNameLabel">ผู้รับเอกสาร</strong>: <span id="d-receiver-name"></span>
+            &nbsp;&nbsp;
+            <strong data-i18n="detail.receiverIdLabel">ข้อมูลยืนยันตัวตนผู้รับ</strong>: <span id="d-receiver-id"></span>
+          </div>
+          <div style="margin-top:4px;"><strong data-i18n="detail.handedOverByLabel">ตรวจรับ/ส่งมอบโดย (เจ้าหน้าที่)</strong>: <span id="d-handed-over-by"></span></div>
+          <div style="margin-top:4px;">
+            <strong data-i18n="detail.completedTimestampLabel">วันเวลาที่ส่งมอบสำเร็จ</strong>: <span id="d-completed-timestamp"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a class="btn btn-secondary" href="/officer/queue" data-i18n="detail.backToQueue">กลับไปที่คิว</a>
+      </div>
+    </div>
+
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const refNo = new URLSearchParams(window.location.search).get("ref");
+  let record = null;
+
+  async function fetchRecord() {
+    if (!refNo) { record = null; return; }
+    const res = await fetch("/api/requests/" + encodeURIComponent(refNo));
+    record = res.ok ? await res.json() : null;
+  }
+
+  function render() {
+    const lang = getLang();
+
+    if (!record) {
+      document.getElementById("not-found").style.display = "block";
+      document.getElementById("detail-content").style.display = "none";
+      return;
+    }
+    document.getElementById("not-found").style.display = "none";
+    document.getElementById("detail-content").style.display = "block";
+
+    document.getElementById("d-title").textContent = record.runNumber
+      ? record.runNumber + " (" + record.referenceNo + ")"
+      : record.referenceNo;
+
+    document.getElementById("d-name").textContent = record.requesterName;
+    document.getElementById("d-agency-category").textContent = lang === "en"
+      ? (AGENCY_CATEGORY_EN[record.agencyCategory] || record.agencyCategory)
+      : record.agencyCategory;
+    document.getElementById("d-agency-unit").textContent = record.agencyUnit;
+    document.getElementById("d-tel").textContent = record.tel;
+    document.getElementById("d-documenttype").textContent = translateValue(record.documentType);
+    document.getElementById("d-papersize").textContent = translateValue(record.paperSize);
+    document.getElementById("d-colormode").textContent = translateValue(record.colorMode);
+    document.getElementById("d-printside").textContent = translateValue(record.printSide);
+    document.getElementById("d-finishing").textContent = translateList(record.finishing);
+    document.getElementById("d-itemlist").textContent = record.itemList;
+    document.getElementById("d-pages").textContent = record.originalPages;
+    document.getElementById("d-copies").textContent = record.copies;
+    const numFmt = lang === "en" ? "en-US" : "th-TH";
+    document.getElementById("d-totalpages").textContent = (Number(record.originalPages) * Number(record.copies)).toLocaleString(numFmt);
+    const totalSheets = computeTotalSheets(record.originalPages, record.copies, record.printSide);
+    document.getElementById("d-totalsheets").textContent = totalSheets.toLocaleString(numFmt);
+    document.getElementById("d-paperresponsibility").textContent = paperResponsibilityText(record.paperSource, totalSheets, lang);
+    const copyLabelRange = record.copyLabelEnabled ? copyLabelRangeText(record.copyLabelPrefix, record.copyLabelStart, record.copies) : null;
+    document.getElementById("d-copylabel").textContent = copyLabelRange || t("option.none");
+    document.getElementById("d-submitted").textContent = formatDateTime(new Date(record.submissionDate), lang);
+    document.getElementById("d-completion").textContent = formatDate(new Date(record.completionDateProposed + "T00:00:00"), lang);
+
+    const statusEl = document.getElementById("d-status");
+    statusEl.textContent = t("status." + record.statusCode);
+    statusEl.className = "badge badge-" + record.statusCode;
+
+    const isAwaiting = record.statusCode === "awaiting";
+    const isCompleted = record.statusCode === "completed";
+    document.getElementById("action-panels").style.display = isAwaiting ? "block" : "none";
+    document.getElementById("approved-result").style.display = (!isAwaiting && record.statusCode !== "rejected") ? "block" : "none";
+    document.getElementById("rejected-result").style.display = record.statusCode === "rejected" ? "block" : "none";
+    document.getElementById("completed-result").style.display = isCompleted ? "block" : "none";
+
+    if (isAwaiting) {
+      document.getElementById("confirm-date").value = record.completionDateConfirmed || record.completionDateProposed;
+    }
+    if (record.runNumber) {
+      document.getElementById("d-runno").textContent = record.runNumber;
+      document.getElementById("d-claimcode").textContent = record.claimCode;
+      document.getElementById("d-reviewed-by").textContent = record.reviewedByOfficer || "—";
+    }
+    if (record.statusCode === "rejected") {
+      document.getElementById("d-rejection-reason").textContent = record.rejectionReason;
+      document.getElementById("d-reviewed-by-rejected").textContent = record.reviewedByOfficer || "—";
+    }
+    if (isCompleted) {
+      document.getElementById("d-receiver-name").textContent = record.receiverName;
+      document.getElementById("d-receiver-id").textContent = record.receiverIdInfo;
+      document.getElementById("d-completed-timestamp").textContent = formatDateTime(new Date(record.completedTimestamp), lang);
+      document.getElementById("d-handed-over-by").textContent = record.handedOverByOfficer || "—";
+    }
+    applyIcons();
+  }
+
+  document.getElementById("approve-btn").addEventListener("click", async function () {
+    const confirmedDate = document.getElementById("confirm-date").value;
+    if (!confirmedDate || !record) return;
+
+    const res = await fetch("/api/requests/" + encodeURIComponent(record.referenceNo) + "/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmedDate: confirmedDate })
+    });
+    record = await res.json();
+    render();
+  });
+
+  document.getElementById("reject-btn").addEventListener("click", async function () {
+    const reasonField = document.getElementById("reject-field");
+    const reason = document.getElementById("reject-reason").value.trim();
+
+    if (!reason) {
+      reasonField.classList.add("invalid");
+      return;
+    }
+    reasonField.classList.remove("invalid");
+    if (!record) return;
+
+    const res = await fetch("/api/requests/" + encodeURIComponent(record.referenceNo) + "/reject", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: reason })
+    });
+    record = await res.json();
+    render();
+  });
+
+  document.addEventListener("odprs:langchange", render);
+  fetchRecord().then(render);
+</script>
+</body>
+</html>

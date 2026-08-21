@@ -1,0 +1,67 @@
+<aside class="app-sidebar">
+  <a class="brand" href="/" title="กลับหน้าแรก">
+    <div class="mark">OD</div>
+    <div>
+      <div class="name">ODPRS</div>
+      <div class="sub" data-i18n="brand.sub">ฝ่ายทะเบียน · มฟล.</div>
+    </div>
+  </a>
+
+  <% if (user.role === "Requester" || user.role === "Admin") { %>
+  <div class="nav-section" data-nav-section="requester">
+    <button type="button" class="nav-section-label">
+      <span data-i18n="nav.section.requester">สำหรับผู้ขอ</span>
+      <span class="icon chevron" data-icon="chevron-down"></span>
+    </button>
+    <div class="nav-section-items">
+      <a class="nav-item <%= active === "myRequests" ? "active" : "" %>" href="/requester/my-requests">
+        <span class="icon" data-icon="clipboard"></span> <span data-i18n="nav.myRequests">คำขอของฉัน</span>
+      </a>
+      <a class="nav-item <%= active === "newRequest" ? "active" : "" %>" href="/requester/new-request">
+        <span class="icon" data-icon="file-plus"></span> <span data-i18n="nav.newRequest">สร้างคำขอพิมพ์เอกสาร</span>
+      </a>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (user.role === "Officer" || user.role === "Admin") { %>
+  <div class="nav-section" data-nav-section="officer">
+    <button type="button" class="nav-section-label">
+      <span data-i18n="nav.section.officer">สำหรับเจ้าหน้าที่</span>
+      <span class="icon chevron" data-icon="chevron-down"></span>
+    </button>
+    <div class="nav-section-items">
+      <a class="nav-item <%= active === "queue" ? "active" : "" %>" href="/officer/queue">
+        <span class="icon" data-icon="inbox"></span> <span data-i18n="nav.officerQueue">คิวรอเอกสารต้นฉบับ</span>
+      </a>
+      <a class="nav-item <%= active === "printing" ? "active" : "" %>" href="/officer/printing-jobs">
+        <span class="icon" data-icon="printer"></span> <span data-i18n="nav.printingJobs">งานที่กำลังปริ้น</span>
+      </a>
+      <a class="nav-item <%= active === "handover" ? "active" : "" %>" href="/officer/counter-handover">
+        <span class="icon" data-icon="user-check"></span> <span data-i18n="nav.counterHandover">จุดส่งมอบเอกสาร</span>
+      </a>
+      <a class="nav-item <%= active === "history" ? "active" : "" %>" href="/officer/history">
+        <span class="icon" data-icon="archive"></span> <span data-i18n="nav.history">ประวัติคำขอทั้งหมด</span>
+      </a>
+      <div class="nav-item-divider"></div>
+      <a class="nav-item <%= active === "dashboard" ? "active" : "" %>" href="/officer/dashboard">
+        <span class="icon" data-icon="bar-chart"></span> <span data-i18n="nav.dashboard">แดชบอร์ดสรุปข้อมูล</span>
+      </a>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (user.role === "Admin") { %>
+  <div class="nav-section" data-nav-section="admin">
+    <button type="button" class="nav-section-label">
+      <span data-i18n="nav.section.admin">สำหรับผู้ดูแลระบบ</span>
+      <span class="icon chevron" data-icon="chevron-down"></span>
+    </button>
+    <div class="nav-section-items">
+      <a class="nav-item <%= active === "admin" ? "active" : "" %>" href="/admin/officers">
+        <span class="icon" data-icon="users"></span> <span data-i18n="nav.adminOfficers">จัดการบัญชีเจ้าหน้าที่</span>
+      </a>
+    </div>
+  </div>
+  <% } %>
+</aside>
