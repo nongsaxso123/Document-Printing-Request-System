@@ -16,3 +16,19 @@ desktop.ini
 
 # Docker
 *.pid
+
+# Non-code project artifacts — kept locally, not tracked in GitHub
+# (source code + document printing request form.jpg only)
+/DEPLOYMENT_HANDOFF_CHECKLIST.md
+/ODPRS Printing Request Workflow.jpg
+/ODPRS_Project_Summary_TH.docx
+/ODPRS_Project_TH.pdf
+/Requirements.txt
+/SRS_DocPrintingReqForm_6531503080.docx
+/SRS_DocPrintingReqForm_6531503080.pdf
+/SRS_DocPrintingReqForm_6531503080_backup_before_v0.4.docx
+/Todo8.6.2026.txt
+/file.md
+/stacks.txt
+/prototype/
+/ref/
