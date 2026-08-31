@@ -141,7 +141,9 @@ async function main() {
       handedOverByOfficerEmail: "prasert.s@mfu.ac.th",
       handedOverByOfficerName: "คุณประเสริฐ ศักดิ์สิทธิ์",
       receiverName: "สมชาย ใจดี",
-      receiverIdInfo: "บัตรประชาชน 1-XXXX-XXXXX-XX-X",
+      receiverPosition: "เจ้าหน้าที่ธุรการ",
+      receiverWorkplace: "สำนักวิชาศิลปศาสตร์",
+      receiverWorkPhone: "053-916-123",
       completedTimestamp: addDays(now, -4)
     },
     {

@@ -121,8 +121,14 @@ model Request {
 
   rejectionReason String? @map("rejection_reason") @db.Text
 
-  receiverName   String? @map("receiver_name")
-  receiverIdInfo String? @map("receiver_id_info")
+  // Accountability record only, not identity verification — no physical ID
+  // is inspected at handover (see file.md FR-14 / Appendix A). Workplace is
+  // free text (not the Requester's own agency dropdown) since the Receiver
+  // may be an outside third party, e.g. a TA.
+  receiverName       String? @map("receiver_name")
+  receiverPosition   String? @map("receiver_position")
+  receiverWorkplace  String? @map("receiver_workplace")
+  receiverWorkPhone  String? @map("receiver_work_phone")
 
   completedTimestamp DateTime? @map("completed_timestamp")
 

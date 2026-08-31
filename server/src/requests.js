@@ -129,7 +129,9 @@ function toClientJSON(r) {
     reviewedByOfficer: r.reviewedByOfficerName,
     handedOverByOfficer: r.handedOverByOfficerName,
     receiverName: r.receiverName,
-    receiverIdInfo: r.receiverIdInfo,
+    receiverPosition: r.receiverPosition,
+    receiverWorkplace: r.receiverWorkplace,
+    receiverWorkPhone: r.receiverWorkPhone,
     completedTimestamp: r.completedTimestamp ? r.completedTimestamp.toISOString() : null
   };
 }
@@ -348,8 +350,9 @@ async function markReady(ref) {
   return toClientJSON(updated);
 }
 
-// FR-14 — Verify Claim Code + physical ID, confirm handover.
-async function handover(ref, { receiverName, receiverIdInfo, officerEmail, officerName }) {
+// FR-14 — Record Receiver name/position/work phone (accountability record,
+// not an identity check — no physical ID is inspected), confirm handover.
+async function handover(ref, { receiverName, receiverPosition, receiverWorkplace, receiverWorkPhone, officerEmail, officerName }) {
   const existing = await prisma.request.findUnique({ where: { requestReferenceNo: ref } });
   if (!existing || existing.status !== "READY_FOR_PICKUP") return null;
 
@@ -358,7 +361,9 @@ async function handover(ref, { receiverName, receiverIdInfo, officerEmail, offic
     data: {
       status: "COMPLETED",
       receiverName,
-      receiverIdInfo,
+      receiverPosition,
+      receiverWorkplace,
+      receiverWorkPhone,
       completedTimestamp: new Date(),
       handedOverByOfficerEmail: officerEmail,
       handedOverByOfficerName: officerName

@@ -73,7 +73,9 @@ router.post("/requests/:ref/handover", async (req, res, next) => {
   try {
     const updated = await requests.handover(req.params.ref, {
       receiverName: req.body.receiverName,
-      receiverIdInfo: req.body.receiverIdInfo,
+      receiverPosition: req.body.receiverPosition,
+      receiverWorkplace: req.body.receiverWorkplace,
+      receiverWorkPhone: req.body.receiverWorkPhone,
       officerEmail: req.user.email,
       officerName: req.user.name
     });

@@ -4,7 +4,7 @@
 
   <main class="app-main">
     <h1 class="page-title" data-i18n="handover.title">จุดส่งมอบเอกสาร</h1>
-    <p class="page-subtitle" data-i18n="handover.subtitle">ตรวจสอบ Claim Code และบัตรประชาชนของผู้รับก่อนยืนยันส่งมอบ</p>
+    <p class="page-subtitle" data-i18n="handover.subtitle">ตรวจสอบ Claim Code และบันทึกข้อมูลผู้รับก่อนยืนยันส่งมอบ</p>
 
     <div class="card">
       <div class="card-header"><span data-i18n="handover.searchTitle">ค้นหาด้วย Claim Code</span></div>
@@ -27,7 +27,7 @@
     </div>
 
     <div class="card" id="handover-result" style="display:none;">
-      <div class="card-header"><span data-i18n="handover.matchTitle">พบคำขอที่ตรงกัน — ตรวจสอบบัตรประชาชนก่อนส่งมอบ</span></div>
+      <div class="card-header"><span data-i18n="handover.matchTitle">พบคำขอที่ตรงกัน — บันทึกข้อมูลผู้รับก่อนส่งมอบ</span></div>
       <div class="card-body">
         <dl class="summary-list">
           <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd id="h-name">—</dd>
@@ -35,22 +35,43 @@
           <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="h-items">—</dd>
         </dl>
 
-        <div class="form-grid" style="margin-top:20px;">
-          <div class="field" id="receiver-name-field">
-            <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
-            <input type="text" id="receiver-name">
-            <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
-          </div>
-          <div class="field" id="receiver-id-field">
-            <label data-i18n="handover.receiverId">เลขบัตรประชาชน / ข้อมูลยืนยันตัวตน *</label>
-            <input type="text" id="receiver-id">
-            <span class="field-error" data-i18n="handover.receiverId.required">กรุณากรอกข้อมูลยืนยันตัวตน</span>
-          </div>
+        <span class="hint" data-i18n="handover.receiverInfo.hint">ข้อมูลนี้เป็นบันทึกความรับผิดชอบว่าใครเป็นผู้รับเอกสาร ไม่ใช่การตรวจสอบยืนยันตัวตน — ไม่ต้องตรวจบัตรประชาชน</span>
+
+        <div class="form-actions" style="justify-content:flex-start; margin-top:10px;">
+          <button type="button" class="btn btn-secondary" id="same-as-requester-btn" data-i18n="handover.sameAsRequesterBtn">ผู้รับคือผู้ขอเอง (กรอกให้อัตโนมัติ)</button>
         </div>
 
-        <div class="form-actions" style="justify-content:flex-start;">
-          <button class="btn btn-primary" id="confirm-handover-btn" data-i18n="handover.confirmBtn">ยืนยันส่งมอบ</button>
-        </div>
+        <!-- A real <form>+submit (not just a button click) so the browser's
+             own autofill history actually offers previously-typed Receiver
+             values back on later visits. -->
+        <form id="receiver-form" autocomplete="on">
+          <div class="form-grid" style="margin-top:12px;">
+            <div class="field" id="receiver-name-field">
+              <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
+              <input type="text" id="receiver-name" name="receiverName" autocomplete="name">
+              <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
+            </div>
+            <div class="field" id="receiver-work-phone-field">
+              <label data-i18n="handover.receiverWorkPhone">เบอร์โทรศัพท์ที่ทำงาน *</label>
+              <input type="text" id="receiver-work-phone" name="receiverWorkPhone" autocomplete="tel">
+              <span class="field-error" data-i18n="handover.receiverWorkPhone.required">กรุณากรอกเบอร์โทรศัพท์ที่ทำงาน</span>
+            </div>
+            <div class="field" id="receiver-workplace-field">
+              <label data-i18n="handover.receiverWorkplace">ที่ทำงาน *</label>
+              <input type="text" id="receiver-workplace" name="receiverWorkplace" autocomplete="organization">
+              <span class="field-error" data-i18n="handover.receiverWorkplace.required">กรุณากรอกที่ทำงานของผู้รับ</span>
+            </div>
+            <div class="field" id="receiver-position-field">
+              <label data-i18n="handover.receiverPosition">ตำแหน่ง (หน้าที่ในที่ทำงาน) *</label>
+              <input type="text" id="receiver-position" name="receiverPosition" autocomplete="organization-title">
+              <span class="field-error" data-i18n="handover.receiverPosition.required">กรุณากรอกตำแหน่งผู้รับ</span>
+            </div>
+          </div>
+
+          <div class="form-actions" style="justify-content:flex-start;">
+            <button type="submit" class="btn btn-primary" id="confirm-handover-btn" data-i18n="handover.confirmBtn">ยืนยันส่งมอบ</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -72,7 +93,9 @@
   const resultCard = document.getElementById("handover-result");
   const successNotice = document.getElementById("handover-success");
   const nameField = document.getElementById("receiver-name-field");
-  const idField = document.getElementById("receiver-id-field");
+  const positionField = document.getElementById("receiver-position-field");
+  const workplaceField = document.getElementById("receiver-workplace-field");
+  const workPhoneField = document.getElementById("receiver-work-phone-field");
 
   let currentMatch = null;
 
@@ -81,9 +104,13 @@
     resultCard.style.display = "none";
     successNotice.style.display = "none";
     nameField.classList.remove("invalid");
-    idField.classList.remove("invalid");
+    positionField.classList.remove("invalid");
+    workplaceField.classList.remove("invalid");
+    workPhoneField.classList.remove("invalid");
     document.getElementById("receiver-name").value = "";
-    document.getElementById("receiver-id").value = "";
+    document.getElementById("receiver-position").value = "";
+    document.getElementById("receiver-workplace").value = "";
+    document.getElementById("receiver-work-phone").value = "";
     claimInput.value = "";
     currentMatch = null;
     claimInput.focus();
@@ -119,18 +146,41 @@
     if (e.key === "Enter") doSearch();
   });
 
-  document.getElementById("confirm-handover-btn").addEventListener("click", async function () {
+  // Same-as-Requester: the common case (per file.md's Receiver definition)
+  // is the Requester collecting their own documents, so autofill from data
+  // the system already has instead of re-typing it. Position isn't part of
+  // the request itself, so it's left for the Officer to type/confirm.
+  document.getElementById("same-as-requester-btn").addEventListener("click", function () {
+    if (!currentMatch) return;
+    document.getElementById("receiver-name").value = currentMatch.requesterName || "";
+    document.getElementById("receiver-work-phone").value = currentMatch.tel || "";
+    document.getElementById("receiver-workplace").value = currentMatch.agencyUnit || "";
+    nameField.classList.remove("invalid");
+    workPhoneField.classList.remove("invalid");
+    workplaceField.classList.remove("invalid");
+    document.getElementById("receiver-position").focus();
+  });
+
+  // A real form submit (not just a button click) so the browser offers to
+  // remember these values and autocompletes them on later handovers.
+  document.getElementById("receiver-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
     const name = document.getElementById("receiver-name").value.trim();
-    const idInfo = document.getElementById("receiver-id").value.trim();
+    const position = document.getElementById("receiver-position").value.trim();
+    const workplace = document.getElementById("receiver-workplace").value.trim();
+    const workPhone = document.getElementById("receiver-work-phone").value.trim();
 
     nameField.classList.toggle("invalid", !name);
-    idField.classList.toggle("invalid", !idInfo);
-    if (!name || !idInfo || !currentMatch) return;
+    positionField.classList.toggle("invalid", !position);
+    workplaceField.classList.toggle("invalid", !workplace);
+    workPhoneField.classList.toggle("invalid", !workPhone);
+    if (!name || !position || !workplace || !workPhone || !currentMatch) return;
 
     await fetch("/api/requests/" + encodeURIComponent(currentMatch.referenceNo) + "/handover", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ receiverName: name, receiverIdInfo: idInfo })
+      body: JSON.stringify({ receiverName: name, receiverPosition: position, receiverWorkplace: workplace, receiverWorkPhone: workPhone })
     });
 
     resultCard.style.display = "none";
