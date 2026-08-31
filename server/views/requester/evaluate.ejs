@@ -1,0 +1,104 @@
+<%- include("../partials/head", { title: "ODPRS — ประเมินความพึงพอใจ" }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.evaluate", crumbFallback: "คำขอของฉัน / <strong>ประเมินความพึงพอใจ</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="evaluate.title">ประเมินความพึงพอใจการใช้บริการ</h1>
+    <p class="page-subtitle" data-i18n="evaluate.subtitle">กรุณาประเมินคำขอที่ได้รับเอกสารเรียบร้อยแล้ว ก่อนส่งคำขอพิมพ์เอกสารใหม่ครั้งต่อไป</p>
+
+    <div class="card">
+      <div class="card-body">
+        <dl class="summary-list">
+          <dt data-i18n="evaluate.ref">คำขอ</dt>
+          <dd><%= record.runNumber ? (record.runNumber + " / " + record.referenceNo) : record.referenceNo %></dd>
+          <dt data-i18n="summary.itemList">รายการเอกสาร</dt>
+          <dd><%= record.itemList %></dd>
+        </dl>
+      </div>
+    </div>
+
+    <% if (typeof error !== "undefined" && error) { %>
+    <div class="notice notice-error">
+      <span class="icon" data-icon="alert-triangle"></span>
+      <div>
+        <% if (error === "invalid-rating") { %>
+        <strong data-i18n="evaluate.error.invalidRating">กรุณาให้คะแนนทุกหัวข้อ</strong><br>
+        <span data-i18n="evaluate.error.invalidRating.body">กรุณาเลือกคะแนน 1-5 ให้ครบทุกหัวข้อก่อนส่งแบบประเมิน</span>
+        <% } else if (error === "already-evaluated") { %>
+        <strong data-i18n="evaluate.error.alreadyEvaluated">คำขอนี้ถูกประเมินไปแล้ว</strong>
+        <% } else { %>
+        <strong data-i18n="evaluate.error.generic">ไม่สามารถบันทึกแบบประเมินได้</strong>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <form method="POST" action="/requester/evaluate/<%= encodeURIComponent(record.referenceNo) %>">
+      <div class="card">
+        <div class="card-header"><span data-i18n="evaluate.formTitle">แบบประเมินความพึงพอใจ</span></div>
+        <div class="card-body">
+          <p class="hint" style="margin-bottom:18px;" data-i18n="evaluate.scaleHint">ให้คะแนนแต่ละหัวข้อตั้งแต่ 1 (ไม่พึงพอใจอย่างมาก) ถึง 5 (พึงพอใจมากที่สุด)</p>
+
+          <div class="form-grid">
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.staffService">การให้บริการของเจ้าหน้าที่ *</label>
+              <div class="radio-group">
+                <% [1,2,3,4,5].forEach(function (n) { %>
+                <label class="radio-option"><input type="radio" name="ratingStaffService" value="<%= n %>" required><span><%= n %></span></label>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.systemEase">ความสะดวกในการใช้งานระบบออนไลน์ *</label>
+              <div class="radio-group">
+                <% [1,2,3,4,5].forEach(function (n) { %>
+                <label class="radio-option"><input type="radio" name="ratingSystemEase" value="<%= n %>" required><span><%= n %></span></label>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.speed">ความรวดเร็วในการดำเนินการ *</label>
+              <div class="radio-group">
+                <% [1,2,3,4,5].forEach(function (n) { %>
+                <label class="radio-option"><input type="radio" name="ratingSpeed" value="<%= n %>" required><span><%= n %></span></label>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.printQuality">คุณภาพงานพิมพ์ที่ได้รับ *</label>
+              <div class="radio-group">
+                <% [1,2,3,4,5].forEach(function (n) { %>
+                <label class="radio-option"><input type="radio" name="ratingPrintQuality" value="<%= n %>" required><span><%= n %></span></label>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.overall">ความพึงพอใจโดยรวม *</label>
+              <div class="radio-group">
+                <% [1,2,3,4,5].forEach(function (n) { %>
+                <label class="radio-option"><input type="radio" name="ratingOverall" value="<%= n %>" required><span><%= n %></span></label>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="evaluate.q.comment">ความคิดเห็นเพิ่มเติม (ถ้ามี)</label>
+              <textarea name="comment" data-i18n-placeholder="evaluate.q.comment.placeholder" placeholder="ข้อเสนอแนะหรือสิ่งที่อยากให้ปรับปรุง"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" data-i18n="evaluate.submitBtn">ส่งแบบประเมิน</button>
+      </div>
+    </form>
+  </main>
+
+<%- include("../partials/foot") %>
+</body>
+</html>

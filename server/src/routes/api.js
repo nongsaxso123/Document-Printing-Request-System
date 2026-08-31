@@ -14,6 +14,16 @@ router.get("/my-requests", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Powers the dismissible reminder banner on requester/my-requests.ejs —
+// the actual submission gate lives server-side in routes/requester.js
+// (requireNoPendingEvaluation), this is just for the soft nudge.
+router.get("/my-pending-evaluation", async (req, res, next) => {
+  try {
+    if (!req.user) return res.status(401).json(null);
+    res.json(await requests.getPendingEvaluation(req.user.email));
+  } catch (err) { next(err); }
+});
+
 router.use(requireRole("Officer", "Admin"));
 
 router.get("/requests", async (req, res, next) => {

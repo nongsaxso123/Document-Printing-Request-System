@@ -132,7 +132,35 @@ model Request {
 
   completedTimestamp DateTime? @map("completed_timestamp")
 
+  evaluation Evaluation?
+
   @@map("requests")
+}
+
+// Post-completion satisfaction survey (Requester-side). One per completed
+// Request — the Requester is prompted after handover, and blocked from
+// submitting a new print request while any completed request of theirs
+// still lacks one (see requireNoPendingEvaluation in routes/requester.js).
+// Ratings are a plain 1-5 scale; the dimensions below are a first cut
+// (staff service / system ease / speed / print quality / overall) — easy to
+// extend with more columns later since each is independent, not an FK.
+model Evaluation {
+  id                 Int      @id @default(autoincrement())
+  requestReferenceNo String   @unique @map("request_reference_no")
+  requesterEmail     String   @map("requester_email")
+
+  ratingStaffService Int @map("rating_staff_service")
+  ratingSystemEase   Int @map("rating_system_ease")
+  ratingSpeed        Int @map("rating_speed")
+  ratingPrintQuality Int @map("rating_print_quality")
+  ratingOverall      Int @map("rating_overall")
+
+  comment     String?  @db.Text
+  submittedAt DateTime @default(now()) @map("submitted_at")
+
+  request Request @relation(fields: [requestReferenceNo], references: [requestReferenceNo])
+
+  @@map("evaluations")
 }
 
 // Atomic per-year counters backing Request_Reference_No ("REQ-") and

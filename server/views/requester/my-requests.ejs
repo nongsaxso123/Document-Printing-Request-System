@@ -6,6 +6,17 @@
     <h1 class="page-title" data-i18n="myRequests.title">คำขอของฉัน</h1>
     <p class="page-subtitle" data-i18n="myRequests.subtitle">ติดตามสถานะคำขอพิมพ์เอกสารที่คุณส่งทั้งหมด</p>
 
+    <div class="notice notice-warning" id="pending-evaluation-notice" style="display:none;">
+      <span class="icon" data-icon="info"></span>
+      <div style="flex:1;">
+        <div id="pending-evaluation-message"></div>
+        <div class="form-actions" style="justify-content:flex-start; margin-top:10px;">
+          <a class="btn btn-primary" id="pending-evaluation-btn" href="#" data-i18n="myRequests.pendingEvaluation.evaluateBtn">ประเมินตอนนี้</a>
+          <button type="button" class="btn btn-secondary" id="pending-evaluation-dismiss" data-i18n="myRequests.pendingEvaluation.laterBtn">ทีหลัง</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <span data-i18n="myRequests.cardTitle">คำขอล่าสุด</span>
@@ -63,18 +74,46 @@
   }
 
   let myRequests = [];
+  let pendingEvaluation = null;
 
   async function loadMyRequests() {
     const res = await fetch("/api/my-requests");
     myRequests = await res.json();
   }
 
-  document.addEventListener("odprs:langchange", function () {
-    renderRows(myRequests);
+  async function loadPendingEvaluation() {
+    const res = await fetch("/api/my-pending-evaluation");
+    pendingEvaluation = res.ok ? await res.json() : null;
+  }
+
+  // Just a reminder banner — dismissing it only hides it for this page view;
+  // it reappears next visit until actually evaluated. The real enforcement
+  // (blocking new-request submission) happens server-side.
+  function renderPendingEvaluation() {
+    const notice = document.getElementById("pending-evaluation-notice");
+    if (!pendingEvaluation) {
+      notice.style.display = "none";
+      return;
+    }
+    document.getElementById("pending-evaluation-message").textContent =
+      t("myRequests.pendingEvaluation.message").replace("{item}", pendingEvaluation.itemList);
+    document.getElementById("pending-evaluation-btn").href =
+      "/requester/evaluate/" + encodeURIComponent(pendingEvaluation.referenceNo);
+    notice.style.display = "flex";
+  }
+
+  document.getElementById("pending-evaluation-dismiss").addEventListener("click", function () {
+    document.getElementById("pending-evaluation-notice").style.display = "none";
   });
 
-  loadMyRequests().then(function () {
+  document.addEventListener("odprs:langchange", function () {
     renderRows(myRequests);
+    renderPendingEvaluation();
+  });
+
+  Promise.all([loadMyRequests(), loadPendingEvaluation()]).then(function () {
+    renderRows(myRequests);
+    renderPendingEvaluation();
   });
 </script>
 </body>

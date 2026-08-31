@@ -554,4 +554,56 @@ async function handover(ref, { receiverName, receiverPosition, receiverWorkplace
   return toClientJSON(updated);
 }
 
-module.exports = { list, getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory, create, approve, reject, markReady, handover, dashboardSummary, STATUS_TO_CODE, CODE_TO_STATUS };
+const RATING_FIELDS = ["ratingStaffService", "ratingSystemEase", "ratingSpeed", "ratingPrintQuality", "ratingOverall"];
+
+// The Requester is prompted to rate a completed request, and blocked from
+// submitting a new one (see requireNoPendingEvaluation in routes/requester.js)
+// while any of their completed requests still lacks an Evaluation. Always
+// resolves the oldest one first, so a backlog of several unevaluated jobs
+// gets cleared one at a time rather than all at once.
+async function getPendingEvaluation(requesterEmail) {
+  const row = await prisma.request.findFirst({
+    where: { requesterEmail, status: "COMPLETED", evaluation: null },
+    orderBy: { completedTimestamp: "asc" }
+  });
+  if (!row) return null;
+  return { referenceNo: row.requestReferenceNo, itemList: row.itemList, completedTimestamp: row.completedTimestamp.toISOString() };
+}
+
+async function getEvaluation(ref) {
+  return prisma.evaluation.findUnique({ where: { requestReferenceNo: ref } });
+}
+
+async function submitEvaluation(ref, { requesterEmail, ratings, comment }) {
+  const request = await prisma.request.findUnique({ where: { requestReferenceNo: ref } });
+  if (!request || request.requesterEmail !== requesterEmail || request.status !== "COMPLETED") {
+    return { error: "not-eligible" };
+  }
+
+  const existing = await prisma.evaluation.findUnique({ where: { requestReferenceNo: ref } });
+  if (existing) return { error: "already-evaluated" };
+
+  const values = {};
+  for (const field of RATING_FIELDS) {
+    const n = parseInt((ratings || {})[field], 10);
+    if (!Number.isInteger(n) || n < 1 || n > 5) return { error: "invalid-rating" };
+    values[field] = n;
+  }
+
+  const trimmedComment = comment ? String(comment).trim() : "";
+  await prisma.evaluation.create({
+    data: {
+      requestReferenceNo: ref,
+      requesterEmail,
+      ...values,
+      comment: trimmedComment || null
+    }
+  });
+  return { ok: true };
+}
+
+module.exports = {
+  list, getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory,
+  create, approve, reject, markReady, handover, dashboardSummary, getPendingEvaluation, getEvaluation, submitEvaluation,
+  STATUS_TO_CODE, CODE_TO_STATUS
+};
