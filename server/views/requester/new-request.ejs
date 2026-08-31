@@ -426,8 +426,14 @@
       return;
     }
 
-    const key = paperSource === "office" ? "newRequest.calc.responsibility.office" : "newRequest.calc.responsibility.requester";
-    calcResponsibility.textContent = t(key).replace("{n}", totalSheets.toLocaleString(numFmt));
+    if (paperSource === "office") {
+      calcResponsibility.textContent = t("newRequest.calc.responsibility.office").replace("{n}", totalSheets.toLocaleString(numFmt));
+    } else {
+      const buffered = Math.ceil(totalSheets * (1 + PAPER_WASTE_BUFFER_RATIO));
+      calcResponsibility.textContent = t("newRequest.calc.responsibility.requester")
+        .replace("{n}", totalSheets.toLocaleString(numFmt))
+        .replace("{buffered}", buffered.toLocaleString(numFmt));
+    }
   }
 
   originalPagesInput.addEventListener("input", renderCalc);

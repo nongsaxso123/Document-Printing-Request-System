@@ -239,17 +239,34 @@ function translateList(values) {
 const PRINT_SIDE_DOUBLE_TH = "พิมพ์สองหน้า";
 const PAPER_SOURCE_OFFICE_TH = "ฝ่ายทะเบียนจัดเตรียมให้";
 
+// Printing loses ~5% of sheets to misfeeds/misprints/jams — when the
+// Requester supplies their own paper (Exam paper-source choice, or any
+// General Document, which is always Requester-provided), that loss is
+// their problem, not the Registrar Division's. Surfacing the padded
+// count up front — at form-fill time and again on the printed request
+// slip's Paper Source field — is the agreed paper trail if a shortfall
+// is disputed later.
+const PAPER_WASTE_BUFFER_RATIO = 0.05;
+
 function computeTotalSheets(originalPages, numberOfCopies, printSide) {
   const pages = Number(originalPages) || 0;
   const copies = Number(numberOfCopies) || 0;
   return printSide === PRINT_SIDE_DOUBLE_TH ? Math.ceil(pages / 2) * copies : pages * copies;
 }
 
-/** FR-17's paper-responsibility notice ("Requester must bring N sheets" / "Registrar Division will supply N sheets"), from a stored Paper Source value and an already-computed Total Sheets to Print. */
+/** FR-17's paper-responsibility notice ("Requester must bring N sheets" / "Registrar Division will supply N sheets"), from a stored Paper Source value and an already-computed Total Sheets to Print. When the Requester is responsible, appends the ~5% print-waste-padded count they should actually bring. */
 function paperResponsibilityText(paperSource, totalSheets, lang) {
   const numFmt = lang === "en" ? "en-US" : "th-TH";
-  const key = paperSource === PAPER_SOURCE_OFFICE_TH ? "newRequest.calc.responsibility.office" : "newRequest.calc.responsibility.requester";
-  return t(key).replace("{n}", Number(totalSheets).toLocaleString(numFmt));
+  const sheets = Number(totalSheets) || 0;
+
+  if (paperSource === PAPER_SOURCE_OFFICE_TH) {
+    return t("newRequest.calc.responsibility.office").replace("{n}", sheets.toLocaleString(numFmt));
+  }
+
+  const buffered = Math.ceil(sheets * (1 + PAPER_WASTE_BUFFER_RATIO));
+  return t("newRequest.calc.responsibility.requester")
+    .replace("{n}", sheets.toLocaleString(numFmt))
+    .replace("{buffered}", buffered.toLocaleString(numFmt));
 }
 
 /** FR-18's Copy Label range preview (e.g. "M-10 – M-59"), or null when there isn't enough data to compute one. */
@@ -411,7 +428,7 @@ const TRANSLATIONS = {
   "newRequest.calc.title": { th: "สรุปจำนวนกระดาษที่ต้องใช้", en: "Paper Usage Summary" },
   "newRequest.calc.totalPages": { th: "จำนวนหน้าที่ต้องพิมพ์ทั้งหมด", en: "Total Pages to Print" },
   "newRequest.calc.totalSheets": { th: "จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด", en: "Total Sheets to Print" },
-  "newRequest.calc.responsibility.requester": { th: "ผู้ขอต้องเตรียมกระดาษมาเอง {n} แผ่น", en: "Requester must bring {n} sheets" },
+  "newRequest.calc.responsibility.requester": { th: "ผู้ขอต้องเตรียมกระดาษมาเอง {n} แผ่น (แนะนำให้เผื่อกระดาษเสียจากการพิมพ์ประมาณ 5% โดยเตรียมมาประมาณ {buffered} แผ่น)", en: "Requester must bring {n} sheets (recommend allowing ~5% for print waste — bring about {buffered} sheets)" },
   "newRequest.calc.responsibility.office": { th: "ฝ่ายทะเบียนจะจัดเตรียมกระดาษให้ {n} แผ่น", en: "Registrar Division will supply {n} sheets" },
   "newRequest.calc.responsibility.pending": { th: "กรอกข้อมูลด้านบนให้ครบเพื่อคำนวณ", en: "Fill in the fields above to calculate" },
 
