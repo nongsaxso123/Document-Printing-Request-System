@@ -290,6 +290,143 @@ function copyLabelDisplayText(record) {
   return copyLabelRangeText(record.copyLabelPrefix, record.copyLabelStart, record.copies);
 }
 
+/** Clears an element and appends a run of text/element nodes — used for the
+ * Officer/Receiver signoff cells, which mix a bold state label with plain
+ * detail lines (never raw record text as markup, to avoid HTML injection). */
+function setCellNodes(el, nodes) {
+  el.replaceChildren(...nodes);
+}
+
+/** One line in the Officer/Receiver signoff cells: a small muted label
+ * followed by the value, each on its own row (.pf-line/.pf-line-label CSS)
+ * so a 4-5 line cell reads as a scannable list instead of a run-on
+ * paragraph of same-weight text. */
+function boldLine(text) {
+  const div = document.createElement("div");
+  div.className = "pf-line";
+  const strong = document.createElement("strong");
+  strong.textContent = text;
+  div.appendChild(strong);
+  return div;
+}
+
+function detailLine(label, value) {
+  const div = document.createElement("div");
+  div.className = "pf-line";
+  const labelSpan = document.createElement("span");
+  labelSpan.className = "pf-line-label";
+  labelSpan.textContent = label + ":";
+  div.append(labelSpan, document.createTextNode(" " + value));
+  return div;
+}
+
+/** Same lookup as translateValue(), but always resolves to English regardless
+ * of the app's current language toggle — the print/PDF form (unlike the rest
+ * of the app) always shows both, so it needs each language on demand rather
+ * than whichever one the UI happens to be set to. */
+function translateValueEn(value) {
+  for (const key in TRANSLATIONS) {
+    if (TRANSLATIONS[key].th === value) return TRANSLATIONS[key].en;
+  }
+  return value;
+}
+
+/** "Thai (English)" for the print form's bilingual body text — omits the
+ * parenthetical when there's no distinct English form (free text, or a
+ * value like "A4" that reads the same in both languages). */
+function bilingual(th, en) {
+  return en && en !== th ? `${th} (${en})` : th;
+}
+
+/**
+ * Populates the shared Request Form print/PDF partial (server/views/partials/print-form.ejs,
+ * ids prefixed "pf-"), included identically by both officer/request-form-view.ejs and
+ * requester/request-submitted.ejs so the two parties always see the same document —
+ * the printed form is conceptually one sheet the Requester fills and hands to the Officer,
+ * not two independently maintained views. Structure mirrors the wireframe at
+ * ref and logos/wireframes/printing-request-form-redesign.html. Always bilingual
+ * (Thai primary, English in parentheses) regardless of the app's TH/EN toggle —
+ * see the comment atop print-form.ejs.
+ */
+function renderPrintForm(record) {
+  document.getElementById("pf-refno").textContent = record.referenceNo;
+  const runnoEl = document.getElementById("pf-runno");
+  if (record.runNumber) {
+    runnoEl.style.display = "";
+    runnoEl.textContent = record.runNumber;
+  } else {
+    runnoEl.style.display = "none";
+  }
+
+  document.getElementById("pf-name").textContent = record.requesterName;
+  document.getElementById("pf-tel").textContent = record.tel;
+  document.getElementById("pf-agency-unit").textContent = record.agencyUnit;
+  document.getElementById("pf-agency-category").textContent = bilingual(record.agencyCategory, AGENCY_CATEGORY_EN[record.agencyCategory]);
+
+  document.getElementById("pf-documenttype").textContent = bilingual(record.documentType, translateValueEn(record.documentType));
+  document.getElementById("pf-papersize").textContent = bilingual(record.paperSize, translateValueEn(record.paperSize));
+  document.getElementById("pf-colormode").textContent = bilingual(record.colorMode, translateValueEn(record.colorMode));
+  document.getElementById("pf-printside").textContent = bilingual(record.printSide, translateValueEn(record.printSide));
+  document.getElementById("pf-finishing").textContent = (record.finishing && record.finishing.length)
+    ? record.finishing.map(v => bilingual(v, translateValueEn(v))).join(", ")
+    : "ไม่มี (None)";
+  const totalSheets = computeTotalSheets(record.originalPages, record.copies, record.printSide);
+  document.getElementById("pf-paperresponsibility").textContent =
+    bilingual(paperResponsibilityText(record.paperSource, totalSheets, "th"), paperResponsibilityText(record.paperSource, totalSheets, "en"));
+  document.getElementById("pf-copylabel").textContent = copyLabelDisplayText(record) || "ไม่มี (None)";
+
+  document.getElementById("pf-itemlist").textContent = record.itemList;
+  document.getElementById("pf-pages").textContent = record.originalPages;
+  document.getElementById("pf-copies").textContent = record.copies;
+  document.getElementById("pf-totalpages").textContent = String(Number(record.originalPages) * Number(record.copies));
+  document.getElementById("pf-totalsheets").textContent = String(totalSheets);
+
+  document.getElementById("pf-requester-name").textContent = record.requesterName;
+  document.getElementById("pf-submitted").textContent = formatDateTime(new Date(record.submissionDate), "th");
+  const receivedWrapEl = document.getElementById("pf-received-wrap");
+  if (record.originalDocReceivedTimestamp) {
+    receivedWrapEl.style.display = "";
+    document.getElementById("pf-received").textContent = formatDateTime(new Date(record.originalDocReceivedTimestamp), "th");
+  } else {
+    receivedWrapEl.style.display = "none";
+  }
+
+  const officerEl = document.getElementById("pf-signoff-officer");
+  if (record.statusCode === "awaiting") {
+    setCellNodes(officerEl, []);
+  } else if (record.statusCode === "rejected") {
+    setCellNodes(officerEl, [
+      boldLine("ถูกปฏิเสธ (Rejected)"),
+      detailLine("เหตุผล (Reason)", record.rejectionReason),
+      detailLine("ปฏิเสธโดย (Rejected By)", record.reviewedByOfficer)
+    ]);
+  } else {
+    setCellNodes(officerEl, [
+      boldLine("อนุมัติแล้ว (Approved)"),
+      detailLine("วันนัดรับเอกสาร (Appointment Date)", formatDate(new Date(record.completionDateConfirmed + "T00:00:00"), "th")),
+      detailLine("อนุมัติโดย (Approved By)", record.reviewedByOfficer)
+    ]);
+  }
+
+  const receiverEl = document.getElementById("pf-signoff-receiver");
+  if (record.receiverName) {
+    setCellNodes(receiverEl, [
+      boldLine(record.receiverName),
+      detailLine("ตำแหน่ง (Position)", record.receiverPosition),
+      detailLine("ที่ทำงาน (Workplace)", record.receiverWorkplace),
+      detailLine("เบอร์โทรศัพท์ที่ทำงาน (Work Phone)", record.receiverWorkPhone),
+      detailLine("เวลาที่มารับ (Received At)", formatDateTime(new Date(record.completedTimestamp), "th"))
+    ]);
+  } else {
+    const em = document.createElement("em");
+    em.textContent = "รอรับเอกสาร (Awaiting Pickup)";
+    setCellNodes(receiverEl, [em]);
+  }
+
+  document.getElementById("pf-footnote").textContent = (record.claimCode ? `Claim Code: ${record.claimCode} · ` : "")
+    + "เอกสารนี้สร้างโดยระบบ ODPRS (This document was generated by the ODPRS system)";
+}
+
 /* =====================================================================
    i18n — lightweight TH/EN toggle shared by every page.
    Elements opt in with data-i18n="key" (textContent) or
@@ -470,13 +607,16 @@ const TRANSLATIONS = {
   "submitted.subtitle": { th: "กรุณาพิมพ์ใบคำขอด้านล่างและนำไปพร้อมกับเอกสารต้นฉบับ", en: "Please print the Request Form below and bring it together with the physical original documents." },
   "submitted.deadline.label": { th: "นำเอกสารต้นฉบับมาส่งภายใน:", en: "Deliver the physical original documents by:" },
   "submitted.deadline.body": { th: "หากไม่นำมาส่งภายในกำหนด คำขอจะยังคงค้างสถานะ \"รอส่งเอกสารต้นฉบับ\" — กรุณาติดต่อเจ้าหน้าที่หากมีปัญหา", en: "If not delivered by the deadline, the request simply stays in \"Awaiting Original Document\" status — please contact an Officer if there's an issue." },
+  "submitted.deadline.received.label": { th: "นำเอกสารต้นฉบับมาส่งแล้ว เมื่อวันที่:", en: "Original documents received on:" },
+  "submitted.deadline.received.body": { th: "เจ้าหน้าที่ได้ตรวจรับเอกสารต้นฉบับของท่านเรียบร้อยแล้ว", en: "An Officer has confirmed receipt of your original documents." },
   "submitted.formCardTitle": { th: "ใบคำขอพิมพ์เอกสาร (สำหรับพิมพ์)", en: "Print Request Form (Printable)" },
   "submitted.printBtn": { th: "พิมพ์ใบคำขอ", en: "Print Request Form" },
   "submitted.downloadPdfBtn": { th: "ดาวน์โหลด PDF", en: "Download PDF" },
-  "submitted.formHeading": { th: "ใบคำขอพิมพ์เอกสาร — ODPRS", en: "Print Request Form — ODPRS" },
-  "submitted.formSub": { th: "ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง", en: "Registrar Division, Mae Fah Luang University" },
   "submitted.newBtn": { th: "สร้างคำขอใหม่", en: "Create New Request" },
   "submitted.goToMyRequests": { th: "ไปที่คำขอของฉัน", en: "Go to My Requests" },
+
+  "detail.rejectConfirmTitle": { th: "ยืนยันการปฏิเสธคำขอ", en: "Confirm Rejection" },
+  "detail.rejectConfirmMessage": { th: "เหตุผล: {reason}\n\nยืนยันปฏิเสธคำขอนี้?", en: "Reason: {reason}\n\nConfirm rejecting this request?" },
 
   "summary.refno": { th: "เลขอ้างอิงคำขอ", en: "Request Reference No." },
   "summary.name": { th: "ชื่อผู้ขอ", en: "Requester Name" },
@@ -495,6 +635,7 @@ const TRANSLATIONS = {
   "summary.paperSource": { th: "การจัดเตรียมกระดาษ", en: "Paper Supply" },
   "summary.copyLabel": { th: "เลขรันประจำชุด (Copy Label)", en: "Copy Label" },
   "summary.submitted": { th: "วันที่ส่งคำขอ", en: "Submission Date" },
+  "summary.receivedTimestamp": { th: "เวลาที่ผู้ขอมาส่งเอกสารต้นฉบับ", en: "Original Document Received At" },
   "summary.completion": { th: "วันที่ต้องการรับเอกสาร", en: "Requested Completion Date" },
   "summary.deadline": { th: "กำหนดส่งเอกสารต้นฉบับ", en: "Original Document Deadline" },
   "summary.status": { th: "สถานะ", en: "Status" },
@@ -543,6 +684,7 @@ const TRANSLATIONS = {
   "detail.completedTimestampLabel": { th: "วันเวลาที่ส่งมอบสำเร็จ", en: "Handover Confirmed At" },
   "detail.copyBtn": { th: "คัดลอก", en: "Copy" },
   "detail.reviewedByLabel": { th: "ดำเนินการโดย (เจ้าหน้าที่)", en: "Reviewed By (Officer)" },
+  "detail.approvedAtLabel": { th: "อนุมัติเมื่อ", en: "Approved At" },
   "detail.handedOverByLabel": { th: "ตรวจรับ/ส่งมอบโดย (เจ้าหน้าที่)", en: "Handed Over By (Officer)" },
 
   "printingJobs.title": { th: "งานที่กำลังปริ้น", en: "Printing Jobs" },

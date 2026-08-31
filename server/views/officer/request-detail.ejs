@@ -34,6 +34,7 @@
             <dt data-i18n="summary.paperSource">การจัดเตรียมกระดาษ</dt><dd id="d-paperresponsibility">—</dd>
             <dt data-i18n="summary.copyLabel">เลขรันประจำชุด (Copy Label)</dt><dd id="d-copylabel">—</dd>
             <dt data-i18n="summary.submitted">วันที่ส่งคำขอ</dt><dd id="d-submitted">—</dd>
+            <dt data-i18n="summary.receivedTimestamp">เวลาที่ผู้ขอมาส่งเอกสารต้นฉบับ</dt><dd id="d-received-timestamp">—</dd>
             <dt data-i18n="summary.completion">วันที่ต้องการรับเอกสาร</dt><dd id="d-completion">—</dd>
             <dt data-i18n="summary.status">สถานะ</dt><dd><span class="badge" id="d-status">—</span></dd>
           </dl>
@@ -88,7 +89,11 @@
               <span class="icon" data-icon="copy"></span>
             </button>
           </div>
-          <div style="margin-top:4px;"><strong data-i18n="detail.reviewedByLabel">ดำเนินการโดย (เจ้าหน้าที่)</strong>: <span id="d-reviewed-by"></span></div>
+          <div style="margin-top:4px;">
+            <strong data-i18n="detail.reviewedByLabel">ดำเนินการโดย (เจ้าหน้าที่)</strong>: <span id="d-reviewed-by"></span>
+            &nbsp;&nbsp;
+            <strong data-i18n="detail.approvedAtLabel">อนุมัติเมื่อ</strong>: <span id="d-approved-at"></span>
+          </div>
         </div>
       </div>
 
@@ -108,7 +113,11 @@
           <div style="margin-top:8px;">
             <strong data-i18n="detail.receiverNameLabel">ผู้รับเอกสาร</strong>: <span id="d-receiver-name"></span>
             &nbsp;&nbsp;
-            <strong data-i18n="detail.receiverIdLabel">ข้อมูลยืนยันตัวตนผู้รับ</strong>: <span id="d-receiver-id"></span>
+            <strong data-i18n="detail.receiverWorkPhoneLabel">เบอร์โทรศัพท์ที่ทำงาน</strong>: <span id="d-receiver-work-phone"></span>
+            &nbsp;&nbsp;
+            <strong data-i18n="detail.receiverWorkplaceLabel">ที่ทำงาน</strong>: <span id="d-receiver-workplace"></span>
+            &nbsp;&nbsp;
+            <strong data-i18n="detail.receiverPositionLabel">ตำแหน่ง</strong>: <span id="d-receiver-position"></span>
           </div>
           <div style="margin-top:4px;"><strong data-i18n="detail.handedOverByLabel">ตรวจรับ/ส่งมอบโดย (เจ้าหน้าที่)</strong>: <span id="d-handed-over-by"></span></div>
           <div style="margin-top:4px;">
@@ -169,9 +178,11 @@
     const totalSheets = computeTotalSheets(record.originalPages, record.copies, record.printSide);
     document.getElementById("d-totalsheets").textContent = totalSheets.toLocaleString(numFmt);
     document.getElementById("d-paperresponsibility").textContent = paperResponsibilityText(record.paperSource, totalSheets, lang);
-    const copyLabelRange = record.copyLabelEnabled ? copyLabelRangeText(record.copyLabelPrefix, record.copyLabelStart, record.copies) : null;
-    document.getElementById("d-copylabel").textContent = copyLabelRange || t("option.none");
+    document.getElementById("d-copylabel").textContent = copyLabelDisplayText(record) || t("option.none");
     document.getElementById("d-submitted").textContent = formatDateTime(new Date(record.submissionDate), lang);
+    document.getElementById("d-received-timestamp").textContent = record.originalDocReceivedTimestamp
+      ? formatDateTime(new Date(record.originalDocReceivedTimestamp), lang)
+      : "—";
     document.getElementById("d-completion").textContent = formatDate(new Date(record.completionDateProposed + "T00:00:00"), lang);
 
     const statusEl = document.getElementById("d-status");
@@ -192,6 +203,9 @@
       document.getElementById("d-runno").textContent = record.runNumber;
       document.getElementById("d-claimcode").textContent = record.claimCode;
       document.getElementById("d-reviewed-by").textContent = record.reviewedByOfficer || "—";
+      document.getElementById("d-approved-at").textContent = record.originalDocReceivedTimestamp
+        ? formatDateTime(new Date(record.originalDocReceivedTimestamp), lang)
+        : "—";
     }
     if (record.statusCode === "rejected") {
       document.getElementById("d-rejection-reason").textContent = record.rejectionReason;
@@ -199,7 +213,9 @@
     }
     if (isCompleted) {
       document.getElementById("d-receiver-name").textContent = record.receiverName;
-      document.getElementById("d-receiver-id").textContent = record.receiverIdInfo;
+      document.getElementById("d-receiver-position").textContent = record.receiverPosition;
+      document.getElementById("d-receiver-workplace").textContent = record.receiverWorkplace;
+      document.getElementById("d-receiver-work-phone").textContent = record.receiverWorkPhone;
       document.getElementById("d-completed-timestamp").textContent = formatDateTime(new Date(record.completedTimestamp), lang);
       document.getElementById("d-handed-over-by").textContent = record.handedOverByOfficer || "—";
     }
@@ -219,25 +235,33 @@
     render();
   });
 
-  document.getElementById("reject-btn").addEventListener("click", async function () {
-    const reasonField = document.getElementById("reject-field");
-    const reason = document.getElementById("reject-reason").value.trim();
+document.getElementById("reject-btn").addEventListener("click", function () {
+  const reasonField = document.getElementById("reject-field");
+  const reason = document.getElementById("reject-reason").value.trim();
 
-    if (!reason) {
-      reasonField.classList.add("invalid");
-      return;
+  if (!reason) {
+    reasonField.classList.add("invalid");
+    return;
+  }
+  reasonField.classList.remove("invalid");
+  if (!record) return;
+
+  showConfirmModal({
+    title: t("detail.rejectConfirmTitle"),
+    message: t("detail.rejectConfirmMessage").replace("{reason}", reason),
+    confirmText: t("detail.rejectBtn"),
+    danger: true,
+    onConfirm: async function () {
+      const res = await fetch("/api/requests/" + encodeURIComponent(record.referenceNo) + "/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason })
+      });
+      record = await res.json();
+      render();
     }
-    reasonField.classList.remove("invalid");
-    if (!record) return;
-
-    const res = await fetch("/api/requests/" + encodeURIComponent(record.referenceNo) + "/reject", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: reason })
-    });
-    record = await res.json();
-    render();
   });
+});
 
   document.addEventListener("odprs:langchange", render);
   fetchRecord().then(render);

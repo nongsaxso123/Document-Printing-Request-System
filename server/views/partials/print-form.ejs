@@ -1,0 +1,97 @@
+<!--
+  Shared Request Form print/PDF content, included identically by both
+  officer/request-form-view.ejs and requester/request-submitted.ejs — the
+  printed form represents one physical document the Requester fills and
+  hands to the Officer, so both sides must see the same content.
+  Structure ported from ref and logos/wireframes/printing-request-form-redesign.html
+  (its .ph-* classes, renamed here to .print-*). Populated by
+  renderPrintForm(record) in app.js (all ids prefixed "pf-").
+
+  Unlike the rest of the app, this document is NOT toggled by the TH/EN
+  language switch — it's a fixed bilingual official document (header in
+  English; body labels/values Thai-primary with English in parentheses),
+  so the requester can read it regardless of the UI language they had
+  selected when they generated it. Labels below are hardcoded, not
+  data-i18n; renderPrintForm() builds the bilingual value text.
+-->
+<div class="print-header">
+  <img class="print-logo" src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
+  <div class="print-org-en">Registrar Division, Mae Fah Luang University</div>
+  <div class="print-doc-title">Document Printing Request Form</div>
+  <div class="print-salutation">To Head of the Registrar Division</div>
+</div>
+
+<div class="print-section-label">ข้อมูลผู้ขอ (Requester Information)</div>
+<table class="print-field-table">
+  <tr>
+    <th>ชื่อผู้ขอ (Name)</th><td id="pf-name">—</td>
+    <th>เบอร์โทรศัพท์ (Tel.)</th><td id="pf-tel">—</td>
+  </tr>
+  <tr><th>หน่วยงาน (Agency)</th><td colspan="3" id="pf-agency-unit">—</td></tr>
+  <tr><th>ประเภทหน่วยงาน (Agency Type)</th><td colspan="3" id="pf-agency-category">—</td></tr>
+</table>
+
+<div class="print-section-label">ข้อมูลการพิมพ์ (Print Specification)</div>
+<table class="print-field-table">
+  <tr>
+    <th>ประเภทเอกสาร (Document Type)</th><td id="pf-documenttype">—</td>
+    <th>ขนาดกระดาษ (Paper Size)</th><td id="pf-papersize">—</td>
+  </tr>
+  <tr>
+    <th>โหมดสี (Color Mode)</th><td id="pf-colormode">—</td>
+    <th>รูปแบบการพิมพ์ (Print Side)</th><td id="pf-printside">—</td>
+  </tr>
+  <tr><th>งานตกแต่ง / การเข้าเล่ม (Finishing / Binding)</th><td colspan="3" id="pf-finishing">—</td></tr>
+  <tr><th>การจัดเตรียมกระดาษ (Paper Source)</th><td colspan="3" id="pf-paperresponsibility">—</td></tr>
+  <tr><th>เลขรันประจำชุด (Copy Label)</th><td colspan="3" id="pf-copylabel">—</td></tr>
+</table>
+
+<div class="print-section-label">รายการที่ขอผลิต (Items Requested)</div>
+<table class="print-item-table">
+  <thead>
+    <tr>
+      <th>เลขอ้างอิง / RUN NUMBER</th>
+      <th>รายการเอกสาร (Items)</th>
+      <th>หน้าต้นฉบับ (Orig. Pages)</th>
+      <th>จำนวนชุด (Copies)</th>
+      <th>รวมหน้าพิมพ์ (Total Pages)</th>
+      <th>รวมแผ่นกระดาษ (Total Sheets)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <span id="pf-refno">—</span>
+        <small id="pf-runno" style="display:none;"></small>
+      </td>
+      <td id="pf-itemlist">—</td>
+      <td class="num" id="pf-pages">—</td>
+      <td class="num" id="pf-copies">—</td>
+      <td class="num" id="pf-totalpages">—</td>
+      <td class="num" id="pf-totalsheets">—</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="print-requester-line">
+  <span class="k">ผู้ขอ (Requester)</span> <span id="pf-requester-name">—</span>
+  &nbsp;·&nbsp;
+  <span class="k">ส่งเมื่อ (Submitted)</span> <span id="pf-submitted">—</span>
+  <span id="pf-received-wrap" style="display:none;">
+    &nbsp;·&nbsp;
+    <span class="k">รับเอกสารต้นฉบับเมื่อ (Original Received)</span> <span id="pf-received">—</span>
+  </span>
+</div>
+
+<table class="print-field-table print-approval-table">
+  <tr>
+    <th>เจ้าหน้าที่ (Officer)</th>
+    <th>ผู้รับเอกสาร (Receiver)</th>
+  </tr>
+  <tr>
+    <td id="pf-signoff-officer"></td>
+    <td id="pf-signoff-receiver"></td>
+  </tr>
+</table>
+
+<div class="print-footnote" id="pf-footnote"></div>
