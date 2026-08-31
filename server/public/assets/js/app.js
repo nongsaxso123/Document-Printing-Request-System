@@ -198,7 +198,7 @@ function formatDropoffLabel(info, lang) {
   return info.sameDay
     ? `วันนี้ (${dateStr}) ก่อนเวลา 15:00 น.`
     : `${dateStr} ในเวลาทำการ 09:00–15:00 น.`;
-  }
+}
 
 function toDateInputValue(date) {
   const y = date.getFullYear();
@@ -783,9 +783,9 @@ const TRANSLATIONS = {
 
   "user.role.admin": { th: "ผู้ดูแลระบบ", en: "Admin" },
   "user.logout": { th: "ออกจากระบบ", en: "Log out" },
-  "user.logoutModalTitle": { th: "ยืนยันการออกจากระบบ", en: "Confirm Logout"},
-  "user.logoutModalMessage": { th: "คุณต้องการที่จะออกจากระบบใช่ไหม?"}, en: "Are you sure you want to log out?",
-  "user.logoutBtn": { th: "ออกจากระบบ", en: "Log out"},
+  "user.logoutModalTitle": { th: "ยืนยันการออกจากระบบ", en: "Confirm Logout" },
+  "user.logoutModalMessage": { th: "คุณต้องการที่จะออกจากระบบใช่ไหม?" }, en: "Are you sure you want to log out?",
+  "user.logoutBtn": { th: "ออกจากระบบ", en: "Log out" },
   "crumb.admin": { th: "จัดการบัญชีเจ้าหน้าที่ / <strong>ภาพรวม</strong>", en: "Officer Accounts / <strong>Overview</strong>" },
 
   "admin.title": { th: "จัดการบัญชีเจ้าหน้าที่", en: "Officer Account Management" },
@@ -1067,14 +1067,14 @@ document.addEventListener("click", function (e) {
 
 document.addEventListener("click", function (e) {
   const link = e.target.closest(".logout-link")
-  if(!link) return ;
+  if (!link) return;
   e.preventDefault();
   showConfirmModal({
     title: t("user.logoutModalTitle"),
     message: t("user.logoutModalMessage"),
     confirmText: t("user.logoutBtn"),
     danger: true,
-    onConfirm: function(){
+    onConfirm: function () {
       window.location.href = link.href;
     }
   });
@@ -1098,12 +1098,12 @@ function ensureModal() {
   overlay.hidden = true;
   overlay.innerHTML =
     '<div class="modal-box" role="dialog" aria-modal="true">' +
-      '<h3 class="modal-title"></h3>' +
-      '<p class="modal-message"></p>' +
-      '<div class="modal-actions">' +
-        '<button type="button" class="btn btn-secondary modal-cancel"></button>' +
-        '<button type="button" class="btn btn-primary modal-confirm"></button>' +
-      '</div>' +
+    '<h3 class="modal-title"></h3>' +
+    '<p class="modal-message"></p>' +
+    '<div class="modal-actions">' +
+    '<button type="button" class="btn btn-secondary modal-cancel"></button>' +
+    '<button type="button" class="btn btn-primary modal-confirm"></button>' +
+    '</div>' +
     '</div>';
   document.body.appendChild(overlay);
 
