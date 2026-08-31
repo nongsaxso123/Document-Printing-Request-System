@@ -22,6 +22,48 @@ router.get("/requests", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get("/dashboard-summary", async (req, res, next) => {
+  try {
+    res.json(await requests.dashboardSummary({
+      year: req.query.year,
+      documentType: req.query.documentType,
+      paperSource: req.query.paperSource
+    }));
+  } catch (err) { next(err); }
+});
+
+router.get("/requests/awaiting", async (req, res, next) => {
+  try {
+    res.json(await requests.listAwaiting());
+  } catch (err) { next(err); }
+});
+
+router.get("/requests/printing", async (req, res, next) => {
+  try {
+    res.json(await requests.listPrinting());
+  } catch (err) { next(err); }
+});
+
+router.get("/requests/years", async (req, res, next) => {
+  try {
+    res.json(await requests.listAvailableYears());
+  } catch (err) { next(err); }
+});
+
+router.get("/requests/history", async (req, res, next) => {
+  try {
+    res.json(await requests.searchHistory({
+      status: req.query.status,
+      agencyCategory: req.query.agencyCategory,
+      year: req.query.year,
+      month: req.query.month,
+      q: req.query.q,
+      page: req.query.page,
+      pageSize: req.query.pageSize
+    }));
+  } catch (err) { next(err); }
+});
+
 router.get("/requests/by-claim/:code", async (req, res, next) => {
   try {
     const record = await requests.getByClaimCode(req.params.code);

@@ -55,7 +55,7 @@ app.use(passport.session());
 app.get("/", function (req, res) {
   if (req.user) {
     if (req.user.role === "Requester") return res.redirect("/requester/my-requests");
-    return res.redirect("/officer/dashboard"); // Officer and Admin
+    return res.redirect("/officer/queue"); // Officer and Admin
   }
 
   res.render("login", {

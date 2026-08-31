@@ -88,11 +88,23 @@
   const yearFilter = document.getElementById("year-filter");
   const monthFilter = document.getElementById("month-filter");
 
-  let allRequests = [];
+  // Search/filter/sort/pagination all happen server-side now (GET
+  // /api/requests/history) — fetching every request up front and doing all
+  // of that in browser JS visibly slowed the page down once the table grew
+  // into the tens of thousands of rows.
+  function debounce(fn, delay) {
+    let timer;
+    return function () {
+      const args = arguments;
+      const self = this;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(self, args); }, delay);
+    };
+  }
 
-  async function loadRequests() {
-    const res = await fetch("/api/requests");
-    allRequests = await res.json();
+  async function loadAvailableYears() {
+    const res = await fetch("/api/requests/years");
+    return res.json();
   }
 
   function renderAgencyFilterOptions() {
@@ -115,6 +127,8 @@
     agencyFilter.value = previous;
   }
 
+  let availableYears = [];
+
   function renderYearFilterOptions() {
     const lang = getLang();
     const previous = yearFilter.value;
@@ -125,11 +139,7 @@
     allOpt.textContent = t("history.filterYear.all");
     yearFilter.appendChild(allOpt);
 
-    const years = Array.from(new Set(allRequests.map(function (r) {
-      return new Date(r.submissionDate).getFullYear();
-    }))).sort(function (a, b) { return b - a; });
-
-    years.forEach(function (year) {
+    availableYears.forEach(function (year) {
       const opt = document.createElement("option");
       opt.value = String(year);
       opt.textContent = lang === "en" ? String(year) : String(year + 543);
@@ -160,38 +170,35 @@
     monthFilter.value = previous;
   }
 
-  function matchesSearch(record, query) {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return [record.referenceNo, record.runNumber, record.requesterName, record.receiverName, record.claimCode, record.reviewedByOfficer, record.handedOverByOfficer]
-      .some(function (v) { return v && v.toLowerCase().indexOf(q) !== -1; });
-  }
-
   const pageSizeSelect = document.getElementById("page-size-select");
   const prevPageBtn = document.getElementById("prev-page-btn");
   const nextPageBtn = document.getElementById("next-page-btn");
   let currentPage = 1;
+  let requestSeq = 0; // guards against an older, slower fetch overwriting a newer one's result
 
-  function renderHistory() {
+  async function renderHistory() {
     const lang = getLang();
-    const query = searchInput.value.trim();
-
-    const records = allRequests
-      .filter(function (r) { return !statusFilter.value || r.statusCode === statusFilter.value; })
-      .filter(function (r) { return !agencyFilter.value || r.agencyCategory === agencyFilter.value; })
-      .filter(function (r) { return !yearFilter.value || new Date(r.submissionDate).getFullYear() === Number(yearFilter.value); })
-      .filter(function (r) { return monthFilter.value === "" || new Date(r.submissionDate).getMonth() === Number(monthFilter.value); })
-      .filter(function (r) { return matchesSearch(r, query); })
-      .sort(function (a, b) { return new Date(b.submissionDate) - new Date(a.submissionDate); });
-
     const pageSize = Number(pageSizeSelect.value);
-    const total = records.length;
+
+    const params = new URLSearchParams();
+    if (statusFilter.value) params.set("status", statusFilter.value);
+    if (agencyFilter.value) params.set("agencyCategory", agencyFilter.value);
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+    params.set("page", currentPage);
+    params.set("pageSize", pageSize);
+
+    const seq = ++requestSeq;
+    const res = await fetch("/api/requests/history?" + params.toString());
+    const data = await res.json();
+    if (seq !== requestSeq) return; // a newer request has already landed
+
+    const total = data.total;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
-    if (currentPage > totalPages) currentPage = totalPages;
-    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages) { currentPage = totalPages; return renderHistory(); }
 
     const startIdx = (currentPage - 1) * pageSize;
-    const pageRecords = records.slice(startIdx, startIdx + pageSize);
     const from = total === 0 ? 0 : startIdx + 1;
     const to = Math.min(startIdx + pageSize, total);
 
@@ -204,12 +211,12 @@
 
     const tbody = document.getElementById("history-body");
 
-    if (pageRecords.length === 0) {
+    if (data.records.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" class="empty-state">' + t("history.empty") + '</td></tr>';
       return;
     }
 
-    tbody.innerHTML = pageRecords.map(function (r) {
+    tbody.innerHTML = data.records.map(function (r) {
       const agencyLabel = lang === "en" ? (AGENCY_CATEGORY_EN[r.agencyCategory] || r.agencyCategory) : r.agencyCategory;
       const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
       const officerLabel = r.handedOverByOfficer || r.reviewedByOfficer || "—";
@@ -244,7 +251,9 @@
     renderHistory();
   }
 
-  searchInput.addEventListener("input", onFilterChange);
+  const onSearchInput = debounce(onFilterChange, 300);
+
+  searchInput.addEventListener("input", onSearchInput);
   statusFilter.addEventListener("change", onFilterChange);
   agencyFilter.addEventListener("change", onFilterChange);
   yearFilter.addEventListener("change", onFilterChange);
@@ -267,7 +276,8 @@
     renderHistory();
   });
 
-  loadRequests().then(function () {
+  loadAvailableYears().then(function (years) {
+    availableYears = years;
     renderAgencyFilterOptions();
     renderYearFilterOptions();
     renderMonthFilterOptions();

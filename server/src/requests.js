@@ -159,6 +159,188 @@ async function listByRequester(requesterEmail) {
   return rows.map(toClientJSON);
 }
 
+// officer/queue.ejs only ever needs this small, naturally-bounded slice —
+// filtering server-side instead of fetching every request (GET /api/requests)
+// and filtering in the browser, which visibly slowed down once the table
+// grew into the tens of thousands of rows.
+async function listAwaiting() {
+  const rows = await prisma.request.findMany({
+    where: { status: "AWAITING_ORIGINAL_DOCUMENT" },
+    orderBy: { submissionDate: "asc" }
+  });
+  return rows.map(toClientJSON);
+}
+
+// officer/printing-jobs.ejs — same rationale as listAwaiting() above.
+async function listPrinting() {
+  const rows = await prisma.request.findMany({
+    where: { status: "PRINTING_IN_PROGRESS" },
+    orderBy: { originalDocReceivedTimestamp: "asc" }
+  });
+  return rows.map(toClientJSON);
+}
+
+// Single narrow-column scan (just submissionDate) — used to populate the
+// history page's year filter, and internally by searchHistory() for a
+// month-only filter (see below). Much cheaper than fetching full rows.
+async function listAvailableYears() {
+  const rows = await prisma.request.findMany({ select: { submissionDate: true } });
+  return Array.from(new Set(rows.map((r) => r.submissionDate.getFullYear()))).sort((a, b) => b - a);
+}
+
+// officer/history.ejs search/filter/pagination, computed server-side —
+// same rationale as listAwaiting() above: the old GET /api/requests + browser
+// JS filter/paginate approach shipped every row over the network on every
+// page load, which doesn't scale.
+async function searchHistory({ status, agencyCategory, year, month, q, page, pageSize } = {}) {
+  const andClauses = [];
+  if (status && CODE_TO_STATUS[status]) andClauses.push({ status: CODE_TO_STATUS[status] });
+  if (agencyCategory) andClauses.push({ agencyCategory });
+
+  const hasYear = year !== undefined && year !== null && year !== "";
+  const hasMonth = month !== undefined && month !== null && month !== "";
+  if (hasYear && hasMonth) {
+    const y = Number(year), m = Number(month);
+    andClauses.push({ submissionDate: { gte: new Date(y, m, 1), lt: new Date(y, m + 1, 1) } });
+  } else if (hasYear) {
+    const y = Number(year);
+    andClauses.push({ submissionDate: { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) } });
+  } else if (hasMonth) {
+    // No year given — match this calendar month across every year that has any data.
+    const m = Number(month);
+    const years = await listAvailableYears();
+    andClauses.push({
+      OR: years.map((y) => ({ submissionDate: { gte: new Date(y, m, 1), lt: new Date(y, m + 1, 1) } }))
+    });
+  }
+
+  if (q) {
+    const contains = { contains: q, mode: "insensitive" };
+    andClauses.push({
+      OR: [
+        { requestReferenceNo: contains },
+        { runNumber: contains },
+        { requesterName: contains },
+        { receiverName: contains },
+        { claimCode: contains },
+        { reviewedByOfficerName: contains },
+        { handedOverByOfficerName: contains }
+      ]
+    });
+  }
+
+  const where = andClauses.length > 0 ? { AND: andClauses } : {};
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
+
+  const [total, rows] = await Promise.all([
+    prisma.request.count({ where }),
+    prisma.request.findMany({
+      where,
+      orderBy: { submissionDate: "desc" },
+      skip: (pageNum - 1) * size,
+      take: size
+    })
+  ]);
+
+  return { records: rows.map(toClientJSON), total, page: pageNum, pageSize: size };
+}
+
+// Statuses that mean paper was actually consumed (mirrors PRINTED_STATUSES
+// in officer/dashboard.ejs, but against the raw DB enum, not the client's
+// translated status codes).
+const PRINTED_STATUS_ENUMS = ["PRINTING_IN_PROGRESS", "READY_FOR_PICKUP", "COMPLETED"];
+
+const DASHBOARD_SELECT = {
+  agencyCategory: true,
+  agencyUnit: true,
+  originalPages: true,
+  numberOfCopies: true,
+  printSide: true,
+  status: true,
+  submissionDate: true
+};
+
+// Real physical paper sheets, not printed pages — double-sided halves the
+// sheet count per page (matches the Total Sheets calc on the request form,
+// FR-17, and the identical client-side helper this replaces in dashboard.ejs).
+function computeSheets(r) {
+  const pages = Number(r.originalPages || 0);
+  const copies = Number(r.numberOfCopies || 0);
+  if (r.printSide === PRINT_SIDE_TH.double) return Math.ceil(pages / 2) * copies;
+  return pages * copies;
+}
+
+// Dashboard aggregation, computed server-side so the browser never has to
+// download/process every raw request row — the naive version of this
+// (GET /api/requests + summing in browser JS) visibly slows down once the
+// table has tens of thousands of rows.
+async function dashboardSummary({ year, documentType, paperSource } = {}) {
+  const scopedWhere = {};
+  if (documentType) scopedWhere.documentType = documentType;
+  if (paperSource) scopedWhere.paperSource = paperSource;
+  if (year) {
+    const y = Number(year);
+    scopedWhere.submissionDate = { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
+  }
+
+  // Trend chart always spans every year but still respects documentType/paperSource.
+  // When no year filter is set, that's the exact same query as scopedRows —
+  // skip the duplicate round-trip and reuse the one result for both.
+  const scopedRows = await prisma.request.findMany({ where: scopedWhere, select: DASHBOARD_SELECT });
+  const trendRows = year
+    ? await prisma.request.findMany({
+        where: { documentType: scopedWhere.documentType, paperSource: scopedWhere.paperSource },
+        select: DASHBOARD_SELECT
+      })
+    : scopedRows;
+
+  const printedRows = scopedRows.filter((r) => PRINTED_STATUS_ENUMS.includes(r.status));
+  const totalRequests = scopedRows.length;
+  const totalSheets = printedRows.reduce((sum, r) => sum + computeSheets(r), 0);
+  const avgSheets = totalRequests > 0 ? Math.round(totalSheets / totalRequests) : 0;
+  const activeUnits = new Set(printedRows.map((r) => `${r.agencyCategory}||${r.agencyUnit}`)).size;
+
+  const categoryMap = {};
+  const unitMap = {};
+  scopedRows.forEach((r) => {
+    if (!categoryMap[r.agencyCategory]) categoryMap[r.agencyCategory] = { category: r.agencyCategory, count: 0, copies: 0, sheets: 0 };
+    categoryMap[r.agencyCategory].count += 1;
+
+    const unitKey = `${r.agencyCategory}||${r.agencyUnit}`;
+    if (!unitMap[unitKey]) unitMap[unitKey] = { unit: r.agencyUnit, category: r.agencyCategory, count: 0, copies: 0, sheets: 0 };
+    unitMap[unitKey].count += 1;
+
+    if (PRINTED_STATUS_ENUMS.includes(r.status)) {
+      const sheets = computeSheets(r);
+      categoryMap[r.agencyCategory].copies += Number(r.numberOfCopies || 0);
+      categoryMap[r.agencyCategory].sheets += sheets;
+      unitMap[unitKey].copies += Number(r.numberOfCopies || 0);
+      unitMap[unitKey].sheets += sheets;
+    }
+  });
+
+  const yearTrend = {};
+  trendRows.forEach((r) => {
+    if (PRINTED_STATUS_ENUMS.includes(r.status)) {
+      const y = r.submissionDate.getFullYear();
+      yearTrend[y] = (yearTrend[y] || 0) + computeSheets(r);
+    }
+  });
+  const availableYears = Array.from(new Set(trendRows.map((r) => r.submissionDate.getFullYear()))).sort((a, b) => b - a);
+
+  return {
+    totalRequests,
+    totalSheets,
+    avgSheets,
+    activeUnits,
+    availableYears,
+    yearTrend,
+    categoryBreakdown: Object.values(categoryMap),
+    unitBreakdown: Object.values(unitMap)
+  };
+}
+
 // FR-03/04/05 — validates the proposed completion date server-side (never
 // trust the client's disabled-button UX alone) and assigns the Request
 // Reference Number + drop-off deadline atomically.
@@ -372,4 +554,4 @@ async function handover(ref, { receiverName, receiverPosition, receiverWorkplace
   return toClientJSON(updated);
 }
 
-module.exports = { list, getByRef, getByClaimCode, listByRequester, create, approve, reject, markReady, handover, STATUS_TO_CODE, CODE_TO_STATUS };
+module.exports = { list, getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory, create, approve, reject, markReady, handover, dashboardSummary, STATUS_TO_CODE, CODE_TO_STATUS };

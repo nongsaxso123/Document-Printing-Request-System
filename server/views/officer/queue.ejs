@@ -33,10 +33,12 @@
 
 <%- include("../partials/foot") %>
 <script>
+  // Only ever fetches the (naturally small) awaiting-original-document
+  // slice — filtered server-side — instead of every request in the system.
   let allRequests = [];
 
   async function loadRequests() {
-    const res = await fetch("/api/requests");
+    const res = await fetch("/api/requests/awaiting");
     allRequests = await res.json();
   }
 
@@ -45,7 +47,6 @@
     const showOverdueOnly = document.getElementById("overdue-filter").checked;
 
     const records = allRequests
-      .filter(function (r) { return r.statusCode === "awaiting"; })
       .filter(function (r) { return !showOverdueOnly || isOverdue(r); })
       .sort(function (a, b) { return new Date(a.submissionDate) - new Date(b.submissionDate); });
 

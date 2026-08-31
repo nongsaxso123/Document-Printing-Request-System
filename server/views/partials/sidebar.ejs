@@ -1,5 +1,5 @@
 <aside class="app-sidebar">
-  <a class="brand" href="/" title="กลับหน้าแรก">
+  <a class="brand" href="<%= user.role === 'Requester' ? '/requester/my-requests' : '/officer/queue' %>" title="กลับหน้าแรก">
     <div class="mark">OD</div>
     <div>
       <div class="name">ODPRS</div>

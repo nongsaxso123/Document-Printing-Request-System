@@ -27,17 +27,16 @@
 
 <%- include("../partials/foot") %>
 <script>
+  // Filtered server-side (small, naturally-bounded list) instead of
+  // fetching every request in the system just to pick out the printing ones.
   async function loadRequests() {
-    const res = await fetch("/api/requests");
+    const res = await fetch("/api/requests/printing");
     return res.json();
   }
 
   async function renderPrintingJobs() {
     const lang = getLang();
-    const all = await loadRequests();
-    const records = all
-      .filter(function (r) { return r.statusCode === "printing"; })
-      .sort(function (a, b) { return new Date(a.originalDocReceivedTimestamp) - new Date(b.originalDocReceivedTimestamp); });
+    const records = await loadRequests();
 
     const tbody = document.getElementById("printing-body");
 

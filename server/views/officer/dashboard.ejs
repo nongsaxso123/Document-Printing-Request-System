@@ -4,7 +4,7 @@
 
   <main class="app-main">
     <h1 class="page-title" data-i18n="dashboard.title">แดชบอร์ดสรุปข้อมูล</h1>
-    <p class="page-subtitle" data-i18n="dashboard.subtitle">ภาพรวมปริมาณคำขอและการพิมพ์ ใช้ประกอบการประมาณการงบประมาณ</p>
+    <p class="page-subtitle" data-i18n="dashboard.subtitle">ภาพรวมการใช้ทรัพยากรกระดาษ แยกตามหน่วยงานและประเภทหน่วยงาน สำหรับใช้รายงานต่อมหาวิทยาลัย</p>
 
     <div class="card">
       <div class="card-body">
@@ -13,8 +13,25 @@
             <label data-i18n="dashboard.yearFilter">ปีที่ต้องการดู</label>
             <select id="dash-year-filter"></select>
           </div>
+          <div class="field">
+            <label data-i18n="dashboard.documentTypeFilter">ประเภทเอกสาร</label>
+            <select id="dash-document-type-filter">
+              <option value="" data-i18n="dashboard.documentTypeFilter.all">ทั้งหมด</option>
+              <option value="ข้อสอบ" data-i18n="dashboard.documentTypeFilter.exam">ข้อสอบ</option>
+              <option value="เอกสารทั่วไป" data-i18n="dashboard.documentTypeFilter.general">เอกสารทั่วไป</option>
+            </select>
+          </div>
+          <div class="field">
+            <label data-i18n="dashboard.paperSourceFilter">แหล่งที่มากระดาษ</label>
+            <select id="dash-paper-source-filter">
+              <option value="" data-i18n="dashboard.paperSourceFilter.all">ทั้งหมด</option>
+              <option value="ฝ่ายทะเบียนจัดเตรียมให้" selected data-i18n="dashboard.paperSourceFilter.office">ฝ่ายทะเบียนจัดเตรียมให้</option>
+              <option value="ผู้ขอจัดเตรียมเอง" data-i18n="dashboard.paperSourceFilter.requester">ผู้ขอจัดเตรียมเอง</option>
+            </select>
+          </div>
         </div>
         <p class="hint" style="margin-top:10px;" data-i18n="dashboard.filterNote">ตัวกรองปีนี้มีผลกับสถิติและกราฟทุกส่วนด้านล่าง ยกเว้นกราฟ "แนวโน้มรายปี" ซึ่งแสดงทุกปีเสมอเพื่อการเปรียบเทียบ</p>
+        <p class="hint" style="margin-top:4px;" data-i18n="dashboard.paperSourceDefaultNote">ค่าเริ่มต้นแสดงเฉพาะกระดาษที่ฝ่ายทะเบียนจัดเตรียมให้ ซึ่งเป็นตัวเลขที่ใช้รายงานงบประมาณจริงของฝ่าย — เอกสารทั่วไปถูกกำหนดให้ผู้ขอจัดเตรียมกระดาษเองเสมอ จึงไม่นับรวมในค่าเริ่มต้นนี้</p>
       </div>
     </div>
 
@@ -27,67 +44,98 @@
       </div>
       <div class="card stat-tile">
         <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.totalCopies">จำนวนชุดที่ปริ้นแล้ว (รวม)</div>
-          <div class="stat-value" id="kpi-total-copies">—</div>
+          <div class="stat-label" data-i18n="dashboard.kpi.totalSheets">จำนวนแผ่นกระดาษที่ใช้ไป (รวม)</div>
+          <div class="stat-value" id="kpi-total-sheets">—</div>
         </div>
       </div>
       <div class="card stat-tile">
         <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.totalPages">จำนวนหน้าที่ปริ้นแล้ว (รวม)</div>
-          <div class="stat-value" id="kpi-total-pages">—</div>
+          <div class="stat-label" data-i18n="dashboard.kpi.avgSheets">เฉลี่ยแผ่นกระดาษ/คำขอ</div>
+          <div class="stat-value" id="kpi-avg-sheets">—</div>
         </div>
       </div>
       <div class="card stat-tile">
         <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.completionRate">อัตราคำขอที่สำเร็จ</div>
-          <div class="stat-value" id="kpi-completion-rate">—</div>
+          <div class="stat-label" data-i18n="dashboard.kpi.activeUnits">จำนวนหน่วยงานที่มีการใช้งาน</div>
+          <div class="stat-value" id="kpi-active-units">—</div>
         </div>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <span data-i18n="dashboard.trendTitle">จำนวนคำขอต่อปี</span>
-        <span class="hint" data-i18n="dashboard.trendNote">ภาพรวมทุกปี (ไม่ผูกกับตัวกรองด้านบน)</span>
+        <span data-i18n="dashboard.trendSheetsTitle">จำนวนแผ่นกระดาษที่ใช้ต่อปี</span>
+        <span class="hint" data-i18n="dashboard.trendNote">แสดงทุกปีเสมอ (ไม่ผูกกับตัวกรองปีด้านบน แต่ยังคงผูกกับตัวกรองประเภทเอกสาร/แหล่งที่มากระดาษ)</span>
       </div>
       <div class="card-body">
-        <div id="year-chart" class="viz-col-chart"></div>
+        <div id="year-sheets-chart" class="viz-col-chart"></div>
       </div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <span data-i18n="dashboard.agencyCountTitle">จำนวนคำขอ แยกตามประเภทหน่วยงาน</span>
+        <span data-i18n="dashboard.categorySheetsTitle">จำนวนแผ่นกระดาษที่ใช้ แยกตามประเภทหน่วยงาน</span>
       </div>
       <div class="card-body">
-        <div id="agency-count-chart" class="viz-bar-chart"></div>
+        <p class="hint" style="margin-bottom:14px;" data-i18n="dashboard.sheetsNote">คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) นับเป็นจำนวนแผ่นกระดาษจริงที่ใช้ (พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า) — ใช้ตัวเลขนี้ประกอบการรายงานและประมาณการงบประมาณ</p>
+        <div id="category-sheets-chart" class="viz-bar-chart"></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-header">
-        <span data-i18n="dashboard.agencyPagesTitle">จำนวนหน้าที่ปริ้นรวม แยกตามประเภทหน่วยงาน</span>
-      </div>
-      <div class="card-body">
-        <p class="hint" style="margin-bottom:14px;" data-i18n="dashboard.agencyPagesNote">คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) — ใช้ตัวเลขนี้ประกอบการประมาณการงบประมาณ</p>
-        <div id="agency-pages-chart" class="viz-bar-chart"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span data-i18n="dashboard.tableTitle">ตารางสรุปรายหน่วยงาน</span></div>
+      <div class="card-header"><span data-i18n="dashboard.categoryTableTitle">ตารางสรุปรายประเภทหน่วยงาน</span></div>
       <div class="card-body" style="padding:0;">
         <table class="data-table">
           <thead>
             <tr>
-              <th data-i18n="dashboard.th.agency">ประเภทหน่วยงาน</th>
+              <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
               <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
               <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
-              <th data-i18n="dashboard.th.pages">จำนวนหน้าที่ปริ้นแล้ว</th>
-              <th data-i18n="dashboard.th.avgPages">เฉลี่ยหน้า/คำขอ</th>
+              <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
+              <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
             </tr>
           </thead>
-          <tbody id="summary-table-body"></tbody>
+          <tbody id="category-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span data-i18n="dashboard.unitTopTitle">10 อันดับหน่วยงานที่ใช้กระดาษมากที่สุด</span>
+      </div>
+      <div class="card-body">
+        <div id="unit-top-chart" class="viz-bar-chart"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span data-i18n="dashboard.unitTableTitle">ตารางสรุปรายหน่วยงาน (ทั้งหมด)</span></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label data-i18n="dashboard.unitSearchLabel">ค้นหาหน่วยงาน</label>
+            <input type="text" id="unit-search-input" data-i18n-placeholder="dashboard.unitSearchPlaceholder" placeholder="พิมพ์ชื่อหน่วยงาน">
+          </div>
+          <div class="field">
+            <label data-i18n="dashboard.unitCategoryFilterLabel">กรองตามประเภทหน่วยงาน</label>
+            <select id="unit-category-filter"></select>
+          </div>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-i18n="dashboard.th.unit">หน่วยงาน</th>
+              <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
+              <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
+              <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
+              <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
+              <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
+            </tr>
+          </thead>
+          <tbody id="unit-table-body"></tbody>
         </table>
       </div>
     </div>
@@ -95,18 +143,36 @@
 
 <%- include("../partials/foot") %>
 <script>
+  // The dashboard used to GET /api/requests (every raw row) and aggregate in
+  // browser JS — fine at a few dozen rows, visibly slow once the table has
+  // tens of thousands. All aggregation now happens server-side
+  // (GET /api/dashboard-summary); the browser only ever handles small,
+  // pre-summarized arrays (per-category, per-unit), regardless of how many
+  // total requests exist.
   const yearFilter = document.getElementById("dash-year-filter");
-  const PRINTED_STATUSES = ["printing", "ready", "completed"];
+  const documentTypeFilter = document.getElementById("dash-document-type-filter");
+  const paperSourceFilter = document.getElementById("dash-paper-source-filter");
+  const unitCategoryFilter = document.getElementById("unit-category-filter");
+  const unitSearchInput = document.getElementById("unit-search-input");
 
-  let allRequests = [];
+  let summary = null;
 
-  async function loadRequests() {
-    const res = await fetch("/api/requests");
-    allRequests = await res.json();
+  async function fetchSummary() {
+    const params = new URLSearchParams();
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    if (documentTypeFilter.value) params.set("documentType", documentTypeFilter.value);
+    if (paperSourceFilter.value) params.set("paperSource", paperSourceFilter.value);
+    const res = await fetch("/api/dashboard-summary?" + params.toString());
+    summary = await res.json();
   }
 
   function formatNumber(n) {
     return n.toLocaleString(getLang() === "en" ? "en-US" : "th-TH");
+  }
+
+  function categoryLabelFor(category) {
+    const lang = getLang();
+    return lang === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
   }
 
   function renderYearFilterOptions() {
@@ -119,11 +185,7 @@
     allOpt.textContent = t("dashboard.yearFilter.all");
     yearFilter.appendChild(allOpt);
 
-    const years = Array.from(new Set(allRequests.map(function (r) {
-      return new Date(r.submissionDate).getFullYear();
-    }))).sort(function (a, b) { return b - a; });
-
-    years.forEach(function (year) {
+    (summary.availableYears || []).forEach(function (year) {
       const opt = document.createElement("option");
       opt.value = String(year);
       opt.textContent = lang === "en" ? String(year) : String(year + 543);
@@ -133,24 +195,27 @@
     yearFilter.value = previous;
   }
 
-  function computeAgencyBreakdown(records) {
-    const map = {};
-    records.forEach(function (r) {
-      if (!map[r.agencyCategory]) map[r.agencyCategory] = { count: 0, copies: 0, pages: 0 };
-      map[r.agencyCategory].count += 1;
-      if (PRINTED_STATUSES.indexOf(r.statusCode) !== -1) {
-        const pages = Number(r.originalPages || 0) * Number(r.copies || 0);
-        map[r.agencyCategory].copies += Number(r.copies || 0);
-        map[r.agencyCategory].pages += pages;
-      }
+  function renderUnitCategoryFilterOptions() {
+    const previous = unitCategoryFilter.value;
+    unitCategoryFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("dashboard.unitCategoryFilter.all");
+    unitCategoryFilter.appendChild(allOpt);
+
+    const categories = summary.categoryBreakdown.map(function (c) { return c.category; }).sort();
+    categories.forEach(function (category) {
+      const opt = document.createElement("option");
+      opt.value = category;
+      opt.textContent = categoryLabelFor(category);
+      unitCategoryFilter.appendChild(opt);
     });
-    return Object.keys(map).map(function (category) {
-      return { category: category, count: map[category].count, copies: map[category].copies, pages: map[category].pages };
-    });
+
+    unitCategoryFilter.value = previous;
   }
 
-  function renderBarChart(containerId, items, valueKey) {
-    const lang = getLang();
+  function renderBarChart(containerId, items, valueKey, labelFn) {
     const container = document.getElementById(containerId);
     const sorted = items.filter(function (it) { return it[valueKey] > 0; })
       .sort(function (a, b) { return b[valueKey] - a[valueKey]; });
@@ -163,7 +228,7 @@
     const max = sorted[0][valueKey];
 
     container.innerHTML = sorted.map(function (it, index) {
-      const label = lang === "en" ? (AGENCY_CATEGORY_EN[it.category] || it.category) : it.category;
+      const label = labelFn(it);
       const pct = max > 0 ? Math.round((it[valueKey] / max) * 100) : 0;
       let badge = "";
       if (index === 0) badge = '<span class="viz-bar-badge highest">' + t("dashboard.highest") + '</span>';
@@ -178,16 +243,10 @@
     }).join("");
   }
 
-  function renderYearChart() {
+  function renderYearColumnChart(containerId, counts) {
     const lang = getLang();
-    const counts = {};
-    allRequests.forEach(function (r) {
-      const y = new Date(r.submissionDate).getFullYear();
-      counts[y] = (counts[y] || 0) + 1;
-    });
-
     const years = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
-    const container = document.getElementById("year-chart");
+    const container = document.getElementById(containerId);
 
     if (years.length === 0) {
       container.innerHTML = '<div class="empty-state">' + t("dashboard.noData") + '</div>';
@@ -208,10 +267,9 @@
     }).join("");
   }
 
-  function renderSummaryTable(items) {
-    const lang = getLang();
-    const tbody = document.getElementById("summary-table-body");
-    const sorted = items.slice().sort(function (a, b) { return b.pages - a.pages; });
+  function renderCategoryTable(items) {
+    const tbody = document.getElementById("category-table-body");
+    const sorted = items.slice().sort(function (a, b) { return b.sheets - a.sheets; });
 
     if (sorted.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
@@ -219,52 +277,91 @@
     }
 
     tbody.innerHTML = sorted.map(function (it) {
-      const label = lang === "en" ? (AGENCY_CATEGORY_EN[it.category] || it.category) : it.category;
-      const avgPages = it.count > 0 ? Math.round(it.pages / it.count) : 0;
+      const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
       return '<tr>' +
-        '<td>' + label + '</td>' +
+        '<td>' + categoryLabelFor(it.category) + '</td>' +
         '<td>' + formatNumber(it.count) + '</td>' +
         '<td>' + formatNumber(it.copies) + '</td>' +
-        '<td>' + formatNumber(it.pages) + '</td>' +
-        '<td>' + formatNumber(avgPages) + '</td>' +
+        '<td>' + formatNumber(it.sheets) + '</td>' +
+        '<td>' + formatNumber(avgSheets) + '</td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  // Filtered/searched purely client-side — summary.unitBreakdown is already
+  // a small pre-aggregated array (bounded by the number of distinct
+  // departments, not by how many total requests exist), so no server
+  // round-trip is needed just to search or narrow by category.
+  function renderUnitTable(items) {
+    const tbody = document.getElementById("unit-table-body");
+    const query = unitSearchInput.value.trim().toLowerCase();
+    const category = unitCategoryFilter.value;
+
+    const filtered = items.filter(function (it) {
+      if (category && it.category !== category) return false;
+      if (query && it.unit.toLowerCase().indexOf(query) === -1) return false;
+      return true;
+    });
+
+    const sorted = filtered.slice().sort(function (a, b) { return b.sheets - a.sheets; });
+
+    if (sorted.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sorted.map(function (it) {
+      const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
+      return '<tr>' +
+        '<td>' + it.unit + '</td>' +
+        '<td>' + categoryLabelFor(it.category) + '</td>' +
+        '<td>' + formatNumber(it.count) + '</td>' +
+        '<td>' + formatNumber(it.copies) + '</td>' +
+        '<td>' + formatNumber(it.sheets) + '</td>' +
+        '<td>' + formatNumber(avgSheets) + '</td>' +
         '</tr>';
     }).join("");
   }
 
   function renderAll() {
-    const records = allRequests
-      .filter(function (r) { return !yearFilter.value || new Date(r.submissionDate).getFullYear() === Number(yearFilter.value); });
+    document.getElementById("kpi-total-requests").textContent = formatNumber(summary.totalRequests);
+    document.getElementById("kpi-total-sheets").textContent = formatNumber(summary.totalSheets);
+    document.getElementById("kpi-avg-sheets").textContent = formatNumber(summary.avgSheets);
+    document.getElementById("kpi-active-units").textContent = formatNumber(summary.activeUnits);
 
-    const totalRequests = records.length;
-    const printedRecords = records.filter(function (r) { return PRINTED_STATUSES.indexOf(r.statusCode) !== -1; });
-    const totalCopies = printedRecords.reduce(function (sum, r) { return sum + Number(r.copies || 0); }, 0);
-    const totalPages = printedRecords.reduce(function (sum, r) { return sum + Number(r.originalPages || 0) * Number(r.copies || 0); }, 0);
-    const completed = records.filter(function (r) { return r.statusCode === "completed"; }).length;
-    const completionRate = totalRequests > 0 ? Math.round((completed / totalRequests) * 100) : 0;
+    renderBarChart("category-sheets-chart", summary.categoryBreakdown, "sheets", function (it) { return categoryLabelFor(it.category); });
+    renderCategoryTable(summary.categoryBreakdown);
 
-    document.getElementById("kpi-total-requests").textContent = formatNumber(totalRequests);
-    document.getElementById("kpi-total-copies").textContent = formatNumber(totalCopies);
-    document.getElementById("kpi-total-pages").textContent = formatNumber(totalPages);
-    document.getElementById("kpi-completion-rate").textContent = completionRate + "%";
+    const top10 = summary.unitBreakdown.slice().sort(function (a, b) { return b.sheets - a.sheets; }).slice(0, 10);
+    renderBarChart("unit-top-chart", top10, "sheets", function (it) { return it.unit; });
+    renderUnitTable(summary.unitBreakdown);
 
-    const breakdown = computeAgencyBreakdown(records);
-    renderBarChart("agency-count-chart", breakdown, "count");
-    renderBarChart("agency-pages-chart", breakdown, "pages");
-    renderSummaryTable(breakdown);
-    renderYearChart();
+    renderYearColumnChart("year-sheets-chart", summary.yearTrend);
   }
 
-  yearFilter.addEventListener("change", renderAll);
+  // Year/document-type/paper-source changes need a fresh server-side
+  // aggregation; unit search/category-filter only re-slice the array already
+  // in memory.
+  async function reload() {
+    await fetchSummary();
+    renderYearFilterOptions();
+    renderUnitCategoryFilterOptions();
+    renderAll();
+  }
+
+  yearFilter.addEventListener("change", reload);
+  documentTypeFilter.addEventListener("change", reload);
+  paperSourceFilter.addEventListener("change", reload);
+  unitCategoryFilter.addEventListener("change", function () { renderUnitTable(summary.unitBreakdown); });
+  unitSearchInput.addEventListener("input", function () { renderUnitTable(summary.unitBreakdown); });
 
   document.addEventListener("odprs:langchange", function () {
     renderYearFilterOptions();
+    renderUnitCategoryFilterOptions();
     renderAll();
   });
 
-  loadRequests().then(function () {
-    renderYearFilterOptions();
-    renderAll();
-  });
+  reload();
 </script>
 </body>
 </html>
