@@ -72,6 +72,10 @@ const FINISHING_PAGE_LIMITS = {
 };
 const PAPER_SOURCE_TH = { office: "ฝ่ายทะเบียนจัดเตรียมให้", requester: "ผู้ขอจัดเตรียมเอง" };
 
+// Copy Label's auto-run numbers are zero-padded to 3 digits (001..999) —
+// capping copies here keeps that format from overflowing to 4 digits.
+const MAX_COPIES = 999;
+
 const STATUS_TO_CODE = {
   AWAITING_ORIGINAL_DOCUMENT: "awaiting",
   REJECTED: "rejected",
@@ -107,8 +111,10 @@ function toClientJSON(r) {
     documentType: r.documentType,
     paperSource: r.paperSource,
     copyLabelEnabled: r.copyLabelEnabled,
+    copyLabelMode: r.copyLabelMode,
     copyLabelPrefix: r.copyLabelPrefix,
     copyLabelStart: r.copyLabelStart,
+    copyLabelManual: r.copyLabelManual,
     itemList: r.itemList,
     originalPages: r.originalPages,
     copies: r.numberOfCopies,
@@ -227,11 +233,31 @@ async function create(input) {
 
   const finishingMethods = finishingCodes.map((code) => FINISHING_METHOD_TH[code]);
 
+  const numberOfCopies = parseInt(input.numberOfCopies, 10);
+  if (!numberOfCopies || numberOfCopies < 1 || numberOfCopies > MAX_COPIES) {
+    return { error: "copies-out-of-range" };
+  }
+
   const copyLabelEnabled = !!input.copyLabelEnabled;
-  const copyLabelPrefix = copyLabelEnabled ? (input.copyLabelPrefix || null) : null;
-  const copyLabelStart = copyLabelEnabled && input.copyLabelStart !== undefined && input.copyLabelStart !== ""
-    ? parseInt(input.copyLabelStart, 10)
-    : null;
+  const copyLabelMode = copyLabelEnabled && input.copyLabelMode === "manual" ? "manual" : "auto";
+  let copyLabelPrefix = null;
+  let copyLabelStart = null;
+  let copyLabelManual = [];
+
+  if (copyLabelEnabled && copyLabelMode === "manual") {
+    // v0.7 — free-text label per copy, entered directly by the Requester
+    // instead of an auto-incrementing prefix+number. Never trust the
+    // client's disabled-input UX alone: re-check the count and that none
+    // are blank server-side too.
+    copyLabelManual = [].concat(input.copyLabelManual || []).map((v) => (v || "").trim());
+    if (copyLabelManual.length !== numberOfCopies || copyLabelManual.some((v) => !v)) {
+      return { error: "copy-label-manual-invalid" };
+    }
+  } else if (copyLabelEnabled) {
+    // Auto mode always runs 1..numberOfCopies (zero-padded to 3 digits on
+    // display) — the Requester no longer picks a prefix or starting number.
+    copyLabelStart = 1;
+  }
 
   const dropoff = businessDays.computeDropoffDeadline(submissionDate);
   const requestReferenceNo = await counters.nextReferenceNo();
@@ -251,11 +277,13 @@ async function create(input) {
       documentType,
       paperSource,
       copyLabelEnabled,
+      copyLabelMode: copyLabelEnabled ? copyLabelMode : null,
       copyLabelPrefix,
       copyLabelStart,
+      copyLabelManual,
       itemList: input.itemList,
       originalPages,
-      numberOfCopies: parseInt(input.numberOfCopies, 10),
+      numberOfCopies,
       submissionDate,
       originalDocDeadline: dropoff.date,
       appointmentDateProposed: proposed,

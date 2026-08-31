@@ -83,9 +83,15 @@ model Request {
   // v0.4 (FR-18) — optional per-copy running number ("Copy Label"),
   // entirely independent of Request_Reference_No / RUN_NUMBER. Ending
   // number is derived (start + copies - 1), not stored separately.
-  copyLabelEnabled Boolean @default(false) @map("copy_label_enabled")
-  copyLabelPrefix  String? @map("copy_label_prefix")
-  copyLabelStart   Int?    @map("copy_label_start")
+  // v0.7 — Requester can pick between "auto" (prefix + running start
+  // number, the original v0.4 behavior) and "manual" (a free-text label
+  // typed per copy, stored positionally in copyLabelManual). copyLabelMode
+  // is only meaningful when copyLabelEnabled is true.
+  copyLabelEnabled Boolean  @default(false) @map("copy_label_enabled")
+  copyLabelMode    String?  @map("copy_label_mode")
+  copyLabelPrefix  String?  @map("copy_label_prefix")
+  copyLabelStart   Int?     @map("copy_label_start")
+  copyLabelManual  String[] @default([]) @map("copy_label_manual")
   itemList         String  @map("item_list") @db.Text
   originalPages    Int     @map("original_pages")
   numberOfCopies   Int     @map("number_of_copies")

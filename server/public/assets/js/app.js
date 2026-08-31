@@ -269,12 +269,25 @@ function paperResponsibilityText(paperSource, totalSheets, lang) {
     .replace("{buffered}", buffered.toLocaleString(numFmt));
 }
 
-/** FR-18's Copy Label range preview (e.g. "M-10 – M-59"), or null when there isn't enough data to compute one. */
+/** FR-18's Copy Label range preview (e.g. "M-001 – M-050"), zero-padded to 3 digits, or null when there isn't enough data to compute one. */
 function copyLabelRangeText(prefix, start, numberOfCopies) {
   const copies = Number(numberOfCopies) || 0;
   if (start === null || start === undefined || start === "" || !copies) return null;
+  const pad = (n) => String(n).padStart(3, "0");
   const end = Number(start) + copies - 1;
-  return `${prefix || ""}${start} – ${prefix || ""}${end}`;
+  return `${prefix || ""}${pad(start)} – ${prefix || ""}${pad(end)}`;
+}
+
+/** FR-18 Copy Label display text for a request record, covering both "auto" (prefix + running number) and v0.7's "manual" mode — a single free-text label shared identically by every copy. Null when Copy Label wasn't requested. */
+function copyLabelDisplayText(record) {
+  if (!record.copyLabelEnabled) return null;
+  if (record.copyLabelMode === "manual") {
+    const values = record.copyLabelManual || [];
+    if (!values.length) return null;
+    const unique = [...new Set(values)];
+    return unique.length === 1 ? unique[0] : unique.join(", ");
+  }
+  return copyLabelRangeText(record.copyLabelPrefix, record.copyLabelStart, record.copies);
 }
 
 /* =====================================================================
@@ -378,7 +391,7 @@ const TRANSLATIONS = {
   "field.itemList.placeholder": { th: "เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า", en: "e.g. Course syllabus chapters 1-5, cover sheet" },
   "field.originalPages": { th: "จำนวนหน้าต้นฉบับ *", en: "Original Page Count *" },
   "field.copies": { th: "จำนวนชุดที่ต้องการ *", en: "Number of Copies *" },
-  "field.copies.hint": { th: "ไม่จำกัดจำนวนชุด", en: "No minimum or maximum" },
+  "field.copies.maxError": { th: "จำนวนชุดต้องไม่เกิน 999 ชุด", en: "Number of copies cannot exceed 999." },
   "field.completionDate": { th: "วันที่ต้องการรับเอกสาร *", en: "Requested Completion Date *" },
   "field.completionDate.error": { th: "กรุณาเลือกวันที่ห่างจากวันนี้อย่างน้อย 3 วันทำการ", en: "Please choose a date at least 3 business days from today." },
   "field.completionDate.weekendError": { th: "วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ — กรุณาเลือกวันทำการ (จันทร์-ศุกร์)", en: "The selected date falls on a Saturday or Sunday — please choose a business day (Mon-Fri)." },
@@ -391,6 +404,10 @@ const TRANSLATIONS = {
   "newRequest.error.finishingRequiresDoubleSide.body": { th: "เย็บมุงหลังคาต้องพิมพ์สองหน้าเท่านั้น", en: "Saddle-stitch binding requires double-sided printing." },
   "newRequest.error.finishingPageCount": { th: "จำนวนหน้าไม่เหมาะกับงานตกแต่งที่เลือก", en: "Page Count Doesn't Fit the Selected Finishing" },
   "newRequest.error.finishingPageCount.body": { th: "กรุณาตรวจสอบจำนวนหน้าต้นฉบับให้เหมาะกับงานตกแต่ง/เข้าเล่มที่เลือก", en: "Please check that the original page count fits the selected finishing/binding method." },
+  "newRequest.error.copyLabelManual": { th: "เลขรันประจำชุดแบบกรอกเองไม่ถูกต้อง", en: "Manually Entered Copy Labels Are Invalid" },
+  "newRequest.error.copyLabelManual.body": { th: "กรุณากรอกข้อความที่ต้องการใช้กับทุกชุด", en: "Please enter the label text to use for every copy." },
+  "newRequest.error.copiesOutOfRange": { th: "จำนวนชุดไม่ถูกต้อง", en: "Invalid Number of Copies" },
+  "newRequest.error.copiesOutOfRange.body": { th: "กรุณาระบุจำนวนชุดระหว่าง 1 ถึง 999 ชุด", en: "Please enter a number of copies between 1 and 999." },
   "field.finishingMethod.examLocked": { th: "ข้อสอบเลือกได้เฉพาะ \"ไม่ต้องการ\" หรือ \"เย็บมุม\" เท่านั้น — ตัวเลือกอื่นถูกปิดไว้", en: "Exams may only use \"None\" or \"Corner Staple\" — other options are disabled." },
   "field.finishingMethod.saddleStitchForcesDouble": { th: "เย็บมุงหลังคาต้องพิมพ์สองหน้า ระบบเปลี่ยนรูปแบบการพิมพ์ให้อัตโนมัติ", en: "Saddle-stitch requires double-sided printing — Print Side was switched automatically." },
   "field.finishingMethod.pageCount.saddleStitch": { th: "เย็บมุงหลังคา: จำนวนหน้าต้นฉบับต้องหารด้วย 4 ลงตัว และไม่เกิน 60 หน้า", en: "Saddle-stitch: original page count must be a multiple of 4, up to 60 pages." },
@@ -406,10 +423,13 @@ const TRANSLATIONS = {
   "field.paperSource.selectDocTypeFirst": { th: "เลือกประเภทเอกสารก่อน", en: "Select a Document Type first" },
   "field.copyLabel.toggle": { th: "ต้องการเลขรันประจำชุด (Copy Label) หรือไม่", en: "Add a running number to each copy (Copy Label)" },
   "field.copyLabel.toggle.hint": { th: "เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER", en: "Printed in the top-right corner of each copy's first page, for the Requester's own tracking — independent of the Request Reference No. and RUN NUMBER." },
-  "field.copyLabel.prefix": { th: "คำนำหน้า (ถ้ามี)", en: "Prefix (optional)" },
-  "field.copyLabel.prefix.placeholder": { th: "เช่น M-", en: "e.g. M-" },
-  "field.copyLabel.start": { th: "เลขเริ่มต้น *", en: "Starting Number *" },
+  "field.copyLabel.mode.auto": { th: "รันเลขอัตโนมัติ", en: "Auto-generate running number" },
+  "field.copyLabel.mode.manual": { th: "กรอกเอง (ข้อความเดียวกันทุกชุด)", en: "Type it myself (same text for every copy)" },
+  "field.copyLabel.auto.hint": { th: "ระบบจะรันเลขให้อัตโนมัติ (เช่น 001–050) ตามจำนวนชุดที่ต้องการ", en: "The system auto-generates the numbers (e.g. 001–050) based on the number of copies requested." },
   "field.copyLabel.preview": { th: "ตัวอย่างเลขที่จะพิมพ์: {range}", en: "Preview: {range}" },
+  "field.copyLabel.manual.hint": { th: "กรอกข้อความหรือเลขที่ต้องการ ระบบจะใช้ข้อความเดียวกันนี้กับทุกชุด", en: "Type the label you want — it will be used identically on every copy." },
+  "field.copyLabel.manual.item": { th: "ข้อความที่ต้องการ (ใช้เหมือนกันทุกชุด) *", en: "Label text (same for every copy) *" },
+  "field.copyLabel.manual.item.placeholder": { th: "เช่น ชุด A", en: "e.g. Set A" },
 
   "option.colorMode.bw": { th: "ขาวดำ", en: "Black & White" },
   "option.colorMode.color": { th: "สี", en: "Color" },

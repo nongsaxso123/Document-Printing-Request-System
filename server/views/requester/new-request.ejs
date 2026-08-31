@@ -33,6 +33,12 @@
         <% } else if (error === "finishing-page-count-invalid") { %>
         <strong data-i18n="newRequest.error.finishingPageCount">จำนวนหน้าไม่เหมาะกับงานตกแต่งที่เลือก</strong><br>
         <span data-i18n="newRequest.error.finishingPageCount.body">กรุณาตรวจสอบจำนวนหน้าต้นฉบับให้เหมาะกับงานตกแต่ง/เข้าเล่มที่เลือก</span>
+        <% } else if (error === "copy-label-manual-invalid") { %>
+        <strong data-i18n="newRequest.error.copyLabelManual">เลขรันประจำชุดแบบกรอกเองไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.copyLabelManual.body">กรุณากรอกข้อความสำหรับทุกชุดให้ครบตามจำนวนชุดที่ต้องการ</span>
+        <% } else if (error === "copies-out-of-range") { %>
+        <strong data-i18n="newRequest.error.copiesOutOfRange">จำนวนชุดไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.copiesOutOfRange.body">กรุณาระบุจำนวนชุดระหว่าง 1 ถึง 999 ชุด</span>
         <% } else { %>
         <strong data-i18n="newRequest.error.dateTooSoon">วันที่เลือกไม่ถูกต้อง</strong><br>
         <% if (error === "completion-date-weekend") { %>
@@ -211,8 +217,8 @@
 
           <div class="field">
             <label data-i18n="field.copies">จำนวนชุดที่ต้องการ *</label>
-            <input type="number" name="copies" id="copies" min="1" value="1" required>
-            <span class="hint" data-i18n="field.copies.hint">ไม่จำกัดจำนวนชุด</span>
+            <input type="number" name="copies" id="copies" min="1" max="999" value="1" required>
+            <span class="field-error" id="copies-error"></span>
           </div>
 
           <div class="field span-2">
@@ -237,17 +243,30 @@
             </label>
             <span class="hint" data-i18n="field.copyLabel.toggle.hint">เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER</span>
 
-            <div class="copy-label-fields" id="copy-label-fields" style="display:none;">
-              <div class="field">
-                <label data-i18n="field.copyLabel.prefix">คำนำหน้า (ถ้ามี)</label>
-                <input type="text" name="copyLabelPrefix" id="copy-label-prefix" data-i18n-placeholder="field.copyLabel.prefix.placeholder" placeholder="เช่น M-" disabled>
+            <div id="copy-label-body" style="display:none;">
+              <div class="radio-group" id="copy-label-mode-group" style="margin-top:12px;">
+                <label class="radio-option">
+                  <input type="radio" name="copyLabelMode" value="auto" id="copy-label-mode-auto" checked>
+                  <span data-i18n="field.copyLabel.mode.auto">รันเลขอัตโนมัติ</span>
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="copyLabelMode" value="manual" id="copy-label-mode-manual">
+                  <span data-i18n="field.copyLabel.mode.manual">กรอกเอง (ข้อความเดียวกันทุกชุด)</span>
+                </label>
               </div>
-              <div class="field">
-                <label data-i18n="field.copyLabel.start">เลขเริ่มต้น *</label>
-                <input type="number" name="copyLabelStart" id="copy-label-start" min="1" value="1" disabled>
+
+              <span class="hint" id="copy-label-auto-fields" data-i18n="field.copyLabel.auto.hint">ระบบจะรันเลขให้อัตโนมัติ (เช่น 001–050) ตามจำนวนชุดที่ต้องการ</span>
+              <span class="hint" id="copy-label-preview"></span>
+
+              <span class="hint" id="copy-label-manual-hint" style="display:none;" data-i18n="field.copyLabel.manual.hint">กรอกข้อความหรือเลขที่ต้องการ ระบบจะใช้ข้อความเดียวกันนี้กับทุกชุด</span>
+              <div class="copy-label-fields" id="copy-label-manual-fields" style="display:none;">
+                <div class="field">
+                  <label data-i18n="field.copyLabel.manual.item">ข้อความที่ต้องการ (ใช้เหมือนกันทุกชุด) *</label>
+                  <input type="text" id="copy-label-manual-single" data-i18n-placeholder="field.copyLabel.manual.item.placeholder" placeholder="เช่น ชุด A">
+                </div>
               </div>
+              <div id="copy-label-manual-hidden" style="display:none;"></div>
             </div>
-            <span class="hint" id="copy-label-preview"></span>
           </div>
 
           <div class="field span-2" id="date-field">
@@ -440,6 +459,20 @@
   copiesInput.addEventListener("input", renderCalc);
   printSideInputs.forEach(function (input) { input.addEventListener("change", renderCalc); });
 
+  // Only surface the 999-copy cap once the requester actually exceeds it —
+  // no upfront hint is shown, matching how the finishing-method page-count
+  // limits above only speak up once violated.
+  const copiesError = document.getElementById("copies-error");
+  function validateCopies() {
+    const copies = parseInt(copiesInput.value, 10) || 0;
+    const msg = copies > 999 ? t("field.copies.maxError") : "";
+    copiesInput.setCustomValidity(msg);
+    copiesError.textContent = msg;
+    copiesInput.closest(".field").classList.toggle("invalid", !!msg);
+  }
+  copiesInput.addEventListener("input", validateCopies);
+  document.addEventListener("odprs:langchange", validateCopies);
+
   // ---------- Finishing Method: real-world conflict rules ----------
   // 1. Exam jobs only ever get a quick corner-staple (or nothing) at the
   //    counter — none of the book-binding methods apply to exams.
@@ -564,41 +597,76 @@
   originalPagesInput.addEventListener("input", renderFinishingConstraints);
   document.addEventListener("odprs:langchange", renderFinishingConstraints);
 
-  // ---------- Copy Label (FR-18) ----------
+  // ---------- Copy Label (FR-18, v0.7 adds the "manual" mode) ----------
   const copyLabelToggle = document.getElementById("copy-label-toggle");
-  const copyLabelFields = document.getElementById("copy-label-fields");
-  const copyLabelPrefix = document.getElementById("copy-label-prefix");
-  const copyLabelStart = document.getElementById("copy-label-start");
+  const copyLabelBody = document.getElementById("copy-label-body");
+  const copyLabelModeAuto = document.getElementById("copy-label-mode-auto");
+  const copyLabelModeManual = document.getElementById("copy-label-mode-manual");
+  const copyLabelAutoFields = document.getElementById("copy-label-auto-fields");
+  const copyLabelManualHint = document.getElementById("copy-label-manual-hint");
+  const copyLabelManualFields = document.getElementById("copy-label-manual-fields");
+  const copyLabelManualSingle = document.getElementById("copy-label-manual-single");
+  const copyLabelManualHidden = document.getElementById("copy-label-manual-hidden");
   const copyLabelPreview = document.getElementById("copy-label-preview");
+
+  function padCopyNumber(n) {
+    return String(n).padStart(3, "0");
+  }
+
+  // The requester types the label text once; the same value is submitted
+  // for every copy (one hidden input per copy) so the identical-text-on-
+  // every-set behavior lives in one place rather than N separate inputs.
+  function syncCopyLabelManualHidden() {
+    copyLabelManualHidden.innerHTML = "";
+    const manualMode = copyLabelToggle.checked && copyLabelModeManual.checked;
+    if (!manualMode) return;
+
+    const copies = parseInt(copiesInput.value, 10) || 0;
+    const value = copyLabelManualSingle.value;
+    for (let i = 0; i < copies; i++) {
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "copyLabelManual";
+      hidden.value = value;
+      copyLabelManualHidden.appendChild(hidden);
+    }
+  }
 
   function renderCopyLabel() {
     const enabled = copyLabelToggle.checked;
-    copyLabelFields.style.display = enabled ? "flex" : "none";
-    copyLabelPrefix.disabled = !enabled;
-    copyLabelStart.disabled = !enabled;
-    copyLabelStart.required = enabled;
+    copyLabelBody.style.display = enabled ? "block" : "none";
 
-    if (!enabled) {
+    const manualMode = enabled && copyLabelModeManual.checked;
+    const autoMode = enabled && !manualMode;
+
+    copyLabelAutoFields.style.display = autoMode ? "block" : "none";
+
+    copyLabelManualHint.style.display = manualMode ? "block" : "none";
+    copyLabelManualFields.style.display = manualMode ? "flex" : "none";
+    copyLabelManualSingle.disabled = !manualMode;
+    copyLabelManualSingle.required = manualMode;
+
+    syncCopyLabelManualHidden();
+
+    if (!autoMode) {
       copyLabelPreview.textContent = "";
       return;
     }
 
     const copies = parseInt(copiesInput.value, 10) || 0;
-    const start = parseInt(copyLabelStart.value, 10);
-    const prefix = copyLabelPrefix.value || "";
 
-    if (!copies || !start && start !== 0) {
+    if (!copies) {
       copyLabelPreview.textContent = "";
       return;
     }
 
-    const end = start + copies - 1;
-    copyLabelPreview.textContent = t("field.copyLabel.preview").replace("{range}", `${prefix}${start} – ${prefix}${end}`);
+    copyLabelPreview.textContent = t("field.copyLabel.preview").replace("{range}", `${padCopyNumber(1)} – ${padCopyNumber(copies)}`);
   }
 
   copyLabelToggle.addEventListener("change", renderCopyLabel);
-  copyLabelPrefix.addEventListener("input", renderCopyLabel);
-  copyLabelStart.addEventListener("input", renderCopyLabel);
+  copyLabelModeAuto.addEventListener("change", renderCopyLabel);
+  copyLabelModeManual.addEventListener("change", renderCopyLabel);
+  copyLabelManualSingle.addEventListener("input", syncCopyLabelManualHidden);
   copiesInput.addEventListener("input", renderCopyLabel);
 
   document.addEventListener("odprs:langchange", function () {
@@ -672,6 +740,7 @@
   });
 
   document.getElementById("request-form").addEventListener("submit", function (e) {
+    syncCopyLabelManualHidden();
     if (!validateDate() || !this.checkValidity()) {
       e.preventDefault();
       this.reportValidity();
