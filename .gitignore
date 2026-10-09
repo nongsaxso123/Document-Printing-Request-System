@@ -42,3 +42,4 @@ server/backups/
 /HANDOFF_*.md
 /tunnel.log
 server/tmp_docx_build/
+/deploy/DEPLOY_UBUNTU.md

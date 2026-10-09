@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup of a fresh Ubuntu server for ODPRS (see deploy/DEPLOY_UBUNTU.md).
+# One-time setup of a fresh Ubuntu server for ODPRS.
 # Run once:   sudo bash deploy/install-docker.sh
 # Safe to re-run — every step skips itself if already done.
 set -euo pipefail

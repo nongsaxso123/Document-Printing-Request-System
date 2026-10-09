@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start / update ODPRS on the server (see deploy/DEPLOY_UBUNTU.md).
+# Start / update ODPRS on the server.
 #   bash deploy/deploy.sh          — first start, or after `git pull` to update
 #   bash deploy/deploy.sh logs     — follow the app's log (Ctrl+C to stop watching)
 #   bash deploy/deploy.sh status   — show whether the 3 parts are running

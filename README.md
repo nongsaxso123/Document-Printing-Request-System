@@ -52,7 +52,7 @@ To change the database structure, edit `server/prisma/schema.prisma` and run `do
 
 ## Putting it on a server
 
-There's a step-by-step guide (in Thai) at [deploy/DEPLOY_UBUNTU.md](deploy/DEPLOY_UBUNTU.md). It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough. Roughly: install Docker with `sudo bash deploy/install-docker.sh`, fill in `server/.env` (domain name, database password, Google OAuth credentials), then run `bash deploy/deploy.sh`. Caddy gets the HTTPS certificate for you.
+It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough. Install Docker with `sudo bash deploy/install-docker.sh`, fill in `server/.env` (domain name, database password, Google OAuth credentials), then run `bash deploy/deploy.sh`. Caddy gets the HTTPS certificate for you.
 
 ## About the data
 
