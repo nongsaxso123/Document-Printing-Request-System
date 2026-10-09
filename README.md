@@ -1,33 +1,33 @@
-# ODPRS — ระบบขอพิมพ์เอกสาร ฝ่ายทะเบียน มฟล.
+# ODPRS — Online Document Printing Request System
 
-ODPRS (Online Document Printing Request System) เป็นเว็บที่ทำขึ้นให้บุคลากรของมหาวิทยาลัยแม่ฟ้าหลวงส่งคำขอพิมพ์หรือถ่ายเอกสารกับฝ่ายทะเบียนได้ทางออนไลน์ เดิมต้องกรอกใบคำขอเป็นกระดาษแล้วเดินไปยื่นเอง ตอนนี้ยื่นผ่านเว็บ ดูได้ว่างานถึงขั้นไหนแล้ว และพอเอกสารเสร็จก็ไปรับที่เคาน์เตอร์ด้วยรหัสรับเอกสาร
+ODPRS is a web app that lets staff send printing and copying requests to the registrar's office online. It used to be a paper form you filled in and handed over in person. Now you submit the request on the web, can see where it's at, and once the documents are ready you pick them up at the counter with a claim code.
 
-ล็อกอินด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th) และสลับภาษาไทย/อังกฤษได้ทุกหน้า
+Sign-in is through Google, restricted to the organization's own email domain, and every page can be switched between Thai and English.
 
-## ในระบบมีอะไรบ้าง
+## What's in it
 
-ฝั่งผู้ขอ ยื่นคำขอได้ เลือกได้ว่าจะส่งต้นฉบับและรับเอกสารที่จุดไหน แก้คำขอได้ถ้ายังไม่ได้ส่งต้นฉบับ ดาวน์โหลดใบคำขอเป็น PDF และได้แจ้งเตือนทั้งในเว็บและทางอีเมลเมื่อสถานะเปลี่ยน
+Requesters can submit a request, choose where to drop off the originals and where to collect the finished copies, edit a request until the originals have been handed in, and download the request form as a PDF. They get notified in the app and by email whenever the status changes.
 
-ฝั่งเจ้าหน้าที่ มีคิวคำขอให้อนุมัติหรือปฏิเสธ หน้างานพิมพ์ หน้าส่งมอบเอกสาร ประวัติ และแดชบอร์ดสรุปการใช้กระดาษไว้ทำรายงาน ที่เคาน์เตอร์เปิดหน้า Kiosk ทิ้งไว้ให้ผู้มารับกรอกรหัสรับเอกสารเองได้
+Officers get a queue of requests to approve or reject, a printing jobs page, a handover page, history, and a dashboard that sums up paper usage for reporting. A kiosk page can be left open at the counter so people collecting documents can type in their claim code themselves.
 
-Admin จัดการรายชื่อเจ้าหน้าที่ หน่วยงาน และจุดรับ-ส่งเอกสารได้จากในเว็บ ตั้งช่วงเวลาปิดปรับปรุงระบบล่วงหน้าได้ ดูประวัติว่าใครทำอะไร และสำรอง/กู้คืนข้อมูลได้เอง
+Admins manage officers, departments and pickup/drop-off locations from inside the app, can schedule a maintenance window in advance, see an audit log of who did what, and back up or restore all data on their own.
 
-## สร้างด้วยอะไร
+## Built with
 
-Node.js 20 กับ Express หน้าเว็บใช้ EJS ฐานข้อมูลเป็น PostgreSQL ต่อผ่าน Prisma ล็อกอินด้วย Google OAuth (Passport) สร้าง PDF ด้วย Puppeteer ส่งอีเมลด้วย Nodemailer ทั้งหมดรันใน Docker Compose โดยมี Caddy อยู่ด้านหน้าคอยจัดการ HTTPS
+Node.js 20 and Express, with EJS for the pages. Data lives in PostgreSQL through Prisma. Login uses Google OAuth via Passport, PDFs are rendered with Puppeteer, and email goes out through Nodemailer. Everything runs in Docker Compose, with Caddy in front handling HTTPS.
 
-โค้ดหลักอยู่ใน `server/`
+The app itself is in `server/`:
 
-- `src/` ฝั่งเซิร์ฟเวอร์ เริ่มที่ `app.js` ส่วน route ของแต่ละกลุ่มผู้ใช้อยู่ใน `src/routes/`
-- `views/` หน้าเว็บ
-- `public/assets/` CSS, JavaScript, ฟอนต์ และรูป คำแปลไทย/อังกฤษอยู่ใน `js/app.js`
-- `prisma/` schema และ migration ของฐานข้อมูล
+- `src/` is the server code, starting from `app.js`. Each user group has its routes in `src/routes/`.
+- `views/` holds the pages.
+- `public/assets/` has the CSS, JavaScript, fonts and images. Thai/English translations are in `js/app.js`.
+- `prisma/` has the database schema and migrations.
 
-ส่วนที่ใช้ตอนติดตั้งบนเซิร์ฟเวอร์อยู่ใน `deploy/`, `docker-compose.prod.yml` และ `Caddyfile.prod`
+The files for running it on a real server are `deploy/`, `docker-compose.prod.yml` and `Caddyfile.prod`.
 
-## ลองรันบนเครื่องตัวเอง
+## Running it locally
 
-ต้องมี Docker Desktop กับ Git ก่อน แล้วทำตามนี้
+You'll need Docker Desktop and Git.
 
 ```
 git clone https://github.com/nongsaxso123/Document-Printing-Request-System.git
@@ -35,31 +35,27 @@ cd Document-Printing-Request-System
 cp server/.env.example server/.env
 ```
 
-เปิด `server/.env` แล้วกรอกอย่างน้อย `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET` และ `ADMIN_EMAILS` (ใส่อีเมลตัวเองเพื่อเข้าเป็น Admin) ตัว OAuth client สร้างได้ใน Google Cloud Console โดยตั้ง redirect URI เป็น `http://localhost:3000/auth/google/callback` ถ้าจะลองด้วย Gmail ส่วนตัว ให้ใส่อีเมลนั้นไว้ใน `TEST_ALLOWED_EMAILS` ด้วย
+Open `server/.env` and fill in at least `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET` and `ADMIN_EMAILS` (put your own email there to get in as an admin). You can create the OAuth client in Google Cloud Console with `http://localhost:3000/auth/google/callback` as the redirect URI. Set `ALLOWED_EMAIL_DOMAIN` to the domain you sign in with, or add a personal Gmail address to `TEST_ALLOWED_EMAILS` for testing.
 
-จากนั้นเปิดระบบและสร้างตาราง
+Then start everything and create the tables:
 
 ```
 docker compose up -d --build
 docker compose exec app npx prisma migrate deploy
 ```
 
-แล้วเข้า http://localhost:3000 ได้เลย ระหว่างพัฒนา แก้ไฟล์ใน `server/src` แล้วเซิร์ฟเวอร์จะรีสตาร์ทเอง
+Go to http://localhost:3000. While developing, the server restarts by itself whenever you change something in `server/src`.
 
-ถ้าอยากได้ข้อมูลตัวอย่างไว้ดูแดชบอร์ด รัน `docker compose exec app node scripts/generate-demo-data.js` แต่ระวังว่าคำสั่งนี้จะลบคำขอที่มีอยู่ทั้งหมดก่อน
+For sample data to look at on the dashboard, run `docker compose exec app node scripts/generate-demo-data.js`. Be careful: it deletes every existing request first.
 
-เวลาจะแก้โครงสร้างฐานข้อมูล ให้แก้ `server/prisma/schema.prisma` แล้วรัน `docker compose exec app npx prisma migrate dev --name <ชื่อ>` ถ้าเพิ่มตารางใหม่ อย่าลืมเพิ่มชื่อลงใน `MODEL_ORDER` ของ `server/src/backup.js` ด้วย ไม่อย่างนั้นการสำรองข้อมูลจะ error
+To change the database structure, edit `server/prisma/schema.prisma` and run `docker compose exec app npx prisma migrate dev --name <name>`. If you add a new table, also add it to `MODEL_ORDER` in `server/src/backup.js`, otherwise backups will refuse to run.
 
-## เอาขึ้นเซิร์ฟเวอร์จริง
+## Putting it on a server
 
-เขียนวิธีไว้ละเอียดใน [deploy/DEPLOY_UBUNTU.md](deploy/DEPLOY_UBUNTU.md) ใช้ Ubuntu กับ Docker เครื่อง RAM 2GB ก็พอ โดยคร่าวๆ คือติดตั้ง Docker ด้วย `sudo bash deploy/install-docker.sh` กรอก `server/.env` (ชื่อเว็บ รหัสผ่านฐานข้อมูล และค่า Google OAuth ของมหาวิทยาลัย) แล้วรัน `bash deploy/deploy.sh` ระบบจะขอใบรับรอง HTTPS ให้เอง
+There's a step-by-step guide (in Thai) at [deploy/DEPLOY_UBUNTU.md](deploy/DEPLOY_UBUNTU.md). It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough. Roughly: install Docker with `sudo bash deploy/install-docker.sh`, fill in `server/.env` (domain name, database password, Google OAuth credentials), then run `bash deploy/deploy.sh`. Caddy gets the HTTPS certificate for you.
 
-## เรื่องข้อมูล
+## About the data
 
-ข้อมูลทุกอย่างเก็บอยู่ในฐานข้อมูล PDF ไม่ได้เก็บไว้ แต่สร้างใหม่ทุกครั้งที่กดดาวน์โหลด Admin สำรองและกู้คืนข้อมูลได้ที่หน้าสำรองข้อมูล ไฟล์สำรองอยู่บนเซิร์ฟเวอร์เครื่องเดียวกับระบบ เพราะฉะนั้นควรดาวน์โหลดเก็บไว้ที่อื่นด้วยเป็นระยะ
+Everything is stored in the database. PDFs aren't kept; they're generated again each time someone downloads one. Admins can back up and restore from the backup page. Backup files sit on the same server as the app, so it's a good idea to download a copy somewhere else every so often.
 
-ส่วน `server/.env` มีรหัสลับอยู่ข้างใน ไม่ได้อยู่ในไฟล์สำรอง และไม่ควร commit ขึ้น Git
-
----
-
-โปรเจกต์นักศึกษา มหาวิทยาลัยแม่ฟ้าหลวง ทำร่วมกับฝ่ายทะเบียน
+`server/.env` contains secrets. It isn't part of the backups and should never be committed to Git.
