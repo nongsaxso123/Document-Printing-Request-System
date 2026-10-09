@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — ประวัติคำขอทั้งหมด" }) %>
+<%- include("../partials/head", { title: "ประวัติคำขอทั้งหมด | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.history", crumbFallback: 'ประวัติคำขอทั้งหมด / <strong>ภาพรวม</strong>' }) %>
 
@@ -6,36 +6,55 @@
     <h1 class="page-title" data-i18n="history.title">ประวัติคำขอทั้งหมด</h1>
     <p class="page-subtitle" data-i18n="history.subtitle">ค้นหาและตรวจสอบคำขอทุกรายการในระบบ ไม่ว่าจะอยู่สถานะใด</p>
 
-    <div class="card">
+    <div class="card filter-panel">
       <div class="card-body">
-        <div class="form-grid">
-          <div class="field span-2">
-            <label data-i18n="history.searchLabel">ค้นหา</label>
-            <input type="text" id="search-input" data-i18n-placeholder="history.searchPlaceholder"
-                   placeholder="RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code">
+        <div class="filter-search">
+          <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+          <input type="text" id="search-input" data-i18n-placeholder="history.searchPlaceholder"
+                 placeholder="RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code">
+        </div>
+
+        <div class="filter-row">
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.status">สถานะ</span></div>
+            <div class="filter-controls">
+              <select id="status-filter" class="toolbar-select">
+                <option value="" data-i18n="history.filterStatus.all">ทุกสถานะ</option>
+                <option value="awaiting" data-i18n="status.awaiting">รอส่งเอกสารต้นฉบับ</option>
+                <option value="printing" data-i18n="status.printing">กำลังปริ้น</option>
+                <option value="ready" data-i18n="status.ready">พร้อมส่งมอบ</option>
+                <option value="completed" data-i18n="status.completed">เสร็จสมบูรณ์</option>
+                <option value="rejected" data-i18n="status.rejected">ถูกปฏิเสธ</option>
+                <option value="cancelled" data-i18n="status.cancelled">ยกเลิกโดยผู้ขอ</option>
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <label data-i18n="history.filterStatus">สถานะ</label>
-            <select id="status-filter">
-              <option value="" data-i18n="history.filterStatus.all">ทุกสถานะ</option>
-              <option value="awaiting" data-i18n="status.awaiting">รอส่งเอกสารต้นฉบับ</option>
-              <option value="printing" data-i18n="status.printing">กำลังปริ้น</option>
-              <option value="ready" data-i18n="status.ready">พร้อมส่งมอบ</option>
-              <option value="completed" data-i18n="status.completed">เสร็จสมบูรณ์</option>
-              <option value="rejected" data-i18n="status.rejected">ถูกปฏิเสธ</option>
-            </select>
+
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.agency">หน่วยงาน</span></div>
+            <div class="filter-controls">
+              <select id="agency-filter" class="toolbar-select"></select>
+            </div>
           </div>
-          <div class="field">
-            <label data-i18n="history.filterAgency">ประเภทหน่วยงาน</label>
-            <select id="agency-filter"></select>
-          </div>
-          <div class="field">
-            <label data-i18n="history.filterYear">ปีที่ส่งคำขอ</label>
-            <select id="year-filter"></select>
-          </div>
-          <div class="field">
-            <label data-i18n="history.filterMonth">เดือนที่ส่งคำขอ</label>
-            <select id="month-filter"></select>
+
+          <div class="filter-group">
+            <div class="filter-head">
+              <span class="filter-label" data-i18n="dashboard.filter.period">ช่วงเวลา</span>
+              <label class="filter-switch">
+                <input type="checkbox" id="custom-range-toggle">
+                <span data-i18n="dashboard.dateMode.custom">กำหนดช่วงวันที่เอง</span>
+              </label>
+            </div>
+            <div id="calendar-fields" class="filter-controls">
+              <select id="year-filter" class="toolbar-select"></select>
+              <select id="month-filter" class="toolbar-select"></select>
+            </div>
+            <div id="custom-range-fields" class="filter-controls" hidden>
+              <input type="date" id="from-date" class="toolbar-select">
+              <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
+              <input type="date" id="to-date" class="toolbar-select">
+              <button type="button" id="custom-range-clear" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
+            </div>
           </div>
         </div>
       </div>
@@ -44,6 +63,11 @@
     <div class="card">
       <div class="card-header">
         <span id="result-count"></span>
+        <div class="tab-row-actions">
+        <button type="button" class="export-btn" id="history-export-btn">
+          <span class="icon" data-icon="download"><%- icon('download') %></span>
+          <span class="export-btn-label" data-i18n="export.excel">ส่งออก Excel</span>
+        </button>
         <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;">
           <span data-i18n="history.rowsPerPage">แสดงต่อหน้า</span>
           <select id="page-size-select" style="padding:6px 10px; border:1px solid var(--color-border); border-radius:8px; font-family:var(--font-family); font-size:13px;">
@@ -52,6 +76,7 @@
             <option value="50">50</option>
           </select>
         </label>
+        </div>
       </div>
       <div class="card-body" style="padding:0;">
         <table class="data-table">
@@ -85,8 +110,14 @@
   const searchInput = document.getElementById("search-input");
   const statusFilter = document.getElementById("status-filter");
   const agencyFilter = document.getElementById("agency-filter");
+  const calendarFields = document.getElementById("calendar-fields");
   const yearFilter = document.getElementById("year-filter");
   const monthFilter = document.getElementById("month-filter");
+  const customRangeToggle = document.getElementById("custom-range-toggle");
+  const customRangeFields = document.getElementById("custom-range-fields");
+  const customRangeClearBtn = document.getElementById("custom-range-clear");
+  const fromDateInput = document.getElementById("from-date");
+  const toDateInput = document.getElementById("to-date");
 
   // Search/filter/sort/pagination all happen server-side now (GET
   // /api/requests/history) — fetching every request up front and doing all
@@ -107,6 +138,17 @@
     return res.json();
   }
 
+  // All agency categories (active + archived — a past request can reference
+  // one since archived, see src/agencies.js) for the filter dropdown; the
+  // option's value stays the category's Thai name, matching what
+  // searchHistory's agencyCategory filter compares against on the raw
+  // stored string column (unchanged by the E track — see requests.js).
+  let AGENCY_CATEGORIES = [];
+  async function loadAgencyCategories() {
+    const res = await fetch("/api/agencies/categories");
+    return res.ok ? res.json() : [];
+  }
+
   function renderAgencyFilterOptions() {
     const lang = getLang();
     const previous = agencyFilter.value;
@@ -117,10 +159,10 @@
     allOpt.textContent = t("history.filterAgency.all");
     agencyFilter.appendChild(allOpt);
 
-    Object.keys(AGENCY_DATA).forEach(function (category) {
+    AGENCY_CATEGORIES.forEach(function (category) {
       const opt = document.createElement("option");
-      opt.value = category;
-      opt.textContent = lang === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
+      opt.value = category.nameTh;
+      opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
       agencyFilter.appendChild(opt);
     });
 
@@ -176,16 +218,32 @@
   let currentPage = 1;
   let requestSeq = 0; // guards against an older, slower fetch overwriting a newer one's result
 
+  // The current filters as query params — shared by the table fetch and
+  // the Excel export, so the file always matches what's on screen.
+  function historyFilterParams() {
+    const params = new URLSearchParams();
+    if (statusFilter.value) params.set("status", statusFilter.value);
+    if (agencyFilter.value) params.set("agencyCategory", agencyFilter.value);
+    if (customRangeToggle.checked) {
+      if (fromDateInput.value) params.set("fromDate", fromDateInput.value);
+      if (toDateInput.value) params.set("toDate", toDateInput.value);
+    } else {
+      if (yearFilter.value) params.set("year", yearFilter.value);
+      if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    }
+    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+    return params;
+  }
+
+  document.getElementById("history-export-btn").addEventListener("click", function () {
+    downloadReport("/api/reports/history.xlsx?" + historyFilterParams().toString(), this);
+  });
+
   async function renderHistory() {
     const lang = getLang();
     const pageSize = Number(pageSizeSelect.value);
 
-    const params = new URLSearchParams();
-    if (statusFilter.value) params.set("status", statusFilter.value);
-    if (agencyFilter.value) params.set("agencyCategory", agencyFilter.value);
-    if (yearFilter.value) params.set("year", yearFilter.value);
-    if (monthFilter.value !== "") params.set("month", monthFilter.value);
-    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+    const params = historyFilterParams();
     params.set("page", currentPage);
     params.set("pageSize", pageSize);
 
@@ -217,7 +275,8 @@
     }
 
     tbody.innerHTML = data.records.map(function (r) {
-      const agencyLabel = lang === "en" ? (AGENCY_CATEGORY_EN[r.agencyCategory] || r.agencyCategory) : r.agencyCategory;
+      const categoryRow = AGENCY_CATEGORIES.find(function (c) { return c.nameTh === r.agencyCategory; });
+      const agencyLabel = lang === "en" ? ((categoryRow && categoryRow.nameEn) || r.agencyCategory) : r.agencyCategory;
       const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
       const officerLabel = r.handedOverByOfficer || r.reviewedByOfficer || "—";
 
@@ -230,7 +289,7 @@
         '<td><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span></td>' +
         '<td>' + officerLabel + '</td>' +
         '<td><a class="btn btn-secondary" style="padding:6px 12px; font-size:13px;" href="request-form-view?ref=' + encodeURIComponent(r.referenceNo) + '" target="_blank">' +
-          '<span class="icon" data-icon="eye" style="width:14px; height:14px;"></span> ' + t("history.viewForm") +
+          '<span class="icon" data-icon="eye" style="width:14px; height:14px;"><%- icon('eye') %></span> ' + t("history.viewForm") +
         '</a></td>' +
         '</tr>';
     }).join("");
@@ -239,7 +298,7 @@
       tr.style.cursor = "pointer";
       tr.addEventListener("click", function (e) {
         if (e.target.closest("a")) return;
-        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref"));
+        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref")) + "&from=history";
       });
     });
 
@@ -251,6 +310,23 @@
     renderHistory();
   }
 
+  function onCustomRangeToggleChange() {
+    const isCustom = customRangeToggle.checked;
+    calendarFields.hidden = isCustom;
+    customRangeFields.hidden = !isCustom;
+    onFilterChange();
+  }
+
+  // One click undoes the whole custom range — clears both dates, unchecks
+  // the toggle, and goes back to the plain Year/Month dropdowns — instead of
+  // needing to clear each date field individually plus the checkbox.
+  function clearCustomRange() {
+    fromDateInput.value = "";
+    toDateInput.value = "";
+    customRangeToggle.checked = false;
+    onCustomRangeToggleChange();
+  }
+
   const onSearchInput = debounce(onFilterChange, 300);
 
   searchInput.addEventListener("input", onSearchInput);
@@ -258,6 +334,10 @@
   agencyFilter.addEventListener("change", onFilterChange);
   yearFilter.addEventListener("change", onFilterChange);
   monthFilter.addEventListener("change", onFilterChange);
+  customRangeToggle.addEventListener("change", onCustomRangeToggleChange);
+  customRangeClearBtn.addEventListener("click", clearCustomRange);
+  fromDateInput.addEventListener("change", onFilterChange);
+  toDateInput.addEventListener("change", onFilterChange);
   pageSizeSelect.addEventListener("change", onFilterChange);
 
   prevPageBtn.addEventListener("click", function () {
@@ -276,8 +356,9 @@
     renderHistory();
   });
 
-  loadAvailableYears().then(function (years) {
-    availableYears = years;
+  Promise.all([loadAvailableYears(), loadAgencyCategories()]).then(function (results) {
+    availableYears = results[0];
+    AGENCY_CATEGORIES = results[1];
     renderAgencyFilterOptions();
     renderYearFilterOptions();
     renderMonthFilterOptions();

@@ -1,0 +1,310 @@
+<%- include("../partials/head", { title: "การตั้งค่าระบบ | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.systemSettings", crumbFallback: "จัดการระบบ / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="settings.title">จัดการระบบ</h1>
+    <p class="page-subtitle" data-i18n="settings.subtitle">แจ้งเตือนอีเมลเจ้าหน้าที่ และเปิด/ปิดระบบสำหรับผู้ขอ</p>
+
+    <form id="settings-form">
+      <div class="card admin-card">
+        <div class="card-header"><span data-i18n="settings.notif.title">แจ้งเตือนเจ้าหน้าที่</span></div>
+        <div class="card-body">
+          <label class="set-row">
+            <span class="set-row-text">
+              <span class="set-row-title" data-i18n="settings.notif.toggle">ส่งอีเมลเมื่อมีคำขอใหม่</span>
+              <span class="set-row-desc" data-i18n="settings.notif.toggle.hint">การแจ้งเตือนในระบบ (กระดิ่ง) ทำงานเสมอ</span>
+            </span>
+            <input type="checkbox" class="switch" id="officer-email-toggle" <%= settings.officerEmailNotificationsEnabled ? "checked" : "" %>>
+          </label>
+        </div>
+      </div>
+
+      <div class="card admin-card">
+        <div class="card-header"><span data-i18n="settings.maint.title">ปิดระบบชั่วคราว</span></div>
+        <div class="card-body">
+          <label class="set-row">
+            <span class="set-row-text">
+              <span class="set-row-title" data-i18n="settings.maint.toggle">ปิดระบบสำหรับผู้ขอ</span>
+              <span class="set-row-desc" data-i18n="settings.maint.toggle.hint">เจ้าหน้าที่และผู้ดูแลระบบยังใช้งานได้ตามปกติ</span>
+            </span>
+            <input type="checkbox" class="switch switch-danger" id="maintenance-toggle" <%= settings.maintenanceModeEnabled ? "checked" : "" %>>
+          </label>
+
+          <div class="set-divider"></div>
+
+          <div class="set-subtitle" data-i18n="settings.maint.scheduleTitle">ช่วงเวลาปิดระบบ (ไม่บังคับ)</div>
+          <div class="set-pair">
+            <div class="field" id="maintenance-start-field">
+              <label data-i18n="settings.maint.startLabel">ปิดระบบตั้งแต่</label>
+              <div class="set-datetime">
+                <%- include("../partials/date-picker", { id: "maintenance-start-date", name: "maintenanceStartDate" }) %>
+                <select id="maintenance-start-time" class="set-time" aria-label="เวลา" disabled></select>
+                <button type="button" class="btn btn-secondary btn-sm" id="maintenance-start-clear" data-i18n="settings.maint.clearBtn" hidden>ล้าง</button>
+              </div>
+            </div>
+            <div class="field" id="maintenance-end-field">
+              <label data-i18n="settings.maint.endLabel">เปิดระบบอีกครั้ง</label>
+              <div class="set-datetime">
+                <%- include("../partials/date-picker", { id: "maintenance-end-date", name: "maintenanceEndDate" }) %>
+                <select id="maintenance-end-time" class="set-time" aria-label="เวลา" disabled></select>
+                <button type="button" class="btn btn-secondary btn-sm" id="maintenance-end-clear" data-i18n="settings.maint.clearBtn" hidden>ล้าง</button>
+              </div>
+              <span class="field-error" id="maintenance-end-error"></span>
+            </div>
+          </div>
+          <p class="set-schedule-status" id="maintenance-status"></p>
+
+          <div class="set-divider"></div>
+
+          <div class="set-subtitle" data-i18n="settings.maint.messagesTitle">ข้อความแจ้งผู้ขอ (ไม่บังคับ)</div>
+          <div class="set-pair">
+            <div class="field">
+              <label for="maintenance-message" data-i18n="settings.maint.messageLabel">ภาษาไทย</label>
+              <textarea id="maintenance-message" rows="3" data-i18n-placeholder="settings.maint.messagePlaceholder" placeholder="เช่น ปิดรับคำขอช่วงสอบปลายภาค 1–15 ต.ค. 2569"><%= settings.maintenanceMessage || "" %></textarea>
+            </div>
+            <div class="field">
+              <label for="maintenance-message-en" data-i18n="settings.maint.messageEnLabel">ภาษาอังกฤษ</label>
+              <textarea id="maintenance-message-en" rows="3" data-i18n-placeholder="settings.maint.messageEnPlaceholder" placeholder="เว้นว่าง = แปลอัตโนมัติ"><%= settings.maintenanceMessageEn || "" %></textarea>
+              <span class="hint" data-i18n="settings.maint.translateHint">เว้นว่างไว้ ระบบจะแปลจากภาษาไทยให้อัตโนมัติเมื่อบันทึก</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions set-actions">
+        <button type="submit" class="btn btn-primary" id="save-btn" data-i18n="settings.saveBtn">บันทึกการตั้งค่า</button>
+        <svg id="save-status-icon" class="save-status-icon" viewBox="0 0 36 36" width="22" height="22" hidden style="display:none;" aria-hidden="true">
+          <circle id="save-status-ring" class="save-status-ring" cx="18" cy="18" r="14" fill="none" stroke-width="3"></circle>
+          <path id="save-status-check" class="save-status-check" pathLength="24" d="M9 19l6 6 12-13" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span id="settings-saved-msg" class="hint" style="display:none;" data-i18n="settings.savedMsg">บันทึกแล้ว</span>
+      </div>
+    </form>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const form = document.getElementById("settings-form");
+  const officerEmailToggle = document.getElementById("officer-email-toggle");
+  const maintenanceToggle = document.getElementById("maintenance-toggle");
+  const maintenanceMessage = document.getElementById("maintenance-message");
+  const maintenanceMessageEn = document.getElementById("maintenance-message-en");
+  const maintenanceEndField = document.getElementById("maintenance-end-field");
+  const maintenanceEndError = document.getElementById("maintenance-end-error");
+  const maintenanceStatus = document.getElementById("maintenance-status");
+  const savedMsg = document.getElementById("settings-saved-msg");
+  const saveBtn = document.getElementById("save-btn");
+  const saveStatusIcon = document.getElementById("save-status-icon");
+  const saveStatusRing = document.getElementById("save-status-ring");
+  const saveStatusCheck = document.getElementById("save-status-check");
+
+  let maintenanceWasOn = maintenanceToggle.checked;
+  let saveStatusResetTimer = null;
+
+  // Each end of the closing window is a date (the shared Thai/Buddhist-year
+  // picker) plus a 24-hour time <select> — <input type="datetime-local">
+  // shows AM/PM on most machines and can't be forced to 24h. An empty date
+  // means "now" (start) / "until switched off" (end).
+  const DEFAULT_TIME = "08:00";
+  const TIME_OPTIONS = [];
+  for (let h = 0; h < 24; h++) {
+    ["00", "30"].forEach(function (m) { TIME_OPTIONS.push(String(h).padStart(2, "0") + ":" + m); });
+  }
+
+  function createDateTimeControl(prefix, placeholderKey) {
+    const timeSelect = document.getElementById(prefix + "-time");
+    const clearBtn = document.getElementById(prefix + "-clear");
+    const picker = createDatePicker(document.getElementById(prefix + "-date"), {
+      minDate: new Date(),
+      placeholderKey: placeholderKey,
+      onChange: function () { sync(); onScheduleChange(); }
+    });
+
+    function setTimeOptions(selected) {
+      // Keep an off-grid saved time (e.g. 08:15) selectable instead of silently rounding it.
+      const options = TIME_OPTIONS.indexOf(selected) === -1 ? TIME_OPTIONS.concat(selected).sort() : TIME_OPTIONS;
+      timeSelect.innerHTML = options.map(function (v) { return '<option value="' + v + '">' + v + "</option>"; }).join("");
+      timeSelect.value = selected;
+    }
+
+    function sync() {
+      const hasDate = !!picker.getDate();
+      timeSelect.disabled = !hasDate;
+      clearBtn.hidden = !hasDate;
+    }
+
+    function set(iso) {
+      const d = iso ? new Date(iso) : null;
+      picker.setDate(d);
+      setTimeOptions(d ? String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") : DEFAULT_TIME);
+      sync();
+    }
+
+    function get() {
+      const day = picker.getDate();
+      if (!day) return null;
+      const [h, m] = timeSelect.value.split(":").map(Number);
+      return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+    }
+
+    timeSelect.addEventListener("change", onScheduleChange);
+    clearBtn.addEventListener("click", function () { set(null); onScheduleChange(); });
+
+    return { get: get, set: set };
+  }
+
+  const maintenanceStart = createDateTimeControl("maintenance-start", "settings.maint.startPlaceholder");
+  const maintenanceEnd = createDateTimeControl("maintenance-end", "settings.maint.endPlaceholder");
+
+  function setScheduleInputs(startIso, endIso) {
+    maintenanceStart.set(startIso);
+    maintenanceEnd.set(endIso);
+  }
+  setScheduleInputs(<%- JSON.stringify(settings.maintenanceStartsAt || null) %>, <%- JSON.stringify(settings.maintenanceEndsAt || null) %>);
+
+  // One-line summary under the date fields of what the current form values
+  // would mean for Requesters (mirrors settings.isMaintenanceActive()).
+  function renderMaintenanceStatus() {
+    const lang = getLang();
+    const start = maintenanceStart.get();
+    const end = maintenanceEnd.get();
+    const now = new Date();
+    let key;
+    if (!maintenanceToggle.checked) key = "off";
+    else if (end && end <= now) key = "ended";
+    else if (start && start > now) key = end ? "scheduled" : "scheduledOpenEnded";
+    else key = end ? "closedUntil" : "closedIndefinitely";
+    maintenanceStatus.textContent = t("settings.maint.status." + key)
+      .replace("{start}", start ? formatDateTime(start, lang) : "")
+      .replace("{end}", end ? formatDateTime(end, lang) : "");
+    maintenanceStatus.dataset.state = key;
+  }
+
+  function clearEndError() {
+    maintenanceEndField.classList.remove("invalid");
+  }
+
+  function showEndError(key) {
+    maintenanceEndError.textContent = t(key);
+    maintenanceEndField.classList.add("invalid");
+  }
+
+  // Same checks the server makes (api.js), so the admin sees them before saving.
+  function validateSchedule() {
+    clearEndError();
+    const start = maintenanceStart.get();
+    const end = maintenanceEnd.get();
+    if (start && end && end <= start) { showEndError("settings.maint.err.endBeforeStart"); return false; }
+    if (maintenanceToggle.checked && end && end <= new Date()) { showEndError("settings.maint.err.endInPast"); return false; }
+    return true;
+  }
+
+  function onScheduleChange() {
+    clearEndError();
+    renderMaintenanceStatus();
+  }
+  maintenanceToggle.addEventListener("change", onScheduleChange);
+  document.addEventListener("odprs:langchange", renderMaintenanceStatus);
+  document.addEventListener("DOMContentLoaded", renderMaintenanceStatus);
+
+  // App Store "install" style feedback: a spinning ring while the request
+  // is in flight (translation can take a couple of seconds — see
+  // translate.js), morphing into a drawn-in checkmark once it succeeds.
+  function hideSaveIcon() {
+    saveStatusIcon.hidden = true;
+    saveStatusIcon.style.display = "none"; // explicit, on top of [hidden] — never show on plain page load
+  }
+
+  function showSaveSpinner() {
+    clearTimeout(saveStatusResetTimer);
+    saveBtn.disabled = true;
+    saveStatusIcon.hidden = false;
+    saveStatusIcon.style.display = "";
+    saveStatusRing.style.display = "";
+    saveStatusCheck.classList.remove("drawn");
+    saveStatusCheck.style.display = "none";
+  }
+
+  function showSaveCheckmark() {
+    saveStatusRing.style.display = "none";
+    saveStatusCheck.style.display = "";
+    void saveStatusCheck.getBoundingClientRect(); // restart the draw animation on repeat saves
+    saveStatusCheck.classList.add("drawn");
+    saveStatusResetTimer = setTimeout(function () {
+      hideSaveIcon();
+      saveBtn.disabled = false;
+    }, 10000);
+  }
+
+  async function saveSettings() {
+    showSaveSpinner();
+    let res, updated;
+    try {
+      res = await fetch("/api/admin/settings/system", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          officerEmailNotificationsEnabled: officerEmailToggle.checked,
+          maintenanceModeEnabled: maintenanceToggle.checked,
+          maintenanceStartsAt: maintenanceStart.get() ? maintenanceStart.get().toISOString() : null,
+          maintenanceEndsAt: maintenanceEnd.get() ? maintenanceEnd.get().toISOString() : null,
+          maintenanceMessage: maintenanceMessage.value,
+          maintenanceMessageEn: maintenanceMessageEn.value
+        })
+      });
+      updated = await res.json();
+    } catch (err) {
+      hideSaveIcon();
+      saveBtn.disabled = false;
+      showActionResult(false, t("result.network"));
+      return;
+    }
+    if (!res.ok) {
+      hideSaveIcon();
+      saveBtn.disabled = false;
+      const errorKeys = {
+        "maintenance-end-before-start": "settings.maint.err.endBeforeStart",
+        "maintenance-end-in-past": "settings.maint.err.endInPast",
+        "maintenance-date-invalid": "settings.maint.err.dateInvalid"
+      };
+      const errorKey = errorKeys[updated && updated.error];
+      if (errorKey) showEndError(errorKey);
+      showActionResult(false, t(errorKey || "result.generic"));
+      return;
+    }
+    maintenanceWasOn = maintenanceToggle.checked;
+    setScheduleInputs(updated.maintenanceStartsAt, updated.maintenanceEndsAt);
+    renderMaintenanceStatus();
+    // If the English field was left blank, the server auto-translated —
+    // reflect the result back so the admin can see/edit it without reloading.
+    maintenanceMessageEn.value = updated.maintenanceMessageEn || "";
+    showSaveCheckmark();
+    savedMsg.style.display = "inline";
+    setTimeout(function () { savedMsg.style.display = "none"; }, 10000);
+    showActionResult(true, t("settings.savedMsgFull"));
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (!validateSchedule()) return;
+    const turningOn = maintenanceToggle.checked && !maintenanceWasOn;
+    if (turningOn) {
+      const start = maintenanceStart.get();
+      const message = start && start > new Date()
+        ? t("settings.maint.confirmMessageScheduled").replace("{start}", formatDateTime(start, getLang()))
+        : t("settings.maint.confirmMessage");
+      showConfirmModal({
+        title: t("settings.maint.confirmTitle"),
+        message: message,
+        confirmText: t("settings.saveBtn"),
+        danger: true,
+        onConfirm: saveSettings
+      });
+      return;
+    }
+    saveSettings();
+  });
+</script>
+</body>
+</html>

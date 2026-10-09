@@ -1,0 +1,613 @@
+<%- include("../partials/head", { title: "จัดการหน่วยงาน | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminAgencies", crumbFallback: "หน่วยงาน / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="adminAgencies.title">หน่วยงาน</h1>
+    <p class="page-subtitle" data-i18n="adminAgencies.subtitle">กำหนดประเภทหน่วยงานและหน่วยงานย่อยที่ผู้ขอเลือกตอนส่งคำขอ กรอกทั้งภาษาไทยและอังกฤษ</p>
+
+    <div class="notice loc-banner" id="agency-banner" hidden>
+      <span class="icon" id="agency-banner-icon" data-icon="check-circle"><%- icon('check-circle') %></span>
+      <div id="agency-banner-text"></div>
+    </div>
+
+    <!-- ---------- category form (add/edit) ---------- -->
+    <div class="card admin-card" id="category-form-card" hidden>
+      <div class="card-header"><span id="category-form-title" data-i18n="adminAgencies.categoryForm.addTitle">เพิ่มประเภทหน่วยงาน</span></div>
+      <div class="card-body">
+        <div class="notice notice-error" id="category-error" hidden>
+          <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+          <div id="category-error-text"></div>
+        </div>
+        <form id="category-form" novalidate>
+          <div class="form-grid">
+            <div class="field" id="field-category-nameTh">
+              <label data-i18n="adminAgencies.form.nameTh">ชื่อ (ไทย) *</label>
+              <input type="text" id="category-nameTh" placeholder="สำนักวิชา">
+            </div>
+            <div class="field" id="field-category-nameEn">
+              <label data-i18n="adminAgencies.form.nameEn">ชื่อ (อังกฤษ) *</label>
+              <input type="text" id="category-nameEn" placeholder="School">
+            </div>
+          </div>
+          <!-- Not offered when adding/editing a category from this admin
+               form (the user's explicit choice — every new category should
+               always have a fixed unit list). The checkbox stays in the DOM,
+               hidden, purely so an existing free-text category (e.g.
+               "หน่วยงานอื่นๆ") keeps its allowsFreeText flag intact when
+               edited here for something else (name, sort order, etc.) —
+               openCategoryForm() still sets .checked from the real value,
+               it's just never shown or toggleable in this form anymore. -->
+          <input type="checkbox" id="category-allowsFreeText" hidden>
+          <div class="loc-actions">
+            <button type="submit" class="btn btn-primary" id="category-save-btn" data-i18n="adminAgencies.form.saveBtn">บันทึก</button>
+            <button type="button" class="btn btn-secondary" id="category-cancel-btn" data-i18n="btn.cancel">ยกเลิก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ---------- categories list ---------- -->
+    <div class="card admin-card" id="categories-view">
+      <div class="card-header">
+        <span data-i18n="adminAgencies.categoriesTitle">ประเภทหน่วยงาน</span>
+        <button type="button" class="btn btn-primary btn-sm" id="add-category-btn">
+          <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+          <span data-i18n="adminAgencies.addCategoryBtn">เพิ่มประเภท</span>
+        </button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:84px;"></th>
+              <th data-i18n="adminAgencies.th.name">ประเภทหน่วยงาน</th>
+              <th data-i18n="adminAgencies.th.units">หน่วยงานย่อย</th>
+              <th data-i18n="adminAgencies.th.action">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="category-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ---------- unit form (add/edit) ---------- -->
+    <div class="card admin-card" id="unit-form-card" hidden>
+      <div class="card-header"><span id="unit-form-title" data-i18n="adminAgencies.unitForm.addTitle">เพิ่มหน่วยงาน</span></div>
+      <div class="card-body">
+        <div class="notice notice-error" id="unit-error" hidden>
+          <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+          <div id="unit-error-text"></div>
+        </div>
+        <form id="unit-form" novalidate>
+          <div class="form-grid">
+            <div class="field" id="field-unit-nameTh">
+              <label data-i18n="adminAgencies.form.nameTh">ชื่อ (ไทย) *</label>
+              <input type="text" id="unit-nameTh" placeholder="สำนักวิชาศิลปศาสตร์">
+            </div>
+            <div class="field" id="field-unit-nameEn">
+              <label data-i18n="adminAgencies.form.nameEn">ชื่อ (อังกฤษ) *</label>
+              <input type="text" id="unit-nameEn" placeholder="School of Liberal Arts">
+            </div>
+            <div class="field span-2">
+              <label data-i18n="adminAgencies.unitForm.category">ประเภทหน่วยงาน</label>
+              <select id="unit-categoryId"></select>
+              <span class="hint" data-i18n="adminAgencies.unitForm.categoryHint">เปลี่ยนได้ถ้าต้องการย้ายหน่วยงานนี้ไปอีกประเภทหนึ่ง</span>
+            </div>
+          </div>
+          <div class="loc-actions">
+            <button type="submit" class="btn btn-primary" id="unit-save-btn" data-i18n="adminAgencies.form.saveBtn">บันทึก</button>
+            <button type="button" class="btn btn-secondary" id="unit-cancel-btn" data-i18n="btn.cancel">ยกเลิก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ---------- units of one category (drill-down) ---------- -->
+    <div class="card admin-card" id="units-view" hidden>
+      <div class="card-header">
+        <span>
+          <button type="button" class="btn btn-secondary btn-sm" id="back-to-categories-btn">‹ <span data-i18n="adminAgencies.backBtn">ประเภทหน่วยงาน</span></button>
+          <strong id="units-view-title" style="margin-left:10px;"></strong>
+        </span>
+        <button type="button" class="btn btn-primary btn-sm" id="add-unit-btn">
+          <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+          <span data-i18n="adminAgencies.addUnitBtn">เพิ่มหน่วยงาน</span>
+        </button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:84px;"></th>
+              <th data-i18n="adminAgencies.th.name">หน่วยงาน</th>
+              <th data-i18n="adminAgencies.th.action">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="unit-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const ERROR_KEYS = {
+    "name-required": "adminAgencies.err.nameRequired",
+    "category-required": "adminAgencies.err.categoryRequired",
+    "category-invalid": "adminAgencies.err.categoryInvalid",
+    "last-category": "adminAgencies.err.lastCategory",
+    "last-freetext": "adminAgencies.err.lastFreeText",
+    "has-units": "adminAgencies.err.hasUnits",
+    "not-found": "adminAgencies.err.generic"
+  };
+
+  const byId = function (id) { return document.getElementById(id); };
+  const banner = byId("agency-banner");
+  let bannerTimer = null;
+
+  function escHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // Every save/archive/delete outcome is reported in the shared result
+  // popup (showActionResult in app.js), like every other page.
+  function showBanner(kind, text) {
+    showActionResult(kind === "success", text);
+  }
+
+  function messageFor(error, data) {
+    if (error === "in-use") return t("adminAgencies.err.inUse").replace("{n}", data && data.count != null ? data.count : "");
+    return t(ERROR_KEYS[error] || "adminAgencies.err.generic");
+  }
+
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    const data = await res.json().catch(function () { return {}; });
+    return { ok: res.ok, data: data };
+  }
+
+  function nameOf(row) { return row ? pickLang(row.nameTh, row.nameEn) : ""; }
+
+  // ==================== categories ====================
+
+  let categoryList = [];
+
+  const categoryFormCard = byId("category-form-card");
+  const categoryForm = byId("category-form");
+  const categoryErrorBox = byId("category-error");
+  let editingCategoryId = null;
+
+  function clearCategoryError() {
+    categoryErrorBox.hidden = true;
+    byId("field-category-nameTh").classList.remove("invalid");
+    byId("field-category-nameEn").classList.remove("invalid");
+  }
+
+  function showCategoryError(message, invalidIds) {
+    byId("category-error-text").textContent = message;
+    categoryErrorBox.hidden = false;
+    ["field-category-nameTh", "field-category-nameEn"].forEach(function (id) {
+      byId(id).classList.toggle("invalid", (invalidIds || []).indexOf(id) !== -1);
+    });
+  }
+
+  function openCategoryForm(category) {
+    clearCategoryError();
+    hideBannerNow();
+    editingCategoryId = category ? category.id : null;
+    byId("category-nameTh").value = category ? category.nameTh : "";
+    byId("category-nameEn").value = category ? category.nameEn : "";
+    byId("category-allowsFreeText").checked = category ? category.allowsFreeText : false;
+
+    const title = byId("category-form-title");
+    title.removeAttribute("data-i18n");
+    title.textContent = category
+      ? t("adminAgencies.categoryForm.editTitleNamed").replace("{name}", nameOf(category))
+      : t("adminAgencies.categoryForm.addTitle");
+
+    categoryFormCard.hidden = false;
+    categoryFormCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    byId("category-nameTh").focus({ preventScroll: true });
+  }
+
+  function closeCategoryForm() {
+    categoryFormCard.hidden = true;
+    editingCategoryId = null;
+    clearCategoryError();
+  }
+
+  function hideBannerNow() { banner.hidden = true; }
+
+  async function loadCategories() {
+    const res = await fetch("/api/admin/agencies/categories");
+    categoryList = await res.json();
+  }
+
+  function renderCategoryTable() {
+    const lang = getLang();
+    const tbody = byId("category-table-body");
+
+    if (categoryList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-state">' + t("adminAgencies.categoriesEmpty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = categoryList.map(function (c, index) {
+      const badges = [];
+      if (c.allowsFreeText) badges.push('<span class="badge badge-awaiting">' + t("adminAgencies.badge.freeText") + '</span>');
+      if (!c.isActive) badges.push('<span class="badge badge-cancelled">' + t("adminAgencies.badge.archived") + '</span>');
+      const unitsCell = c.allowsFreeText
+        ? '<span class="hint">' + t("adminAgencies.freeTextHint") + '</span>'
+        : '<button type="button" class="btn btn-secondary btn-sm" data-view-units="' + c.id + '">' + t("adminAgencies.viewUnitsBtn").replace("{n}", c.unitCount != null ? c.unitCount : "0") + '</button>';
+
+      return '<tr data-row-id="' + c.id + '"' + (c.isActive ? "" : ' style="opacity:.6;"') + '>' +
+        '<td style="white-space:nowrap;">' +
+          '<span class="row-move">' +
+            '<button type="button" class="btn" data-move="up" data-id="' + c.id + '" title="' + t("adminLocations.moveUp") + '"' + (index === 0 ? " disabled" : "") + '>↑</button>' +
+            '<button type="button" class="btn" data-move="down" data-id="' + c.id + '" title="' + t("adminLocations.moveDown") + '"' + (index === categoryList.length - 1 ? " disabled" : "") + '>↓</button>' +
+          '</span>' +
+        '</td>' +
+        '<td>' + escHtml(pickLang(c.nameTh, c.nameEn, lang)) + ' ' + badges.join(" ") + '</td>' +
+        '<td>' + unitsCell + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<span class="row-actions">' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-edit="' + c.id + '">' + t("adminAgencies.editBtn") + '</button>' +
+            (c.isActive
+              ? '<button type="button" class="btn btn-secondary btn-sm" data-archive="' + c.id + '">' + t("adminAgencies.archiveBtn") + '</button>'
+              : '<button type="button" class="btn btn-secondary btn-sm" data-restore="' + c.id + '">' + t("adminAgencies.restoreBtn") + '</button>') +
+            '<button type="button" class="btn btn-danger btn-sm" data-delete="' + c.id + '">' + t("adminAgencies.deleteBtn") + '</button>' +
+          '</span>' +
+        '</td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  async function refreshCategories(flashId) {
+    await loadCategories();
+    renderCategoryTable();
+    if (flashId) {
+      const row = byId("category-table-body").querySelector('tr[data-row-id="' + flashId + '"]');
+      if (row) row.classList.add("row-flash");
+    }
+  }
+
+  categoryForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearCategoryError();
+
+    const payload = {
+      nameTh: byId("category-nameTh").value,
+      nameEn: byId("category-nameEn").value,
+      allowsFreeText: byId("category-allowsFreeText").checked
+    };
+    const missing = [];
+    if (!payload.nameTh.trim()) missing.push("field-category-nameTh");
+    if (!payload.nameEn.trim()) missing.push("field-category-nameEn");
+    if (missing.length) return showCategoryError(t("adminAgencies.err.nameRequired"), missing);
+
+    const saveBtn = byId("category-save-btn");
+    const idleLabel = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = t("btn.saving");
+    const result = await postJson(editingCategoryId ? "/api/admin/agencies/categories/" + editingCategoryId : "/api/admin/agencies/categories", payload);
+    saveBtn.disabled = false;
+    saveBtn.textContent = idleLabel;
+
+    if (!result.ok) {
+      showCategoryError(messageFor(result.data.error, result.data), []);
+      return showBanner("error", messageFor(result.data.error, result.data));
+    }
+
+    const savedId = result.data.id;
+    closeCategoryForm();
+    await refreshCategories(savedId);
+    showBanner("success", t("adminAgencies.banner.saved").replace("{name}", nameOf(result.data)));
+  });
+
+  byId("add-category-btn").addEventListener("click", function () { openCategoryForm(null); });
+  byId("category-cancel-btn").addEventListener("click", closeCategoryForm);
+
+  async function setCategoryActive(id, isActive) {
+    const category = categoryList.find(function (c) { return c.id === id; });
+    const result = await postJson("/api/admin/agencies/categories/" + id + "/active", { isActive: isActive });
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await refreshCategories(id);
+    showBanner("success", t(isActive ? "adminAgencies.banner.restored" : "adminAgencies.banner.archived").replace("{name}", nameOf(category)));
+  }
+
+  async function deleteCategory(id) {
+    const category = categoryList.find(function (c) { return c.id === id; });
+    const result = await postJson("/api/admin/agencies/categories/" + id + "/delete");
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await refreshCategories();
+    showBanner("success", t("adminAgencies.banner.deleted").replace("{name}", nameOf(category)));
+  }
+
+  byId("category-table-body").addEventListener("click", async function (e) {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+
+    if (btn.hasAttribute("data-view-units")) {
+      return showUnitsView(Number(btn.getAttribute("data-view-units")));
+    }
+    if (btn.hasAttribute("data-edit")) {
+      const category = categoryList.find(function (c) { return c.id === Number(btn.getAttribute("data-edit")); });
+      return openCategoryForm(category);
+    }
+    if (btn.hasAttribute("data-restore")) return setCategoryActive(Number(btn.getAttribute("data-restore")), true);
+
+    if (btn.hasAttribute("data-move")) {
+      const result = await postJson("/api/admin/agencies/categories/" + btn.getAttribute("data-id") + "/move", { direction: btn.getAttribute("data-move") });
+      if (result.ok) { categoryList = result.data; renderCategoryTable(); }
+      return;
+    }
+
+    if (btn.hasAttribute("data-archive")) {
+      const id = Number(btn.getAttribute("data-archive"));
+      const category = categoryList.find(function (c) { return c.id === id; });
+      return showConfirmModal({
+        title: t("adminAgencies.archiveConfirmTitle"),
+        message: t("adminAgencies.archiveConfirmMessage").replace("{name}", nameOf(category)),
+        confirmText: t("adminAgencies.archiveBtn"),
+        danger: true,
+        onConfirm: function () { return setCategoryActive(id, false); }
+      });
+    }
+
+    if (btn.hasAttribute("data-delete")) {
+      const id = Number(btn.getAttribute("data-delete"));
+      const category = categoryList.find(function (c) { return c.id === id; });
+      return showConfirmModal({
+        title: t("adminAgencies.deleteConfirmTitle"),
+        message: t("adminAgencies.deleteConfirmMessage").replace("{name}", nameOf(category)),
+        confirmText: t("adminAgencies.deleteBtn"),
+        danger: true,
+        onConfirm: function () { return deleteCategory(id); }
+      });
+    }
+  });
+
+  // ==================== units (drill-down into one category) ====================
+
+  let currentCategoryId = null;
+  let unitList = [];
+
+  const unitFormCard = byId("unit-form-card");
+  const unitForm = byId("unit-form");
+  const unitErrorBox = byId("unit-error");
+  let editingUnitId = null;
+
+  function clearUnitError() {
+    unitErrorBox.hidden = true;
+    byId("field-unit-nameTh").classList.remove("invalid");
+    byId("field-unit-nameEn").classList.remove("invalid");
+  }
+
+  function showUnitError(message, invalidIds) {
+    byId("unit-error-text").textContent = message;
+    unitErrorBox.hidden = false;
+    ["field-unit-nameTh", "field-unit-nameEn"].forEach(function (id) {
+      byId(id).classList.toggle("invalid", (invalidIds || []).indexOf(id) !== -1);
+    });
+  }
+
+  function fillUnitCategorySelect(selectedId) {
+    const select = byId("unit-categoryId");
+    const lang = getLang();
+    select.innerHTML = "";
+    categoryList.filter(function (c) { return !c.allowsFreeText; }).forEach(function (c) {
+      const opt = document.createElement("option");
+      opt.value = String(c.id);
+      opt.textContent = pickLang(c.nameTh, c.nameEn, lang);
+      select.appendChild(opt);
+    });
+    select.value = String(selectedId);
+  }
+
+  function openUnitForm(unit) {
+    clearUnitError();
+    hideBannerNow();
+    editingUnitId = unit ? unit.id : null;
+    byId("unit-nameTh").value = unit ? unit.nameTh : "";
+    byId("unit-nameEn").value = unit ? unit.nameEn : "";
+    fillUnitCategorySelect(unit ? unit.categoryId : currentCategoryId);
+
+    const title = byId("unit-form-title");
+    title.removeAttribute("data-i18n");
+    title.textContent = unit
+      ? t("adminAgencies.unitForm.editTitleNamed").replace("{name}", nameOf(unit))
+      : t("adminAgencies.unitForm.addTitle");
+
+    unitFormCard.hidden = false;
+    unitFormCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    byId("unit-nameTh").focus({ preventScroll: true });
+  }
+
+  function closeUnitForm() {
+    unitFormCard.hidden = true;
+    editingUnitId = null;
+    clearUnitError();
+  }
+
+  async function loadUnits(categoryId) {
+    const res = await fetch("/api/admin/agencies/categories/" + categoryId + "/units");
+    unitList = await res.json();
+  }
+
+  function renderUnitTable() {
+    const lang = getLang();
+    const tbody = byId("unit-table-body");
+
+    if (unitList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">' + t("adminAgencies.unitsEmpty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = unitList.map(function (u, index) {
+      const badges = !u.isActive ? ' <span class="badge badge-cancelled">' + t("adminAgencies.badge.archived") + '</span>' : "";
+      return '<tr data-row-id="' + u.id + '"' + (u.isActive ? "" : ' style="opacity:.6;"') + '>' +
+        '<td style="white-space:nowrap;">' +
+          '<span class="row-move">' +
+            '<button type="button" class="btn" data-move="up" data-id="' + u.id + '" title="' + t("adminLocations.moveUp") + '"' + (index === 0 ? " disabled" : "") + '>↑</button>' +
+            '<button type="button" class="btn" data-move="down" data-id="' + u.id + '" title="' + t("adminLocations.moveDown") + '"' + (index === unitList.length - 1 ? " disabled" : "") + '>↓</button>' +
+          '</span>' +
+        '</td>' +
+        '<td>' + escHtml(pickLang(u.nameTh, u.nameEn, lang)) + badges + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<span class="row-actions">' +
+            '<button type="button" class="btn btn-secondary btn-sm" data-edit="' + u.id + '">' + t("adminAgencies.editBtn") + '</button>' +
+            (u.isActive
+              ? '<button type="button" class="btn btn-secondary btn-sm" data-archive="' + u.id + '">' + t("adminAgencies.archiveBtn") + '</button>'
+              : '<button type="button" class="btn btn-secondary btn-sm" data-restore="' + u.id + '">' + t("adminAgencies.restoreBtn") + '</button>') +
+            '<button type="button" class="btn btn-danger btn-sm" data-delete="' + u.id + '">' + t("adminAgencies.deleteBtn") + '</button>' +
+          '</span>' +
+        '</td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  async function refreshUnits(flashId) {
+    await loadUnits(currentCategoryId);
+    renderUnitTable();
+    if (flashId) {
+      const row = byId("unit-table-body").querySelector('tr[data-row-id="' + flashId + '"]');
+      if (row) row.classList.add("row-flash");
+    }
+  }
+
+  async function showUnitsView(categoryId) {
+    currentCategoryId = categoryId;
+    closeCategoryForm();
+    hideBannerNow();
+    byId("categories-view").hidden = true;
+    byId("units-view").hidden = false;
+    byId("units-view-title").textContent = t("adminAgencies.unitsOf").replace("{name}", nameOf(categoryList.find(function (c) { return c.id === categoryId; })));
+    await refreshUnits();
+  }
+
+  function showCategoriesView() {
+    currentCategoryId = null;
+    closeUnitForm();
+    hideBannerNow();
+    byId("units-view").hidden = true;
+    byId("categories-view").hidden = false;
+  }
+
+  byId("back-to-categories-btn").addEventListener("click", showCategoriesView);
+  byId("add-unit-btn").addEventListener("click", function () { openUnitForm(null); });
+  byId("unit-cancel-btn").addEventListener("click", closeUnitForm);
+
+  unitForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    clearUnitError();
+
+    const payload = {
+      nameTh: byId("unit-nameTh").value,
+      nameEn: byId("unit-nameEn").value,
+      categoryId: byId("unit-categoryId").value
+    };
+    const missing = [];
+    if (!payload.nameTh.trim()) missing.push("field-unit-nameTh");
+    if (!payload.nameEn.trim()) missing.push("field-unit-nameEn");
+    if (missing.length) return showUnitError(t("adminAgencies.err.nameRequired"), missing);
+
+    const saveBtn = byId("unit-save-btn");
+    const idleLabel = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = t("btn.saving");
+    const result = await postJson(editingUnitId ? "/api/admin/agencies/units/" + editingUnitId : "/api/admin/agencies/units", payload);
+    saveBtn.disabled = false;
+    saveBtn.textContent = idleLabel;
+
+    if (!result.ok) {
+      showUnitError(messageFor(result.data.error, result.data), []);
+      return showBanner("error", messageFor(result.data.error, result.data));
+    }
+
+    closeUnitForm();
+    // A unit moved to a different category no longer belongs in this list.
+    const movedAway = result.data.categoryId !== currentCategoryId;
+    if (movedAway) {
+      await refreshCategories();
+      showUnitsView(result.data.categoryId);
+    } else {
+      await refreshUnits(result.data.id);
+    }
+    showBanner("success", t("adminAgencies.banner.saved").replace("{name}", nameOf(result.data)));
+  });
+
+  async function setUnitActive(id, isActive) {
+    const unit = unitList.find(function (u) { return u.id === id; });
+    const result = await postJson("/api/admin/agencies/units/" + id + "/active", { isActive: isActive });
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await refreshUnits(id);
+    showBanner("success", t(isActive ? "adminAgencies.banner.restored" : "adminAgencies.banner.archived").replace("{name}", nameOf(unit)));
+  }
+
+  async function deleteUnit(id) {
+    const unit = unitList.find(function (u) { return u.id === id; });
+    const result = await postJson("/api/admin/agencies/units/" + id + "/delete");
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await refreshUnits();
+    await loadCategories(); // unit count on the categories table changed
+    showBanner("success", t("adminAgencies.banner.deleted").replace("{name}", nameOf(unit)));
+  }
+
+  byId("unit-table-body").addEventListener("click", async function (e) {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+
+    if (btn.hasAttribute("data-edit")) {
+      const unit = unitList.find(function (u) { return u.id === Number(btn.getAttribute("data-edit")); });
+      return openUnitForm(unit);
+    }
+    if (btn.hasAttribute("data-restore")) return setUnitActive(Number(btn.getAttribute("data-restore")), true);
+
+    if (btn.hasAttribute("data-move")) {
+      const result = await postJson("/api/admin/agencies/units/" + btn.getAttribute("data-id") + "/move", { direction: btn.getAttribute("data-move") });
+      if (result.ok) await refreshUnits();
+      return;
+    }
+
+    if (btn.hasAttribute("data-archive")) {
+      const id = Number(btn.getAttribute("data-archive"));
+      const unit = unitList.find(function (u) { return u.id === id; });
+      return showConfirmModal({
+        title: t("adminAgencies.archiveConfirmTitle"),
+        message: t("adminAgencies.archiveConfirmMessage").replace("{name}", nameOf(unit)),
+        confirmText: t("adminAgencies.archiveBtn"),
+        danger: true,
+        onConfirm: function () { return setUnitActive(id, false); }
+      });
+    }
+
+    if (btn.hasAttribute("data-delete")) {
+      const id = Number(btn.getAttribute("data-delete"));
+      const unit = unitList.find(function (u) { return u.id === id; });
+      return showConfirmModal({
+        title: t("adminAgencies.deleteConfirmTitle"),
+        message: t("adminAgencies.deleteConfirmMessage").replace("{name}", nameOf(unit)),
+        confirmText: t("adminAgencies.deleteBtn"),
+        danger: true,
+        onConfirm: function () { return deleteUnit(id); }
+      });
+    }
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    renderCategoryTable();
+    if (currentCategoryId) {
+      byId("units-view-title").textContent = t("adminAgencies.unitsOf").replace("{name}", nameOf(categoryList.find(function (c) { return c.id === currentCategoryId; })));
+      renderUnitTable();
+    }
+  });
+
+  refreshCategories();
+</script>

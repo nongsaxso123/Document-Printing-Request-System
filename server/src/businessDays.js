@@ -43,30 +43,40 @@ function minCompletionDate(submissionDate) {
   return addBusinessDays(submissionDate, 3);
 }
 
-// The deadline is a cutoff, not a snapshot of submission time — always
-// 15:00:00 on the deadline day. (Returning the raw submission instant here
-// used to mean the deadline was already "in the past" the moment it was
-// computed, so every request read as Overdue immediately.)
-function atDropoffCutoff(date) {
-  const d = new Date(date);
-  d.setHours(BUSINESS_HOUR_END, 0, 0, 0);
-  return d;
+// A decimal hour (e.g. 16.5 for 16:30, from locations.hourWindowOf) split
+// into Date#setHours' separate hour/minute args — setHours(16.5) would
+// truncate straight to 16:00 and silently drop the minutes.
+function setClockHour(date, hourDecimal) {
+  date.setHours(Math.floor(hourDecimal), Math.round((hourDecimal % 1) * 60), 0, 0);
+  return date;
+}
+
+// The deadline is a cutoff, not a snapshot of submission time — always the
+// closing hour on the deadline day. (Returning the raw submission instant
+// here used to mean the deadline was already "in the past" the moment it
+// was computed, so every request read as Overdue immediately.) hourEnd
+// defaults to the site-wide constant; a caller with a specific Location's
+// real hours (src/locations.js hourWindowOf) passes its close time instead.
+function atDropoffCutoff(date, hourEnd = BUSINESS_HOUR_END) {
+  return setClockHour(new Date(date), hourEnd);
 }
 
 /**
  * Deadline for hand-delivering the physical original documents.
- * Same business day by 15:00 if submitted on a business day before 15:00
- * (whether or not the counter has opened yet that day); otherwise the next
- * business day, 09:00-15:00.
+ * Same business day by closing time if submitted on a business day before
+ * then (whether or not the counter has opened yet that day); otherwise the
+ * next business day. hourEnd is the drop-off place's real closing hour
+ * (src/locations.js hourWindowOf) — the site-wide constant when the place
+ * has no structured hours, or none was chosen at all.
  */
-function computeDropoffDeadline(submissionDate) {
+function computeDropoffDeadline(submissionDate, hourEnd = BUSINESS_HOUR_END) {
   const hour = submissionDate.getHours() + submissionDate.getMinutes() / 60;
 
-  if (isBusinessDay(submissionDate) && hour < BUSINESS_HOUR_END) {
-    return { date: atDropoffCutoff(submissionDate), sameDay: true };
+  if (isBusinessDay(submissionDate) && hour < hourEnd) {
+    return { date: atDropoffCutoff(submissionDate, hourEnd), sameDay: true };
   }
 
-  return { date: atDropoffCutoff(nextBusinessDay(submissionDate)), sameDay: false };
+  return { date: atDropoffCutoff(nextBusinessDay(submissionDate), hourEnd), sameDay: false };
 }
 
-module.exports = { isBusinessDay, addDays, addBusinessDays, nextBusinessDay, minCompletionDate, computeDropoffDeadline };
+module.exports = { BUSINESS_HOUR_START, BUSINESS_HOUR_END, isBusinessDay, addDays, addBusinessDays, nextBusinessDay, minCompletionDate, computeDropoffDeadline, setClockHour };

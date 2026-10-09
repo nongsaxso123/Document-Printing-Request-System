@@ -1,0 +1,291 @@
+<%- include("partials/head", { title: "ข้อมูลส่วนตัว | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("partials/sidebar", { user, active: null }) %>
+<%- include("partials/header", { user, crumbKey: "crumb.profile", crumbFallback: "โปรไฟล์ของฉัน / <strong>แก้ไขข้อมูล</strong>" }) %>
+
+  <main class="app-main">
+    <div class="profile-header">
+      <div class="profile-avatar">
+        <% if (user.picture) { %>
+        <img src="<%= user.picture %>" alt="" referrerpolicy="no-referrer">
+        <% } else { %>
+        <span><%= user.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase() %></span>
+        <% } %>
+      </div>
+      <div class="profile-header-info">
+        <h1 class="page-title" data-i18n="profile.title">โปรไฟล์ของฉัน</h1>
+        <div class="profile-header-meta">
+          <span class="badge badge-role" data-i18n="user.role.<%= user.role.toLowerCase() %>"><%= user.role %></span>
+          <span class="profile-header-email"><%= user.email %></span>
+        </div>
+      </div>
+    </div>
+
+    <form id="profile-form">
+      <div class="card">
+        <div class="card-header"><span data-i18n="profile.section.personal">ข้อมูลส่วนตัว</span></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field">
+              <label data-i18n="profile.prefixLabel">คำนำหน้า</label>
+              <select name="prefix" id="profile-prefix">
+                <option value="" data-i18n="profile.prefix.none">— ไม่ระบุ —</option>
+                <option value="นาย" data-i18n="profile.prefix.mr">นาย</option>
+                <option value="นาง" data-i18n="profile.prefix.mrs">นาง</option>
+                <option value="นางสาว" data-i18n="profile.prefix.miss">นางสาว</option>
+                <option value="ดร." data-i18n="profile.prefix.dr">ดร.</option>
+                <option value="ผศ." data-i18n="profile.prefix.asstProf">ผศ.</option>
+                <option value="ผศ.ดร." data-i18n="profile.prefix.asstProfDr">ผศ.ดร.</option>
+                <option value="รศ." data-i18n="profile.prefix.assocProf">รศ.</option>
+                <option value="รศ.ดร." data-i18n="profile.prefix.assocProfDr">รศ.ดร.</option>
+                <option value="ศ." data-i18n="profile.prefix.prof">ศ.</option>
+                <option value="ศ.ดร." data-i18n="profile.prefix.profDr">ศ.ดร.</option>
+                <option value="อื่นๆ" data-i18n="option.paperSize.other">อื่นๆ</option>
+              </select>
+              <input type="text" name="prefixOther" id="profile-prefix-other" data-i18n-placeholder="profile.prefixOther.placeholder" placeholder="ระบุคำนำหน้า" style="display:none; margin-top:8px;" disabled>
+            </div>
+
+            <div class="field">
+              <label data-i18n="profile.nameLabel">ชื่อ-นามสกุล</label>
+              <input type="text" name="name" id="profile-name" autocomplete="name">
+            </div>
+
+            <div class="field">
+              <label data-i18n="profile.phoneLabel">เบอร์โทรศัพท์</label>
+              <input type="text" name="phone" id="profile-phone" autocomplete="tel" inputmode="numeric" maxlength="10" data-max-digits="10">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span data-i18n="profile.section.workplace">ข้อมูลหน่วยงาน</span></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="field">
+              <label data-i18n="profile.workplaceCategoryLabel">ประเภทหน่วยงาน</label>
+              <select id="profile-workplace-category"></select>
+            </div>
+
+            <div class="field">
+              <label data-i18n="profile.workplaceUnitLabel">หน่วยงาน</label>
+              <select id="profile-workplace-unit-select"></select>
+              <input type="text" id="profile-workplace-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
+            </div>
+
+            <div class="field span-2">
+              <label data-i18n="profile.positionLabel">ตำแหน่ง</label>
+              <input type="text" name="position" id="profile-position" autocomplete="organization-title">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions" style="justify-content:flex-start; align-items:center; gap:14px;">
+        <button type="submit" class="btn btn-primary" id="save-btn" data-i18n="profile.saveBtn">บันทึกโปรไฟล์</button>
+        <svg id="save-status-icon" class="save-status-icon" viewBox="0 0 36 36" width="22" height="22" hidden style="display:none;" aria-hidden="true">
+          <circle id="save-status-ring" class="save-status-ring" cx="18" cy="18" r="14" fill="none" stroke-width="3"></circle>
+          <path id="save-status-check" class="save-status-check" pathLength="24" d="M9 19l6 6 12-13" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span id="profile-saved-msg" class="hint" style="display:none;" data-i18n="settings.savedMsg">บันทึกแล้ว</span>
+      </div>
+    </form>
+  </main>
+
+<%- include("partials/foot") %>
+<script>
+  const form = document.getElementById("profile-form");
+  const prefixSelect = document.getElementById("profile-prefix");
+  const prefixOther = document.getElementById("profile-prefix-other");
+  const nameInput = document.getElementById("profile-name");
+  const phoneInput = document.getElementById("profile-phone");
+  const workplaceCategorySelect = document.getElementById("profile-workplace-category");
+  const workplaceUnitSelect = document.getElementById("profile-workplace-unit-select");
+  const workplaceUnitText = document.getElementById("profile-workplace-unit-text");
+  const positionInput = document.getElementById("profile-position");
+  const savedMsg = document.getElementById("profile-saved-msg");
+  const saveBtn = document.getElementById("save-btn");
+  const saveStatusIcon = document.getElementById("save-status-icon");
+  const saveStatusRing = document.getElementById("save-status-ring");
+  const saveStatusCheck = document.getElementById("save-status-check");
+
+  const KNOWN_PREFIXES = Array.from(prefixSelect.options).map(function (o) { return o.value; }).filter(Boolean);
+
+  function applyPrefixValue(value) {
+    if (value && !KNOWN_PREFIXES.includes(value)) {
+      prefixSelect.value = "อื่นๆ";
+      prefixOther.value = value;
+      prefixOther.style.display = "block";
+      prefixOther.disabled = false;
+    } else {
+      prefixSelect.value = value || "";
+      prefixOther.value = "";
+    }
+  }
+
+  prefixSelect.addEventListener("change", function () {
+    const isOther = this.value === "อื่นๆ";
+    prefixOther.style.display = isOther ? "block" : "none";
+    prefixOther.disabled = !isOther;
+    if (!isOther) prefixOther.value = "";
+  });
+
+  // Agency directory (src/agencies.js) — same dependent-dropdown pattern as
+  // requester/new-request.ejs's agencyCategory/agencyUnit fields, reused
+  // here so "ที่ทำงาน / หน่วยงาน" is selectable the same way — not
+  // required here, so no placeholder/required wiring, just optional fields.
+  const AGENCIES = <%- JSON.stringify(typeof agencyCategories !== "undefined" ? agencyCategories : []).replace(/</g, "\\u003c") %>;
+
+  function agencyCategoryById(id) {
+    return AGENCIES.find(function (c) { return c.id === id; });
+  }
+
+  function renderWorkplaceUnitOptions() {
+    const category = agencyCategoryById(Number(workplaceCategorySelect.value));
+
+    if (category && category.allowsFreeText) {
+      workplaceUnitSelect.style.display = "none";
+      workplaceUnitSelect.disabled = true;
+      workplaceUnitText.style.display = "block";
+      workplaceUnitText.disabled = false;
+      return;
+    }
+
+    workplaceUnitText.style.display = "none";
+    workplaceUnitText.disabled = true;
+
+    workplaceUnitSelect.style.display = "block";
+    workplaceUnitSelect.disabled = false;
+
+    const previousUnit = workplaceUnitSelect.value;
+    workplaceUnitSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = category ? t("option.select") : t("option.selectCategoryFirst");
+    workplaceUnitSelect.appendChild(placeholder);
+
+    const lang = getLang();
+    (category ? category.units : []).forEach(function (unit) {
+      const opt = document.createElement("option");
+      opt.value = String(unit.id);
+      opt.textContent = pickLang(unit.nameTh, unit.nameEn, lang);
+      workplaceUnitSelect.appendChild(opt);
+    });
+    workplaceUnitSelect.value = previousUnit;
+  }
+
+  function renderWorkplaceCategoryOptions() {
+    const previousCategory = workplaceCategorySelect.value;
+    workplaceCategorySelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = t("profile.workplaceCategory.none");
+    workplaceCategorySelect.appendChild(placeholder);
+
+    const lang = getLang();
+    AGENCIES.forEach(function (category) {
+      const opt = document.createElement("option");
+      opt.value = String(category.id);
+      opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
+      workplaceCategorySelect.appendChild(opt);
+    });
+
+    workplaceCategorySelect.value = previousCategory;
+    renderWorkplaceUnitOptions();
+  }
+
+  workplaceCategorySelect.addEventListener("change", renderWorkplaceUnitOptions);
+  document.addEventListener("odprs:langchange", renderWorkplaceCategoryOptions);
+  renderWorkplaceCategoryOptions();
+
+  function applyWorkplaceValue(categoryId, unitId, unitText) {
+    workplaceCategorySelect.value = categoryId ? String(categoryId) : "";
+    renderWorkplaceUnitOptions();
+    const category = categoryId ? agencyCategoryById(categoryId) : null;
+    if (category && category.allowsFreeText) {
+      workplaceUnitText.value = unitText || "";
+    } else {
+      workplaceUnitSelect.value = unitId ? String(unitId) : "";
+    }
+  }
+
+  async function loadProfile() {
+    const res = await fetch("/api/profile");
+    const p = await res.json();
+    if (!p) return;
+    applyPrefixValue(p.prefix);
+    nameInput.value = p.name || "";
+    phoneInput.value = p.phone || "";
+    applyWorkplaceValue(p.workplaceCategoryId, p.workplaceUnitId, p.workplaceUnit);
+    positionInput.value = p.position || "";
+  }
+
+  function hideSaveIcon() {
+    saveStatusIcon.hidden = true;
+    saveStatusIcon.style.display = "none"; // explicit, on top of [hidden] — never show on plain page load
+  }
+
+  function showSaveSpinner() {
+    saveBtn.disabled = true;
+    saveStatusIcon.hidden = false;
+    saveStatusIcon.style.display = "";
+    saveStatusRing.style.display = "";
+    saveStatusCheck.classList.remove("drawn");
+    saveStatusCheck.style.display = "none";
+  }
+
+  function showSaveCheckmark() {
+    saveStatusRing.style.display = "none";
+    saveStatusCheck.style.display = "";
+    void saveStatusCheck.getBoundingClientRect(); // restart the draw animation on repeat saves
+    saveStatusCheck.classList.add("drawn");
+    setTimeout(function () {
+      hideSaveIcon();
+      saveBtn.disabled = false;
+    }, 10000);
+  }
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    showSaveSpinner();
+    let res;
+    try {
+      res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prefix: prefixSelect.value,
+          prefixOther: prefixOther.value,
+          name: nameInput.value,
+          phone: phoneInput.value,
+          agencyCategoryId: workplaceCategorySelect.value,
+          agencyUnitId: workplaceUnitSelect.value,
+          agencyUnitText: workplaceUnitText.value,
+          position: positionInput.value
+        })
+      });
+    } catch (err) {
+      hideSaveIcon();
+      saveBtn.disabled = false;
+      showActionResult(false, t("result.network"));
+      return;
+    }
+    if (!res.ok) {
+      // Only possible now if the saved category/unit id went stale between
+      // page load and save (e.g. an admin archived it in another tab) —
+      // reload so the dropdowns reflect what's actually still valid, rather
+      // than silently claiming success or leaving stale ids in the form.
+      hideSaveIcon();
+      saveBtn.disabled = false;
+      showActionResult(false, t("profile.saveError"), { onClose: function () { window.location.reload(); } });
+      return;
+    }
+    showSaveCheckmark();
+    showActionResult(true, t("profile.saveSuccess"));
+    savedMsg.style.display = "inline";
+    setTimeout(function () { savedMsg.style.display = "none"; }, 10000);
+  });
+
+  loadProfile();
+</script>
+</body>
+</html>

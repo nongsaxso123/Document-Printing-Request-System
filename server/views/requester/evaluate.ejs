@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — ประเมินความพึงพอใจ" }) %>
+<%- include("../partials/head", { title: "แบบประเมินความพึงพอใจ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.evaluate", crumbFallback: "คำขอของฉัน / <strong>ประเมินความพึงพอใจ</strong>" }) %>
 
@@ -18,8 +18,8 @@
     </div>
 
     <% if (typeof error !== "undefined" && error) { %>
-    <div class="notice notice-error">
-      <span class="icon" data-icon="alert-triangle"></span>
+    <div class="notice notice-error" data-result-error>
+      <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
       <div>
         <% if (error === "invalid-rating") { %>
         <strong data-i18n="evaluate.error.invalidRating">กรุณาให้คะแนนทุกหัวข้อ</strong><br>
@@ -35,60 +35,45 @@
 
     <form method="POST" action="/requester/evaluate/<%= encodeURIComponent(record.referenceNo) %>">
       <div class="card">
-        <div class="card-header"><span data-i18n="evaluate.formTitle">แบบประเมินความพึงพอใจ</span></div>
+        <div class="card-header">
+          <span data-i18n="evaluate.formTitle">แบบประเมินความพึงพอใจ</span>
+          <button type="button" class="btn btn-quickfill" id="eval-quickfill" aria-pressed="false">
+            <span class="icon" data-icon="star"><%- icon('star') %></span>
+            <span data-i18n="evaluate.quickFill">พึงพอใจทุกด้าน</span>
+          </button>
+        </div>
         <div class="card-body">
-          <p class="hint" style="margin-bottom:18px;" data-i18n="evaluate.scaleHint">ให้คะแนนแต่ละหัวข้อตั้งแต่ 1 (ไม่พึงพอใจอย่างมาก) ถึง 5 (พึงพอใจมากที่สุด)</p>
+          <p class="hint" style="margin-bottom:6px;" data-i18n="evaluate.scaleHint">ให้คะแนนแต่ละหัวข้อตั้งแต่ 1 (ไม่พึงพอใจอย่างมาก) ถึง 5 (พึงพอใจมากที่สุด)</p>
 
-          <div class="form-grid">
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.staffService">การให้บริการของเจ้าหน้าที่ *</label>
-              <div class="radio-group">
-                <% [1,2,3,4,5].forEach(function (n) { %>
-                <label class="radio-option"><input type="radio" name="ratingStaffService" value="<%= n %>" required><span><%= n %></span></label>
-                <% }) %>
+          <div class="rating-list">
+            <% [
+              { field: "ratingStaffService", labelKey: "evaluate.q.staffService", label: "การให้บริการของเจ้าหน้าที่", icon: "user-check" },
+              { field: "ratingSystemEase", labelKey: "evaluate.q.systemEase", label: "ความสะดวกในการใช้งานระบบออนไลน์", icon: "clipboard" },
+              { field: "ratingSpeed", labelKey: "evaluate.q.speed", label: "ความรวดเร็วในการดำเนินการ", icon: "clock" },
+              { field: "ratingPrintQuality", labelKey: "evaluate.q.printQuality", label: "คุณภาพงานพิมพ์ที่ได้รับ", icon: "printer" },
+              { field: "ratingOverall", labelKey: "evaluate.q.overall", label: "ความพึงพอใจโดยรวม", icon: "star" }
+            ].forEach(function (dim) { %>
+            <div class="rating-row">
+              <div class="rating-row-label">
+                <span class="icon" data-icon="<%= dim.icon %>"><%- icon(dim.icon) %></span>
+                <span data-i18n="<%= dim.labelKey %>"><%= dim.label %></span>
+              </div>
+              <div class="rating-row-control">
+                <div class="star-rating">
+                  <% [5,4,3,2,1].forEach(function (n) { %>
+                  <input type="radio" id="<%= dim.field %>-<%= n %>" name="<%= dim.field %>" value="<%= n %>" required>
+                  <label for="<%= dim.field %>-<%= n %>"><span class="icon" data-icon="star"><%- icon('star') %></span></label>
+                  <% }) %>
+                </div>
+                <span class="rating-feedback" data-feedback></span>
               </div>
             </div>
+            <% }) %>
+          </div>
 
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.systemEase">ความสะดวกในการใช้งานระบบออนไลน์ *</label>
-              <div class="radio-group">
-                <% [1,2,3,4,5].forEach(function (n) { %>
-                <label class="radio-option"><input type="radio" name="ratingSystemEase" value="<%= n %>" required><span><%= n %></span></label>
-                <% }) %>
-              </div>
-            </div>
-
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.speed">ความรวดเร็วในการดำเนินการ *</label>
-              <div class="radio-group">
-                <% [1,2,3,4,5].forEach(function (n) { %>
-                <label class="radio-option"><input type="radio" name="ratingSpeed" value="<%= n %>" required><span><%= n %></span></label>
-                <% }) %>
-              </div>
-            </div>
-
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.printQuality">คุณภาพงานพิมพ์ที่ได้รับ *</label>
-              <div class="radio-group">
-                <% [1,2,3,4,5].forEach(function (n) { %>
-                <label class="radio-option"><input type="radio" name="ratingPrintQuality" value="<%= n %>" required><span><%= n %></span></label>
-                <% }) %>
-              </div>
-            </div>
-
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.overall">ความพึงพอใจโดยรวม *</label>
-              <div class="radio-group">
-                <% [1,2,3,4,5].forEach(function (n) { %>
-                <label class="radio-option"><input type="radio" name="ratingOverall" value="<%= n %>" required><span><%= n %></span></label>
-                <% }) %>
-              </div>
-            </div>
-
-            <div class="field span-2">
-              <label data-i18n="evaluate.q.comment">ความคิดเห็นเพิ่มเติม (ถ้ามี)</label>
-              <textarea name="comment" data-i18n-placeholder="evaluate.q.comment.placeholder" placeholder="ข้อเสนอแนะหรือสิ่งที่อยากให้ปรับปรุง"></textarea>
-            </div>
+          <div class="field span-2" style="margin-top:20px;">
+            <label data-i18n="evaluate.q.comment">ความคิดเห็นเพิ่มเติม (ถ้ามี)</label>
+            <textarea name="comment" data-i18n-placeholder="evaluate.q.comment.placeholder" placeholder="ข้อเสนอแนะหรือสิ่งที่อยากให้ปรับปรุง"></textarea>
           </div>
         </div>
       </div>
@@ -100,5 +85,58 @@
   </main>
 
 <%- include("../partials/foot") %>
+<script>
+  (function () {
+    const ratingRows = document.querySelectorAll(".rating-row");
+
+    function updateFeedback(row) {
+      const checked = row.querySelector(".star-rating input:checked");
+      const feedback = row.querySelector("[data-feedback]");
+      if (!checked) {
+        feedback.textContent = "";
+        feedback.className = "rating-feedback";
+        return;
+      }
+      feedback.textContent = t("evaluate.sentiment." + checked.value);
+      feedback.className = "rating-feedback " + (checked.value >= 4 ? "tier-good" : checked.value == 3 ? "tier-mid" : "tier-low");
+    }
+
+    ratingRows.forEach(function (row) {
+      row.querySelectorAll(".star-rating input").forEach(function (input) {
+        input.addEventListener("change", function () { updateFeedback(row); });
+      });
+    });
+
+    document.addEventListener("odprs:langchange", function () {
+      ratingRows.forEach(updateFeedback);
+    });
+
+    const quickFillBtn = document.getElementById("eval-quickfill");
+
+    // Lights the quick-fill button up while every row is at 5 stars, and
+    // turns it back off as soon as any row is changed to something else.
+    function syncQuickFillState() {
+      if (!quickFillBtn) return;
+      const allFive = Array.prototype.every.call(ratingRows, function (row) {
+        const checked = row.querySelector(".star-rating input:checked");
+        return checked && checked.value === "5";
+      });
+      quickFillBtn.classList.toggle("is-applied", allFive);
+      quickFillBtn.setAttribute("aria-pressed", allFive ? "true" : "false");
+    }
+    document.querySelectorAll(".star-rating input").forEach(function (input) {
+      input.addEventListener("change", syncQuickFillState);
+    });
+
+    if (quickFillBtn) {
+      quickFillBtn.addEventListener("click", function () {
+        document.querySelectorAll(".star-rating input[value='5']").forEach(function (input) {
+          input.checked = true;
+          input.dispatchEvent(new Event("change"));
+        });
+      });
+    }
+  })();
+</script>
 </body>
 </html>

@@ -3,72 +3,291 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ODPRS — เข้าสู่ระบบ</title>
+<title>เข้าสู่ระบบ | ฝ่ายทะเบียน มฟล.</title>
 <link rel="stylesheet" href="/assets/css/style.css">
 <style>
-  body { background: var(--color-bg); }
+  :root {
+    /* MFU red & gold: soft red fills the page; champagne gold + cream are
+       the companions (text, rules, ornaments, cream card). Deep red stays
+       for the main button so it stands out on the cream card. Scoped to this page. */
+    --color-primary: #7a1d24;
+    --color-primary-dark: #5e151b;
+    --color-surface: #fffaf2;
+    --color-border: #ecdfca;
+    --login-gold: #e2c285;
+    --login-gold-soft: rgba(226, 194, 133, 0.45);
+    --login-gold-faint: rgba(226, 194, 133, 0.14);
+    --login-ink: #fbefdc;
+    --login-ink-soft: rgba(251, 239, 220, 0.8);
+    --login-page-bg: linear-gradient(160deg, #9a4448 0%, #843a3f 50%, #6e3035 100%);
+  }
+  /* Whole-page soft university red, fixed so it never ends partway down a
+     short page. Two soft glows add depth; the fine diagonal texture sits on top. */
+  html { background: #843a3f; }
+  body { margin: 0; min-height: 100vh; background: var(--login-page-bg) fixed; }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 22% 30%, rgba(226, 194, 133, 0.16), transparent 55%),
+      radial-gradient(ellipse at 90% 100%, rgba(40, 8, 12, 0.35), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 14px);
+    pointer-events: none;
+  }
+
+  @keyframes loginRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
   .login-page {
+    position: relative;
     min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+
+  /* ---------- Brand panel ---------- */
+  .login-brand {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 72px 56px;
+    text-align: center;
+    color: var(--login-ink);
+  }
+  .login-brand > * { position: relative; animation: loginRise .7s ease both; }
+
+  /* Gold corner brackets instead of a full box frame — formal but lighter. */
+  .login-brand > .login-corners { position: absolute; inset: 28px; pointer-events: none; animation: none; }
+  .login-corners span {
+    position: absolute;
+    width: 44px; height: 44px;
+    border: 0 solid var(--login-gold-soft);
+  }
+  .login-corners span:nth-child(1) { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+  .login-corners span:nth-child(2) { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+  .login-corners span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+  .login-corners span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+  /* Emblem with soft concentric gold rings radiating behind it. */
+  .login-emblem-wrap {
+    width: 150px; height: 150px;
+    margin-bottom: 36px;
+  }
+  .login-emblem-wrap::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 420px; height: 420px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0 34px, var(--login-gold-faint) 34px 35px);
+    -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    pointer-events: none;
+  }
+  .login-emblem {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: #fffaf2;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      0 0 0 4px #843a3f,
+      0 0 0 5.5px var(--login-gold),
+      0 0 0 12px var(--login-gold-faint),
+      0 18px 40px rgba(20, 4, 6, 0.35);
+  }
+  .login-emblem img { width: 112px; height: 112px; object-fit: contain; }
+
+  .login-brand h1 {
+    margin: 0;
+    max-width: 460px;
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.2px;
+    text-shadow: 0 2px 12px rgba(20, 4, 6, 0.25);
+    animation-delay: .08s;
+  }
+  .login-rule {
+    display: flex; align-items: center; gap: 10px;
+    width: 200px; margin: 24px auto;
+    animation-delay: .14s;
+  }
+  .login-rule::before, .login-rule::after { content: ""; flex: 1; height: 1px; }
+  .login-rule::before { background: linear-gradient(90deg, transparent, var(--login-gold)); }
+  .login-rule::after  { background: linear-gradient(90deg, var(--login-gold), transparent); }
+  .login-rule span { width: 7px; height: 7px; background: var(--login-gold); transform: rotate(45deg); }
+  .login-brand .subtitle {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 300;
+    color: var(--login-ink-soft);
+    letter-spacing: 0.4px;
+    animation-delay: .2s;
+  }
+
+  /* ---------- Sign-in panel ---------- */
+  .login-main {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 56px 40px;
   }
+  .login-lang-toggle {
+    position: absolute; top: 24px; right: 28px;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--login-gold-soft);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--login-ink-soft);
+  }
+  .login-lang-toggle span { border-radius: 999px; padding: 3px 11px; cursor: pointer; }
+  .login-lang-toggle span.active { background: var(--login-gold); color: #5e151b; }
+
   .login-card {
+    position: relative;
     width: 100%;
     max-width: 420px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 40px 32px;
+    background: #fffaf2;
+    border: 1px solid rgba(226, 194, 133, 0.6);
+    border-radius: 18px;
+    box-shadow:
+      0 0 0 6px rgba(255, 250, 242, 0.08),
+      0 24px 60px rgba(20, 4, 6, 0.35);
+    padding: 48px 40px 36px;
     text-align: center;
+    animation: loginRise .7s .12s ease both;
   }
-  .login-mark {
-    width: 56px; height: 56px; border-radius: 50%;
-    background: var(--color-primary); color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 20px; margin: 0 auto 18px;
+  /* Small gold diamond ornament sitting on the card's top edge. */
+  .login-card::before {
+    content: "";
+    position: absolute;
+    top: -9px; left: 50%;
+    width: 16px; height: 16px;
+    transform: translateX(-50%) rotate(45deg);
+    background: var(--login-gold);
+    border: 3px solid #fffaf2;
+    box-shadow: 0 0 0 1px rgba(226, 194, 133, 0.6);
   }
-  .login-card h1 { margin: 0 0 6px; font-size: 19px; }
-  .login-card .subtitle { color: var(--color-muted); font-size: 13.5px; margin: 0 0 24px; }
-  .login-card .hint { color: var(--color-muted); font-size: 12.5px; margin: 14px 0 0; }
-  .login-lang-toggle { position: fixed; top: 20px; right: 24px; font-size: 13px; }
+  .login-card .hint { color: var(--color-muted); font-size: 12.5px; margin: 14px 0 0; line-height: 1.5; }
+
   .login-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-    width: 100%; padding: 12px 20px;
-    background: var(--color-primary); color: #fff;
-    border: none; border-radius: var(--radius);
-    font-family: var(--font-family); font-size: 14.5px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    width: 100%; padding: 13px 20px;
+    background: linear-gradient(180deg, #8a232b 0%, var(--color-primary) 100%);
+    color: #fff;
+    border: none; border-radius: 12px;
+    font-family: var(--font-family); font-size: 15.5px; font-weight: 600;
     text-decoration: none; cursor: pointer;
+    box-shadow: 0 6px 16px rgba(122, 29, 36, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
   }
-  .login-btn:hover { background: var(--color-primary-dark); }
+  .login-btn:hover {
+    background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    box-shadow: 0 10px 22px rgba(122, 29, 36, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+  }
+  .login-btn-g {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .login-btn-g svg { width: 15px; height: 15px; }
+
+  .login-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 32px 0 16px;
+    font-size: 12.5px;
+  }
+  .login-divider::before, .login-divider::after { content: ""; flex: 1; height: 1px; }
+  .login-divider::before { background: linear-gradient(90deg, transparent, var(--color-border)); }
+  .login-divider::after  { background: linear-gradient(90deg, var(--color-border), transparent); }
+  .login-divider span { font-weight: 600; color: var(--color-muted); letter-spacing: 0.3px; }
+
+  .staff-kiosk {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 9px 18px;
+    color: var(--color-text);
+    background: #fff;
+    border: 1px solid var(--color-border); border-radius: 999px;
+    font-size: 13.5px; font-weight: 500; text-decoration: none;
+    transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .staff-kiosk .icon { width: 17px; height: 17px; color: #b08a3e; }
+  .staff-kiosk:hover { border-color: var(--login-gold); color: var(--color-primary); box-shadow: 0 4px 12px rgba(176, 138, 62, 0.18); }
+
+  /* ---------- Phone / narrow ---------- */
+  @media (max-width: 860px) {
+    .login-page { grid-template-columns: 1fr; }
+    .login-brand { padding: 64px 24px 40px; }
+    .login-brand > .login-corners { inset: 14px; }
+    .login-corners span { width: 28px; height: 28px; }
+    .login-emblem-wrap { width: 104px; height: 104px; margin-bottom: 24px; }
+    .login-emblem-wrap::before { width: 300px; height: 300px; }
+    .login-emblem img { width: 78px; height: 78px; }
+    .login-brand h1 { font-size: 24px; }
+    .login-rule { margin: 18px auto; width: 160px; }
+    .login-brand .subtitle { font-size: 14.5px; }
+    .login-main { padding: 8px 16px 56px; }
+    .login-lang-toggle { position: fixed; top: 14px; right: 14px; z-index: 2; background: rgba(94, 21, 27, 0.55); }
+    .login-card { padding: 40px 24px 28px; }
+  }
 </style>
 </head>
 <body>
 
-<div class="lang-toggle login-lang-toggle">
-  <span data-lang="en">EN</span> / <span data-lang="th" class="active">TH</span>
-</div>
-
 <div class="login-page">
-  <div class="login-card">
-    <div class="login-mark">OD</div>
-    <h1 data-i18n="login.title">ระบบขอพิมพ์เอกสารออนไลน์</h1>
-    <p class="subtitle" data-i18n="login.subtitle">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</p>
-
-    <% if (deniedDomain) { %>
-    <div class="notice notice-error" style="text-align:left;">
-      <span class="icon" data-icon="alert-triangle"></span>
-      <div id="denied-notice"></div>
+  <section class="login-brand">
+    <div class="login-corners" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <div class="login-emblem-wrap">
+      <div class="login-emblem">
+        <img src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
+      </div>
     </div>
-    <% } %>
+    <h1 data-i18n="login.title">ระบบขอพิมพ์เอกสารออนไลน์</h1>
+    <div class="login-rule" aria-hidden="true"><span></span></div>
+    <p class="subtitle" data-i18n="login.subtitle">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</p>
+  </section>
 
-    <a class="login-btn" href="/auth/google">
-      <span data-i18n="login.btn">เข้าสู่ระบบด้วย Google</span>
-    </a>
-    <p class="hint" data-i18n="login.hint">เข้าสู่ระบบด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th)</p>
-  </div>
+  <main class="login-main">
+    <div class="lang-toggle login-lang-toggle">
+      <span data-lang="en">EN</span><span data-lang="th" class="active">TH</span>
+    </div>
+
+    <div class="login-card">
+      <% if (deniedDomain) { %>
+      <div class="notice notice-error" style="text-align:left; margin-bottom:20px;">
+        <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+        <div id="denied-notice"></div>
+      </div>
+      <% } %>
+
+      <a class="login-btn" href="/auth/google">
+        <span class="login-btn-g" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.28-3.14.76-4.59l-7.98-6.19A23.94 23.94 0 0 0 0 24c0 3.77.9 7.35 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        </span>
+        <span data-i18n="login.btn">เข้าสู่ระบบด้วย Google</span>
+      </a>
+      <p class="hint" data-i18n="login.hint">เข้าสู่ระบบด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th)</p>
+
+      <div class="login-divider"><span data-i18n="login.staffOnly">สำหรับเจ้าหน้าที่เท่านั้น</span></div>
+
+      <a class="staff-kiosk" href="/kiosk">
+        <span class="icon" data-icon="package"><%- icon('package') %></span>
+        <span data-i18n="login.kioskBtn">เปิดหน้าจอจุดรับเอกสาร</span>
+      </a>
+    </div>
+  </main>
 </div>
 
 <script src="/assets/js/app.js"></script>

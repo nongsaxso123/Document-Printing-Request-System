@@ -1,0 +1,9 @@
+# Keep the image clean: the Windows-built node_modules must never overwrite
+# the Linux one from `npm install`, and secrets/backups don't belong in it
+# (.env is passed in at run time via env_file instead).
+node_modules
+.env
+.env.*
+!.env.example
+backups
+tmp_docx_build

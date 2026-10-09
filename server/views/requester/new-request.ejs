@@ -1,22 +1,23 @@
-<%- include("../partials/head", { title: "ODPRS — สร้างคำขอพิมพ์เอกสาร" }) %>
+<% const isEditing = typeof editing !== "undefined" && !!editing; %>
+<%- include("../partials/head", { title: isEditing ? "แก้ไขคำขอพิมพ์เอกสาร | ฝ่ายทะเบียน มฟล." : "ยื่นคำขอพิมพ์เอกสาร | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
-<%- include("../partials/header", { user, crumbKey: "crumb.newRequest", crumbFallback: "สร้างคำขอพิมพ์เอกสาร / <strong>กรอกแบบฟอร์ม</strong>" }) %>
+<%- include("../partials/header", isEditing
+  ? { user, crumbKey: "crumb.editRequest", crumbFallback: "คำขอของฉัน / <strong>แก้ไขคำขอ</strong>" }
+  : { user, crumbKey: "crumb.newRequest", crumbFallback: "สร้างคำขอพิมพ์เอกสาร / <strong>กรอกแบบฟอร์ม</strong>" }) %>
 
   <main class="app-main">
+    <% if (isEditing) { %>
+    <h1 class="page-title"><span data-i18n="newRequest.edit.title">แก้ไขคำขอพิมพ์เอกสาร</span> <%= editing.referenceNo %></h1>
+    <p class="page-subtitle" data-i18n="newRequest.edit.subtitle">แก้ไขรายละเอียดได้จนกว่าเจ้าหน้าที่จะรับเอกสารต้นฉบับของคุณ</p>
+    <% } else { %>
     <h1 class="page-title" data-i18n="newRequest.title">สร้างคำขอพิมพ์เอกสาร</h1>
-    <p class="page-subtitle" data-i18n="newRequest.subtitle">กรอกรายละเอียดคำขอพิมพ์เอกสาร — ระบบจะยังไม่มีการแนบไฟล์ในขั้นตอนนี้</p>
+    <p class="page-subtitle" data-i18n="newRequest.subtitle">กรอกรายละเอียดคำขอพิมพ์เอกสาร</p>
+    <% } %>
 
-    <div class="notice notice-info">
-      <span class="icon" data-icon="info"></span>
-      <div>
-        <strong data-i18n="newRequest.notice.title">ไม่ต้องแนบไฟล์เอกสาร</strong><br>
-        <span data-i18n="newRequest.notice.body">หลังส่งคำขอสำเร็จ ระบบจะออกใบคำขอให้พิมพ์ และแจ้งกำหนดเวลาที่ต้อง<strong>นำเอกสารต้นฉบับมาส่งด้วยตัวเอง</strong>ที่เคาน์เตอร์ฝ่ายทะเบียน</span>
-      </div>
-    </div>
 
     <% if (typeof error !== "undefined" && error) { %>
-    <div class="notice notice-error">
-      <span class="icon" data-icon="alert-triangle"></span>
+    <div class="notice notice-error" data-result-error>
+      <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
       <div>
         <% if (error === "missing-required-field") { %>
         <strong data-i18n="newRequest.error.missingField">กรอกข้อมูลไม่ครบ</strong><br>
@@ -39,6 +40,12 @@
         <% } else if (error === "copies-out-of-range") { %>
         <strong data-i18n="newRequest.error.copiesOutOfRange">จำนวนชุดไม่ถูกต้อง</strong><br>
         <span data-i18n="newRequest.error.copiesOutOfRange.body">กรุณาระบุจำนวนชุดระหว่าง 1 ถึง 999 ชุด</span>
+        <% } else if (error === "dropoff-location-invalid") { %>
+        <strong data-i18n="newRequest.error.dropoffLocation">สถานที่ส่งเอกสารไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.dropoffLocation.body">สถานที่ที่เลือกไม่เปิดให้ส่งเอกสารแล้ว กรุณาเลือกสถานที่ใหม่</span>
+        <% } else if (error === "agency-category-invalid" || error === "agency-unit-invalid" || error === "agency-unit-required") { %>
+        <strong data-i18n="newRequest.error.agency">ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.agency.body">กรุณาเลือกประเภทหน่วยงานและหน่วยงานใหม่อีกครั้ง</span>
         <% } else { %>
         <strong data-i18n="newRequest.error.dateTooSoon">วันที่เลือกไม่ถูกต้อง</strong><br>
         <% if (error === "completion-date-weekend") { %>
@@ -53,45 +60,57 @@
 
     <form id="request-form" method="post" novalidate>
 
-      <div class="card">
+      <div class="request-layout">
+      <div class="request-main">
+      <div class="card card-overflow-visible">
         <div class="card-header">
-          <span data-i18n="newRequest.cardTitle.requester">ข้อมูลผู้ขอ</span>
+          <span class="step-title"><span class="step-num">1</span><span data-i18n="newRequest.cardTitle.requester">ข้อมูลผู้ขอ</span></span>
         </div>
-        <div class="card-body">
+        <div class="card-body form-fields">
           <div class="form-grid">
 
             <div class="field">
-              <label data-i18n="field.requesterName">ชื่อผู้ขอ *</label>
-              <input type="text" name="requesterName" value="<%= user.name %>" required>
-              <span class="hint" data-i18n="field.requesterName.hint">ดึงจากบัญชีที่ล็อกอินให้อัตโนมัติ แก้ไขได้ เช่น เพิ่มคำนำหน้า/ยศ หรือแก้ให้ตรงกับชื่อจริง</span>
+              <div class="field-label-row">
+                <label data-i18n="field.requesterName">ชื่อผู้ขอ *</label>
+                <button type="button" class="hint-toggle" data-icon="info" data-i18n-title="common.moreInfo" title="ดูคำอธิบายเพิ่มเติม" aria-expanded="false"><%- icon('info') %></button>
+              </div>
+              <input type="text" name="requesterName" value="<%= defaultRequesterName %>" required>
+              <div class="hint-popover" hidden>
+                <span class="hint" data-i18n="field.requesterName.hint">ดึงจากโปรไฟล์ของคุณให้อัตโนมัติ (หรือบัญชีที่ล็อกอิน หากยังไม่ได้ตั้งค่าโปรไฟล์) แก้ไขได้ทุกครั้ง — ไปตั้งค่าถาวรได้ที่ <a href="/profile">โปรไฟล์ของฉัน</a></span>
+              </div>
             </div>
 
             <div class="field">
-              <label data-i18n="field.tel">เบอร์โทรศัพท์ *</label>
-              <input type="tel" name="tel" data-i18n-placeholder="field.tel.placeholder" placeholder="08X-XXX-XXXX" required>
-              <span class="hint" data-i18n="field.tel.hint">ใช้เบอร์มือถือส่วนตัวหรือเบอร์สำนักงานก็ได้</span>
+              <div class="field-label-row">
+                <label data-i18n="field.tel">เบอร์โทรศัพท์ *</label>
+                <button type="button" class="hint-toggle" data-icon="info" data-i18n-title="common.moreInfo" title="ดูคำอธิบายเพิ่มเติม" aria-expanded="false"><%- icon('info') %></button>
+              </div>
+              <input type="tel" name="tel" value="<%= defaultTel %>" inputmode="numeric" maxlength="10" data-max-digits="10" data-i18n-placeholder="field.tel.placeholder" placeholder="08X-XXX-XXXX" required>
+              <div class="hint-popover" hidden>
+                <span class="hint" data-i18n="field.tel.hint">ใช้เบอร์มือถือส่วนตัวหรือเบอร์สำนักงานก็ได้ ดึงจากโปรไฟล์ของคุณให้อัตโนมัติถ้าตั้งค่าไว้</span>
+              </div>
             </div>
 
             <div class="field">
               <label data-i18n="field.agencyCategory">ประเภทหน่วยงาน *</label>
-              <select name="agencyCategory" id="agency-category" required></select>
+              <select name="agencyCategoryId" id="agency-category" required></select>
             </div>
 
             <div class="field">
               <label data-i18n="field.agencyUnit">หน่วยงาน *</label>
-              <select name="agencyUnit" id="agency-unit-select" required></select>
-              <input type="text" name="agencyUnit" id="agency-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
+              <select name="agencyUnitId" id="agency-unit-select" required></select>
+              <input type="text" name="agencyUnitText" id="agency-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
             </div>
 
           </div>
         </div>
       </div>
 
-      <div class="card">
+      <div class="card card-overflow-visible">
         <div class="card-header">
-          <span data-i18n="newRequest.cardTitle.printJob">รายละเอียดงานพิมพ์</span>
+          <span class="step-title"><span class="step-num">2</span><span data-i18n="newRequest.cardTitle.document">เอกสารที่ต้องการพิมพ์</span></span>
         </div>
-        <div class="card-body">
+        <div class="card-body form-fields">
           <div class="form-grid">
 
           <div class="field">
@@ -106,10 +125,10 @@
                 <span data-i18n="option.documentType.general">เอกสารทั่วไป</span>
               </label>
             </div>
-            <span class="hint" data-i18n="field.documentType.hint">คำขอนี้ต้องเป็นข้อสอบหรือเอกสารทั่วไปอย่างใดอย่างหนึ่งเท่านั้น หากมีทั้งสองประเภทต้องแยกส่งคนละคำขอ</span>
+            <span class="hint" data-i18n="field.documentType.hint">เลือกได้ประเภทเดียวต่อคำขอ ถ้ามีทั้งสองประเภทให้แยกส่ง</span>
           </div>
 
-          <div class="field" id="paper-source-field">
+          <div class="field" id="paper-source-field" style="display:none;">
             <label data-i18n="field.paperSource">ผู้จัดเตรียมกระดาษ *</label>
             <div class="radio-group" id="paper-source-group" style="display:none;">
               <label class="radio-option">
@@ -122,8 +141,35 @@
               </label>
             </div>
             <span class="hint" id="paper-source-fixed-notice" data-i18n="field.paperSource.fixedNotice" style="display:none;">เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) — ไม่มีตัวเลือกอื่น</span>
-            <span class="hint" id="paper-source-empty-hint" data-i18n="field.paperSource.selectDocTypeFirst">เลือกประเภทเอกสารก่อน</span>
           </div>
+
+          <div class="field span-2">
+            <label data-i18n="field.itemList">รายการเอกสารที่ต้องการพิมพ์ *</label>
+            <textarea name="itemList" data-i18n-placeholder="field.itemList.placeholder" placeholder="เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า" required></textarea>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.originalPages">จำนวนหน้าต้นฉบับ *</label>
+            <input type="number" name="originalPages" id="original-pages" min="1" value="1" required>
+            <span class="field-error" id="original-pages-error"></span>
+          </div>
+
+          <div class="field">
+            <label data-i18n="field.copies">จำนวนชุดที่ต้องการ *</label>
+            <input type="number" name="copies" id="copies" min="1" max="999" value="1" required>
+            <span class="field-error" id="copies-error"></span>
+          </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-overflow-visible">
+        <div class="card-header">
+          <span class="step-title"><span class="step-num">3</span><span data-i18n="newRequest.cardTitle.format">รูปแบบการพิมพ์</span></span>
+        </div>
+        <div class="card-body form-fields">
+          <div class="form-grid cols-3">
 
           <div class="field">
             <label data-i18n="field.paperSize">ขนาดกระดาษ *</label>
@@ -167,81 +213,64 @@
 
           <div class="field span-2">
             <label data-i18n="field.finishingMethod">งานตกแต่ง / การเข้าเล่ม</label>
-            <div class="check-group" id="finishing-method-group">
-              <label class="check-option">
-                <input type="checkbox" id="finishing-none" value="none" checked>
-                <span data-i18n="option.finishingMethod.none">ไม่ต้องการ</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="corner">
-                <span data-i18n="option.finishing.corner">เย็บมุม</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="side">
-                <span data-i18n="option.finishing.side">เย็บข้าง</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="hole">
-                <span data-i18n="option.finishing.hole">เจาะรู</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="saddleStitch">
-                <span data-i18n="option.binding.saddleStitch">เย็บมุงหลังคา (Saddle-stitch)</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="coil">
-                <span data-i18n="option.binding.coil">เข้าเล่มห่วงสัน (Coil)</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="clothTape">
-                <span data-i18n="option.binding.clothTape">เข้าเล่มเทปผ้า</span>
-              </label>
-              <label class="check-option">
-                <input type="checkbox" name="finishingMethods" value="glue">
-                <span data-i18n="option.binding.glue">เข้าเล่มสันกาว</span>
-              </label>
+            <div id="finishing-method-group">
+              <div class="check-subgroup">
+                <div class="check-subgroup-caption" data-i18n="option.group.finishing">งานตกแต่ง</div>
+                <div class="check-group">
+                  <label class="check-option">
+                    <input type="checkbox" id="finishing-none" value="none" checked>
+                    <span data-i18n="option.finishingMethod.none">ไม่ต้องการ</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="corner">
+                    <span data-i18n="option.finishing.corner">เย็บมุม</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="side">
+                    <span data-i18n="option.finishing.side">เย็บข้าง</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="hole">
+                    <span data-i18n="option.finishing.hole">เจาะรู</span>
+                  </label>
+                </div>
+              </div>
+              <div class="check-subgroup">
+                <div class="check-subgroup-caption" data-i18n="option.group.binding">เข้าเล่ม</div>
+                <div class="check-group">
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="saddleStitch">
+                    <span data-i18n="option.binding.saddleStitch">เย็บมุงหลังคา (Saddle-stitch)</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="coil">
+                    <span data-i18n="option.binding.coil">เข้าเล่มห่วงสัน (Coil)</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="clothTape">
+                    <span data-i18n="option.binding.clothTape">เข้าเล่มเทปผ้า</span>
+                  </label>
+                  <label class="check-option">
+                    <input type="checkbox" name="finishingMethods" value="glue">
+                    <span data-i18n="option.binding.glue">เข้าเล่มสันกาว</span>
+                  </label>
+                </div>
+              </div>
             </div>
             <span class="hint" id="finishing-method-dynamic-hint"></span>
           </div>
 
-          <div class="field span-2">
-            <label data-i18n="field.itemList">รายการเอกสารที่ต้องการพิมพ์ *</label>
-            <textarea name="itemList" data-i18n-placeholder="field.itemList.placeholder" placeholder="เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า" required></textarea>
-          </div>
-
-          <div class="field">
-            <label data-i18n="field.originalPages">จำนวนหน้าต้นฉบับ *</label>
-            <input type="number" name="originalPages" id="original-pages" min="1" value="1" required>
-            <span class="field-error" id="original-pages-error"></span>
-          </div>
-
-          <div class="field">
-            <label data-i18n="field.copies">จำนวนชุดที่ต้องการ *</label>
-            <input type="number" name="copies" id="copies" min="1" max="999" value="1" required>
-            <span class="field-error" id="copies-error"></span>
-          </div>
-
-          <div class="field span-2">
-            <label data-i18n="newRequest.calc.title">สรุปจำนวนกระดาษที่ต้องใช้</label>
-            <div class="calc-box">
-              <div class="calc-row">
-                <span data-i18n="newRequest.calc.totalPages">จำนวนหน้าที่ต้องพิมพ์ทั้งหมด</span>
-                <span class="calc-value" id="calc-total-pages">0</span>
-              </div>
-              <div class="calc-row">
-                <span data-i18n="newRequest.calc.totalSheets">จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด</span>
-                <span class="calc-value" id="calc-total-sheets">0</span>
-              </div>
-              <div class="calc-responsibility" id="calc-responsibility"></div>
+          <div class="field span-2 field-extra">
+            <div class="field-label-row">
+              <label class="check-option" style="display:inline-flex;">
+                <input type="checkbox" name="copyLabelEnabled" id="copy-label-toggle">
+                <span data-i18n="field.copyLabel.toggle">ต้องการเลขรันประจำชุด (Copy Label) หรือไม่</span>
+              </label>
+              <button type="button" class="hint-toggle" data-icon="info" data-i18n-title="common.moreInfo" title="ดูคำอธิบายเพิ่มเติม" aria-expanded="false"><%- icon('info') %></button>
             </div>
-          </div>
-
-          <div class="field span-2">
-            <label class="check-option" style="display:inline-flex;">
-              <input type="checkbox" name="copyLabelEnabled" id="copy-label-toggle">
-              <span data-i18n="field.copyLabel.toggle">ต้องการเลขรันประจำชุด (Copy Label) หรือไม่</span>
-            </label>
-            <span class="hint" data-i18n="field.copyLabel.toggle.hint">เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER</span>
+            <div class="hint-popover" hidden>
+              <span class="hint" data-i18n="field.copyLabel.toggle.hint">เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER</span>
+            </div>
 
             <div id="copy-label-body" style="display:none;">
               <div class="radio-group" id="copy-label-mode-group" style="margin-top:12px;">
@@ -269,20 +298,76 @@
             </div>
           </div>
 
-          <div class="field span-2" id="date-field">
-            <label data-i18n="field.completionDate">วันที่ต้องการรับเอกสาร *</label>
-            <input type="date" name="completionDate" id="completion-date" required>
-            <span class="hint" id="date-preview"></span>
-            <span class="hint" id="date-hint"></span>
-            <span class="field-error" id="date-error"></span>
           </div>
-
         </div>
       </div>
-        <div class="card-body" style="padding-top:0; display:flex; justify-content:flex-end; gap:12px; border-top:1px solid var(--color-border);">
-          <a class="btn btn-secondary" href="/requester/my-requests" data-i18n="btn.cancel">ยกเลิก</a>
-          <button type="submit" class="btn btn-primary" id="submit-btn" data-i18n="btn.submit" disabled>ส่งคำขอ</button>
+
+      <div class="card card-overflow-visible">
+        <div class="card-header">
+          <span class="step-title"><span class="step-num">4</span><span data-i18n="newRequest.cardTitle.delivery">การส่งเอกสารและวันรับ</span></span>
         </div>
+        <div class="card-body form-fields">
+          <% if (!isEditing) { %>
+    <div class="notice notice-info">
+      <span class="icon" data-icon="info"><%- icon('info') %></span>
+      <div>
+        <strong data-i18n="newRequest.notice.title">ไม่ต้องแนบไฟล์เอกสาร</strong><br>
+        <span data-i18n="newRequest.notice.body">ส่งคำขอสำเร็จแล้ว ระบบจะออกใบคำขอให้พิมพ์ กรุณา<strong>นำเอกสารต้นฉบับมาส่งด้วยตัวเอง</strong>ที่สถานที่ส่งเอกสารด้านล่าง ตามเวลาที่แจ้ง</span>
+      </div>
+    </div>
+          <% } %>
+          <div class="form-grid">
+
+            <% if (typeof dropoffLocations !== "undefined" && dropoffLocations.length) { %>
+            <div class="field span-2" id="dropoff-location-field">
+              <label data-i18n="field.dropoffLocation">สถานที่ส่งเอกสารต้นฉบับ *</label>
+              <select name="dropoffLocationId" id="dropoff-location-select" style="display:none;" disabled></select>
+              <div id="dropoff-location-static" class="location-static" style="display:none;"></div>
+              <ul class="location-meta" id="dropoff-location-info"></ul>
+            </div>
+            <% } %>
+
+          <div class="field span-2" id="date-field">
+            <label data-i18n="field.completionDate">วันที่ต้องการรับเอกสาร *</label>
+            <%- include("../partials/date-picker", { id: "date-picker", name: "completionDate", inputId: "completion-date" }) %>
+            <span class="hint" id="date-hint"></span>
+          </div>
+
+          </div>
+        </div>
+      </div>
+      </div>
+
+        <aside class="request-summary">
+          <div class="card">
+            <div class="card-header"><span data-i18n="newRequest.summary.title">สรุปคำขอ</span></div>
+            <div class="card-body">
+              <div class="calc-box">
+                <div class="calc-row">
+                  <span data-i18n="newRequest.calc.totalPages">จำนวนหน้าที่ต้องพิมพ์ทั้งหมด</span>
+                  <span class="calc-value" id="calc-total-pages">0</span>
+                </div>
+                <div class="calc-row">
+                  <span data-i18n="newRequest.calc.totalSheets">จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด</span>
+                  <span class="calc-value" id="calc-total-sheets">0</span>
+                </div>
+                <div class="calc-responsibility" id="calc-responsibility"></div>
+              </div>
+              <dl class="summary-mini">
+                <% if (typeof dropoffLocations !== "undefined" && dropoffLocations.length) { %>
+                <dt data-i18n="newRequest.summary.dropoff">สถานที่ส่งเอกสารต้นฉบับ</dt>
+                <dd id="sum-dropoff">—</dd>
+                <% } %>
+                <dt data-i18n="newRequest.summary.date">วันที่ต้องการรับเอกสาร</dt>
+                <dd id="sum-date">—</dd>
+              </dl>
+            </div>
+            <div class="card-footer">
+          <a class="btn btn-secondary" href="<%= isEditing ? '/requester/request-submitted/' + encodeURIComponent(editing.referenceNo) : '/requester/my-requests' %>" data-i18n="btn.cancel">ยกเลิก</a>
+          <button type="submit" class="btn btn-primary" id="submit-btn" data-i18n="<%= isEditing ? 'btn.saveChanges' : 'btn.submit' %>"><%= isEditing ? 'บันทึกการแก้ไข' : 'ส่งคำขอ' %></button>
+            </div>
+          </div>
+        </aside>
       </div>
 
     </form>
@@ -290,14 +375,103 @@
 
 <%- include("../partials/foot") %>
 <script>
+  // "<" is escaped so free text (the item list) can never end this script block early.
+  const EDIT_PREFILL = <%- JSON.stringify(isEditing ? editing.form : null).replace(/</g, "\\u003c") %>;
+  // Agency directory (src/agencies.js) — active categories with their
+  // active units nested, in place of the old hardcoded AGENCY_DATA/
+  // AGENCY_CATEGORY_EN objects, so admin edits show up here without a code
+  // change. A category with allowsFreeText true has no units at all; the
+  // Requester types the unit name directly instead (see renderAgencyUnitOptions).
+  const AGENCIES = <%- JSON.stringify(typeof agencyCategories !== "undefined" ? agencyCategories : []).replace(/</g, "\\u003c") %>;
+  const DEFAULT_AGENCY_CATEGORY_ID = <%- JSON.stringify(typeof defaultAgencyCategoryId !== "undefined" ? defaultAgencyCategoryId : null) %>;
+  const DEFAULT_AGENCY_UNIT_ID = <%- JSON.stringify(typeof defaultAgencyUnitId !== "undefined" ? defaultAgencyUnitId : null) %>;
+  const DEFAULT_AGENCY_UNIT_TEXT = <%- JSON.stringify(typeof defaultAgencyUnitText !== "undefined" ? defaultAgencyUnitText : "") %>;
+
+  // Drop-off places (src/locations.js) — a <select> when there's a choice, a
+  // plain line when there's only one (the server then picks it itself).
+  const DROPOFF_LOCATIONS = <%- JSON.stringify(typeof dropoffLocations !== "undefined" ? dropoffLocations : []).replace(/</g, "\\u003c") %>;
+  const SELECTED_DROPOFF_ID = <%- JSON.stringify(typeof selectedDropoffLocationId !== "undefined" ? selectedDropoffLocationId : null) %>;
+  const dropoffSelect = document.getElementById("dropoff-location-select");
+  const dropoffStatic = document.getElementById("dropoff-location-static");
+  const dropoffInfo = document.getElementById("dropoff-location-info");
+
+  function renderDropoffInfo() {
+    const lang = getLang();
+    const chosenId = DROPOFF_LOCATIONS.length > 1 ? Number(dropoffSelect.value) : DROPOFF_LOCATIONS[0].id;
+    const loc = DROPOFF_LOCATIONS.find(function (l) { return l.id === chosenId; });
+    const sumDropoff = document.getElementById("sum-dropoff");
+    if (sumDropoff) sumDropoff.textContent = loc ? formatLocation(loc, lang) : "—";
+    dropoffInfo.innerHTML = "";
+    if (!loc) return;
+
+    // One line per fact, each with an icon, instead of a single joined
+    // sentence: opening hours, phone, map link.
+    function addMeta(iconName, titleKey, content) {
+      const li = document.createElement("li");
+      li.title = t(titleKey);
+      const icon = document.createElement("span");
+      icon.className = "icon";
+      icon.setAttribute("data-icon", iconName);
+      li.appendChild(icon);
+      li.appendChild(content);
+      dropoffInfo.appendChild(li);
+    }
+
+    const hours = pickLang(loc.hoursTh, loc.hoursEn, lang);
+    if (hours) addMeta("clock", "location.hours", document.createTextNode(hours));
+    if (loc.phone) addMeta("phone", "location.phone", document.createTextNode(loc.phone));
+    if (loc.mapUrl && /^https?:\/\//i.test(loc.mapUrl)) {
+      const link = document.createElement("a");
+      link.href = loc.mapUrl;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = t("location.map");
+      addMeta("map-pin", "location.map", link);
+    }
+    applyIcons();
+  }
+
+  function renderDropoffLocation() {
+    if (!dropoffSelect || DROPOFF_LOCATIONS.length === 0) return;
+    const lang = getLang();
+
+    if (DROPOFF_LOCATIONS.length > 1) {
+      const previous = dropoffSelect.value || String(SELECTED_DROPOFF_ID || "");
+      dropoffSelect.style.display = "block";
+      dropoffSelect.disabled = false;
+      dropoffSelect.required = true;
+      dropoffSelect.innerHTML = "";
+      DROPOFF_LOCATIONS.forEach(function (loc) {
+        const opt = document.createElement("option");
+        opt.value = loc.id;
+        opt.textContent = formatLocation(loc, lang);
+        dropoffSelect.appendChild(opt);
+      });
+      dropoffSelect.value = previous;
+      if (!dropoffSelect.value) dropoffSelect.selectedIndex = 0;
+    } else {
+      dropoffStatic.style.display = "block";
+      dropoffStatic.textContent = formatLocation(DROPOFF_LOCATIONS[0], lang);
+    }
+    renderDropoffInfo();
+  }
+
+  if (dropoffSelect) dropoffSelect.addEventListener("change", renderDropoffInfo);
+  document.addEventListener("odprs:langchange", renderDropoffLocation);
+  renderDropoffLocation();
+
   const agencyCategorySelect = document.getElementById("agency-category");
   const agencyUnitSelect = document.getElementById("agency-unit-select");
   const agencyUnitText = document.getElementById("agency-unit-text");
 
-  function renderAgencyUnitOptions() {
-    const category = agencyCategorySelect.value;
+  function agencyCategoryById(id) {
+    return AGENCIES.find(function (c) { return c.id === id; });
+  }
 
-    if (category === "หน่วยงานอื่นๆ") {
+  function renderAgencyUnitOptions() {
+    const category = agencyCategoryById(Number(agencyCategorySelect.value));
+
+    if (category && category.allowsFreeText) {
       agencyUnitSelect.style.display = "none";
       agencyUnitSelect.disabled = true;
       agencyUnitSelect.required = false;
@@ -323,10 +497,11 @@
     placeholder.textContent = category ? t("option.select") : t("option.selectCategoryFirst");
     agencyUnitSelect.appendChild(placeholder);
 
-    (AGENCY_DATA[category] || []).forEach(function (unit) {
+    const lang = getLang();
+    (category ? category.units : []).forEach(function (unit) {
       const opt = document.createElement("option");
-      opt.value = unit;
-      opt.textContent = unit;
+      opt.value = String(unit.id);
+      opt.textContent = pickLang(unit.nameTh, unit.nameEn, lang);
       agencyUnitSelect.appendChild(opt);
     });
     agencyUnitSelect.value = previousUnit;
@@ -340,10 +515,11 @@
     placeholder.textContent = t("option.select");
     agencyCategorySelect.appendChild(placeholder);
 
-    Object.keys(AGENCY_DATA).forEach(function (category) {
+    const lang = getLang();
+    AGENCIES.forEach(function (category) {
       const opt = document.createElement("option");
-      opt.value = category;
-      opt.textContent = getLang() === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
+      opt.value = String(category.id);
+      opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
       agencyCategorySelect.appendChild(opt);
     });
 
@@ -354,6 +530,21 @@
   agencyCategorySelect.addEventListener("change", renderAgencyUnitOptions);
   document.addEventListener("odprs:langchange", renderAgencyCategoryOptions);
   renderAgencyCategoryOptions();
+
+  // Pre-fill from the requester's saved Profile (see profile.js/profile.ejs)
+  // or, when editing, the request's own stored agency — same AGENCIES
+  // source as above. Only runs once on load — after this,
+  // renderAgencyCategoryOptions() preserves whatever the user has selected.
+  if (DEFAULT_AGENCY_CATEGORY_ID) {
+    agencyCategorySelect.value = String(DEFAULT_AGENCY_CATEGORY_ID);
+    renderAgencyUnitOptions();
+    const defaultCategory = agencyCategoryById(DEFAULT_AGENCY_CATEGORY_ID);
+    if (defaultCategory && defaultCategory.allowsFreeText) {
+      agencyUnitText.value = DEFAULT_AGENCY_UNIT_TEXT;
+    } else if (DEFAULT_AGENCY_UNIT_ID) {
+      agencyUnitSelect.value = String(DEFAULT_AGENCY_UNIT_ID);
+    }
+  }
 
   const paperSizeSelect = document.getElementById("paper-size-select");
   const paperSizeOther = document.getElementById("paper-size-other");
@@ -371,21 +562,23 @@
   const paperSourceGroup = document.getElementById("paper-source-group");
   const paperSourceInputs = document.querySelectorAll('input[name="paperSource"]');
   const paperSourceFixedNotice = document.getElementById("paper-source-fixed-notice");
-  const paperSourceEmptyHint = document.getElementById("paper-source-empty-hint");
+  // The whole field stays hidden until a document type is picked — it only
+  // matters for exams, and an empty "pick a type first" placeholder next to
+  // the type choice was just noise.
+  const paperSourceField = document.getElementById("paper-source-field");
 
   function renderPaperSource() {
     const checked = document.querySelector('input[name="documentType"]:checked');
     const docType = checked ? checked.value : "";
+    paperSourceField.style.display = docType ? "" : "none";
 
     if (docType === "exam") {
       paperSourceGroup.style.display = "flex";
       paperSourceFixedNotice.style.display = "none";
-      paperSourceEmptyHint.style.display = "none";
       paperSourceInputs.forEach(function (input) { input.required = true; input.disabled = false; });
     } else if (docType === "general") {
       paperSourceGroup.style.display = "none";
       paperSourceFixedNotice.style.display = "block";
-      paperSourceEmptyHint.style.display = "none";
       paperSourceInputs.forEach(function (input) {
         input.required = false;
         input.disabled = true;
@@ -394,7 +587,6 @@
     } else {
       paperSourceGroup.style.display = "none";
       paperSourceFixedNotice.style.display = "none";
-      paperSourceEmptyHint.style.display = "block";
       paperSourceInputs.forEach(function (input) { input.required = false; input.disabled = true; input.checked = false; });
     }
     renderCalc();
@@ -681,70 +873,196 @@
 
   const submissionDate = new Date();
   const minDate = minCompletionDate(submissionDate);
-  const dateInput = document.getElementById("completion-date");
-  const datePreview = document.getElementById("date-preview");
-  const dateField = document.getElementById("date-field");
+  minDate.setHours(0, 0, 0, 0);
+
   const dateHint = document.getElementById("date-hint");
   const submitBtn = document.getElementById("submit-btn");
-
-  dateInput.min = toDateInputValue(minDate);
 
   function renderDateHint() {
     const lang = getLang();
     dateHint.textContent = lang === "en"
-      ? `Must be on or after ${formatDate(minDate, lang)}, at least 3 business days after submission, and a business day (Mon-Fri, not Sat/Sun). Counter hours are 09:00-15:00.`
-      : `ต้องเป็นวันที่ตั้งแต่ ${formatDate(minDate, lang)} เป็นต้นไป อย่างน้อย 3 วันทำการหลังวันส่งคำขอ และต้องเป็นวันทำการ (จันทร์-ศุกร์ ไม่ใช่เสาร์-อาทิตย์) เจ้าหน้าที่ให้บริการเวลา 09:00-15:00 น.`;
+      ? `Must be a business day on or after ${formatDate(minDate, lang)} (at least 3 business days after submission).`
+      : `ต้องเป็นวันทำการตั้งแต่ ${formatDate(minDate, lang)} เป็นต้นไป (อย่างน้อย 3 วันทำการหลังส่งคำขอ)`;
   }
   renderDateHint();
+  document.addEventListener("odprs:langchange", renderDateHint);
 
-  function renderDatePreview() {
-    const lang = getLang();
-    if (!dateInput.value) { datePreview.textContent = ""; return; }
-    const [y, m, d] = dateInput.value.split("-").map(Number);
-    const label = lang === "en" ? "Selected" : "วันที่เลือก";
-    datePreview.textContent = `${label}: ${formatDate(new Date(y, m - 1, d), lang)}`;
-  }
-
-  const dateError = document.getElementById("date-error");
-
-  function validateDate() {
-    if (!dateInput.value) {
-      dateField.classList.remove("invalid");
-      submitBtn.disabled = true;
-      return false;
+  // Weekends and dates before minDate are rendered as disabled cells by the
+  // shared picker (see createDatePicker in app.js) — never merely flagged
+  // invalid after picking — so there is no path through the UI to select a
+  // Sat/Sun completion date at all.
+  const datePicker = document.getElementById("date-picker");
+  const dateControl = createDatePicker(datePicker, {
+    minDate: minDate,
+    isSelectable: isBusinessDay,
+    onChange: function () {
+      clearFieldError(document.getElementById("date-field"));
+      renderSummaryDate();
     }
-    const chosen = new Date(dateInput.value + "T00:00:00");
-    const min = new Date(toDateInputValue(minDate) + "T00:00:00");
-    const isWeekend = !isBusinessDay(chosen);
-    const tooSoon = chosen < min;
-    const valid = !tooSoon && !isWeekend;
-    dateField.classList.toggle("invalid", !valid);
-    submitBtn.disabled = !valid;
-    dateError.textContent = isWeekend ? t("field.completionDate.weekendError") : t("field.completionDate.error");
-    return valid;
+  });
+  const dateToggle = dateControl.toggle;
+
+  // The summary panel repeats the chosen date so it stays in view while the
+  // Requester works through the fields above.
+  const sumDate = document.getElementById("sum-date");
+  function renderSummaryDate() {
+    const value = document.getElementById("completion-date").value;
+    if (!value) { sumDate.textContent = "—"; return; }
+    const parts = value.split("-").map(Number);
+    sumDate.textContent = formatDate(new Date(parts[0], parts[1] - 1, parts[2]), getLang());
+  }
+  document.addEventListener("odprs:langchange", renderSummaryDate);
+  renderSummaryDate();
+
+  const requestForm = document.getElementById("request-form");
+
+  // ---------- Edit mode: re-open a submitted request pre-filled ----------
+  // Name/phone/agency are already filled by the same defaults mechanism the
+  // profile uses (the route passes the request's own values as the
+  // defaults); everything else is applied here through the form's own
+  // inputs, then the same render functions run once so the dependent UI
+  // (paper source, finishing limits, copy-label body, calc box) matches.
+  if (EDIT_PREFILL) {
+    const f = EDIT_PREFILL;
+    function checkRadio(name, value) {
+      const el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+      if (el) el.checked = true;
+    }
+
+    checkRadio("documentType", f.documentType);
+    renderPaperSource();
+    if (f.documentType === "exam") checkRadio("paperSource", f.paperSource);
+    checkRadio("colorMode", f.colorMode);
+    checkRadio("printSide", f.printSide);
+
+    const knownSize = Array.prototype.some.call(paperSizeSelect.options, function (o) { return o.value === f.paperSize && o.value !== "อื่นๆ"; });
+    paperSizeSelect.value = knownSize ? f.paperSize : "อื่นๆ";
+    paperSizeSelect.dispatchEvent(new Event("change"));
+    if (!knownSize) paperSizeOther.value = f.paperSize;
+
+    finishingMethodInputs.forEach(function (input) { input.checked = f.finishingMethods.indexOf(input.value) !== -1; });
+    document.querySelector('textarea[name="itemList"]').value = f.itemList;
+    originalPagesInput.value = f.originalPages;
+    copiesInput.value = f.copies;
+
+    copyLabelToggle.checked = f.copyLabelEnabled;
+    copyLabelModeManual.checked = f.copyLabelMode === "manual";
+    copyLabelModeAuto.checked = !copyLabelModeManual.checked;
+    copyLabelManualSingle.value = f.copyLabelManual;
+
+    renderFinishingConstraints();
+    renderCopyLabel();
+
+    const [py, pm, pd] = f.completionDate.split("-").map(Number);
+    dateControl.setDate(new Date(py, pm - 1, pd));
+    renderSummaryDate();
   }
 
-  dateInput.addEventListener("change", function () {
-    validateDate();
-    renderDatePreview();
-  });
-  dateInput.addEventListener("input", function () {
-    validateDate();
-    renderDatePreview();
-  });
+  // Inline "please fill this in" messages, replacing the browser's native
+  // bubble (which is English-only, unstyled and shows one field at a time).
+  // Every incomplete field is flagged at once, then the first is scrolled
+  // into view and focused. Fields that already own a .field-error with a
+  // custom message (page/copy counts) keep it; only messages we create here
+  // are tagged data-auto so they can be removed again.
+  const dateField = document.getElementById("date-field");
+
+  function fieldLabelText(field) {
+    const label = field.querySelector(":scope > label, :scope > .field-label-row > label");
+    let text = label ? label.textContent.replace(/\s*\*\s*$/, "").trim() : "";
+    if (getLang() === "en" && /^[A-Z][a-z]/.test(text)) text = text.charAt(0).toLowerCase() + text.slice(1);
+    return text;
+  }
+
+  function fieldControls(field) {
+    return Array.from(field.querySelectorAll("input, select, textarea")).filter(function (c) {
+      return c.closest(".field") === field && c.willValidate;
+    });
+  }
+
+  // Returns { control, kind } when the field is incomplete, otherwise null.
+  function fieldProblem(field) {
+    if (field === dateField) {
+      return dateControl.getDate() ? null : { control: dateToggle, kind: "select" };
+    }
+    const bad = fieldControls(field).find(function (c) { return !c.validity.valid; });
+    if (!bad) return null;
+    const isChoice = bad.tagName === "SELECT" || bad.type === "radio";
+    return { control: bad, kind: isChoice ? "select" : "enter", custom: bad.validity.customError };
+  }
+
+  function renderFieldError(field, kind) {
+    let err = field.querySelector(":scope > .field-error");
+    if (!err) {
+      err = document.createElement("span");
+      err.className = "field-error";
+      err.setAttribute("data-auto", "");
+      err.setAttribute("role", "alert");
+      err.innerHTML = '<span class="icon">' + ICONS["alert-circle"] + '</span><span class="field-error-text"></span>';
+      const control = field === dateField ? datePicker : (fieldControls(field)[0] || field.lastElementChild);
+      const anchor = control.closest(".radio-group") || control;
+      anchor.insertAdjacentElement("afterend", err);
+    }
+    err.setAttribute("data-kind", kind);
+    const message = t("validation." + kind).replace("{field}", fieldLabelText(field));
+    // Page/copy count fields ship their own plain .field-error span (also
+    // written to by their range checks), so reuse it as-is.
+    const textEl = err.querySelector(".field-error-text");
+    (textEl || err).textContent = message;
+    field.classList.add("invalid");
+  }
+
+  function clearFieldError(field) {
+    field.classList.remove("invalid");
+    const err = field.querySelector(":scope > .field-error[data-auto]");
+    if (err) err.remove();
+  }
+
+  function showValidationErrors() {
+    let first = null;
+    requestForm.querySelectorAll(".field").forEach(function (field) {
+      const problem = fieldProblem(field);
+      if (!problem) { clearFieldError(field); return; }
+      if (!problem.custom) renderFieldError(field, problem.kind);
+      if (!first) first = { field: field, control: problem.control };
+    });
+    if (first) {
+      first.field.scrollIntoView({ behavior: "smooth", block: "center" });
+      first.control.focus({ preventScroll: true });
+    }
+    return !first;
+  }
+
+  function refreshFieldError(e) {
+    const field = e.target.closest && e.target.closest(".field");
+    if (!field || !field.classList.contains("invalid")) return;
+    const problem = fieldProblem(field);
+    if (!problem) clearFieldError(field);
+    else if (!problem.custom) renderFieldError(field, problem.kind);
+  }
+  requestForm.addEventListener("input", refreshFieldError);
+  requestForm.addEventListener("change", refreshFieldError);
 
   document.addEventListener("odprs:langchange", function () {
-    renderDateHint();
-    renderDatePreview();
-    validateDate();
+    requestForm.querySelectorAll(".field.invalid").forEach(function (field) {
+      const problem = fieldProblem(field);
+      if (problem && !problem.custom) renderFieldError(field, problem.kind);
+    });
   });
 
-  document.getElementById("request-form").addEventListener("submit", function (e) {
-    syncCopyLabelManualHidden();
-    if (!validateDate() || !this.checkValidity()) {
+  requestForm.addEventListener("submit", function (e) {
+    if (submitBtn.disabled) {
       e.preventDefault();
-      this.reportValidity();
+      return;
     }
+    syncCopyLabelManualHidden();
+    if (!showValidationErrors()) {
+      e.preventDefault();
+      return;
+    }
+    // Prevent a second click (or double-tap) from re-submitting the form
+    // while the server is processing the first request.
+    submitBtn.disabled = true;
+    submitBtn.textContent = t(EDIT_PREFILL ? "btn.saving" : "btn.submitting");
   });
 </script>
 </body>

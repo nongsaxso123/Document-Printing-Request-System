@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — คำขอของฉัน" }) %>
+<%- include("../partials/head", { title: "คำขอของฉัน | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.myRequests", crumbFallback: "คำขอของฉัน / <strong>ภาพรวม</strong>" }) %>
 
@@ -7,7 +7,7 @@
     <p class="page-subtitle" data-i18n="myRequests.subtitle">ติดตามสถานะคำขอพิมพ์เอกสารที่คุณส่งทั้งหมด</p>
 
     <div class="notice notice-warning" id="pending-evaluation-notice" style="display:none;">
-      <span class="icon" data-icon="info"></span>
+      <span class="icon" data-icon="info"><%- icon('info') %></span>
       <div style="flex:1;">
         <div id="pending-evaluation-message"></div>
         <div class="form-actions" style="justify-content:flex-start; margin-top:10px;">
@@ -23,7 +23,7 @@
         <a class="btn btn-primary" href="/requester/new-request" data-i18n="myRequests.newBtn">ขอพิมพ์เอกสาร</a>
       </div>
       <div class="card-body" style="padding:0;">
-        <table class="data-table">
+        <table class="data-table mr-table">
           <thead>
             <tr>
               <th data-i18n="myRequests.th.ref">เลขอ้างอิง / RUN NUMBER</th>
@@ -56,20 +56,24 @@
         ? formatDate(new Date(r.completionDateConfirmed + "T00:00:00"), lang)
         : formatDate(new Date(r.completionDateProposed + "T00:00:00"), lang);
 
-      return '<tr data-ref="' + r.referenceNo + '">' +
-        '<td>' + idLabel + '</td>' +
-        '<td>' + r.itemList + '</td>' +
-        '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
-        '<td>' + completionLabel + '</td>' +
-        '<td><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span></td>' +
+      // Classes + data-label drive the phone/tablet card layout (see
+      // ".mr-table" in style.css); on a desktop this is a plain table row.
+      return '<tr data-ref="' + escapeHtml(r.referenceNo) + '" tabindex="0">' +
+        '<td class="mr-ref" data-label="' + escapeHtml(t("myRequests.th.ref")) + '">' + escapeHtml(idLabel) + '</td>' +
+        '<td class="mr-item" data-label="' + escapeHtml(t("myRequests.th.item")) + '">' + escapeHtml(r.itemList) + '</td>' +
+        '<td class="mr-date" data-label="' + escapeHtml(t("myRequests.th.submitted")) + '">' + escapeHtml(formatDateTime(new Date(r.submissionDate), lang)) + '</td>' +
+        '<td class="mr-date mr-appt" data-label="' + escapeHtml(t("myRequests.th.completion")) + '">' + escapeHtml(completionLabel) + '</td>' +
+        '<td class="mr-status"><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span><span class="mr-chevron" aria-hidden="true">›</span></td>' +
         '</tr>';
     }).join("");
 
     tbody.querySelectorAll("tr[data-ref]").forEach(function (tr) {
       tr.style.cursor = "pointer";
-      tr.addEventListener("click", function () {
-        window.location.href = "/requester/request-submitted/" + encodeURIComponent(this.getAttribute("data-ref"));
-      });
+      const open = function () {
+        window.location.href = "/requester/request-submitted/" + encodeURIComponent(tr.getAttribute("data-ref"));
+      };
+      tr.addEventListener("click", open);
+      tr.addEventListener("keydown", function (e) { if (e.key === "Enter") open(); });
     });
   }
 

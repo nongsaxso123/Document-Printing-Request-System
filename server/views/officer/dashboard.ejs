@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — แดชบอร์ดสรุปข้อมูล" }) %>
+<%- include("../partials/head", { title: "สรุปข้อมูลการใช้บริการ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.dashboard", crumbFallback: "แดชบอร์ดสรุปข้อมูล / <strong>ภาพรวม</strong>" }) %>
 
@@ -6,137 +6,209 @@
     <h1 class="page-title" data-i18n="dashboard.title">แดชบอร์ดสรุปข้อมูล</h1>
     <p class="page-subtitle" data-i18n="dashboard.subtitle">ภาพรวมการใช้ทรัพยากรกระดาษ แยกตามหน่วยงานและประเภทหน่วยงาน สำหรับใช้รายงานต่อมหาวิทยาลัย</p>
 
-    <div class="card">
+    <div class="card filter-panel">
       <div class="card-body">
-        <div class="form-grid">
-          <div class="field">
-            <label data-i18n="dashboard.yearFilter">ปีที่ต้องการดู</label>
-            <select id="dash-year-filter"></select>
+        <div class="filter-row">
+          <div class="filter-group">
+            <div class="filter-head">
+              <span class="filter-label" data-i18n="dashboard.filter.period">ช่วงเวลา</span>
+              <label class="filter-switch">
+                <input type="checkbox" id="dash-custom-range-toggle">
+                <span data-i18n="dashboard.dateMode.custom">กำหนดช่วงวันที่เอง</span>
+              </label>
+            </div>
+            <div id="dash-calendar-fields" class="filter-controls">
+              <select id="dash-year-filter" class="toolbar-select"></select>
+              <select id="dash-month-filter" class="toolbar-select"></select>
+            </div>
+            <div id="dash-custom-range-fields" class="filter-controls" hidden>
+              <input type="date" id="dash-from-date" class="toolbar-select">
+              <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
+              <input type="date" id="dash-to-date" class="toolbar-select">
+              <button type="button" id="dash-custom-range-clear" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
+            </div>
           </div>
-          <div class="field">
-            <label data-i18n="dashboard.documentTypeFilter">ประเภทเอกสาร</label>
-            <select id="dash-document-type-filter">
-              <option value="" data-i18n="dashboard.documentTypeFilter.all">ทั้งหมด</option>
-              <option value="ข้อสอบ" data-i18n="dashboard.documentTypeFilter.exam">ข้อสอบ</option>
-              <option value="เอกสารทั่วไป" data-i18n="dashboard.documentTypeFilter.general">เอกสารทั่วไป</option>
-            </select>
+
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="dashboard.documentTypeFilter">ประเภทเอกสาร</span></div>
+            <div class="filter-controls">
+              <select id="dash-document-type-filter" class="toolbar-select">
+                <option value="" data-i18n="dashboard.documentTypeFilter.all">ทุกประเภทเอกสาร</option>
+                <option value="ข้อสอบ" data-i18n="dashboard.documentTypeFilter.exam">ข้อสอบ</option>
+                <option value="เอกสารทั่วไป" data-i18n="dashboard.documentTypeFilter.general">เอกสารทั่วไป</option>
+              </select>
+            </div>
           </div>
-          <div class="field">
-            <label data-i18n="dashboard.paperSourceFilter">แหล่งที่มากระดาษ</label>
-            <select id="dash-paper-source-filter">
-              <option value="" data-i18n="dashboard.paperSourceFilter.all">ทั้งหมด</option>
-              <option value="ฝ่ายทะเบียนจัดเตรียมให้" selected data-i18n="dashboard.paperSourceFilter.office">ฝ่ายทะเบียนจัดเตรียมให้</option>
-              <option value="ผู้ขอจัดเตรียมเอง" data-i18n="dashboard.paperSourceFilter.requester">ผู้ขอจัดเตรียมเอง</option>
-            </select>
+
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="dashboard.paperSourceFilter">แหล่งที่มากระดาษ</span></div>
+            <div class="filter-controls">
+              <select id="dash-paper-source-filter" class="toolbar-select">
+                <option value="" data-i18n="dashboard.paperSourceFilter.all">ทุกแหล่งที่มากระดาษ</option>
+                <option value="ฝ่ายทะเบียนจัดเตรียมให้" selected data-i18n="dashboard.paperSourceFilter.office">ฝ่ายทะเบียนจัดเตรียมให้</option>
+                <option value="ผู้ขอจัดเตรียมเอง" data-i18n="dashboard.paperSourceFilter.requester">ผู้ขอจัดเตรียมเอง</option>
+              </select>
+            </div>
           </div>
         </div>
-        <p class="hint" style="margin-top:10px;" data-i18n="dashboard.filterNote">ตัวกรองปีนี้มีผลกับสถิติและกราฟทุกส่วนด้านล่าง ยกเว้นกราฟ "แนวโน้มรายปี" ซึ่งแสดงทุกปีเสมอเพื่อการเปรียบเทียบ</p>
-        <p class="hint" style="margin-top:4px;" data-i18n="dashboard.paperSourceDefaultNote">ค่าเริ่มต้นแสดงเฉพาะกระดาษที่ฝ่ายทะเบียนจัดเตรียมให้ ซึ่งเป็นตัวเลขที่ใช้รายงานงบประมาณจริงของฝ่าย — เอกสารทั่วไปถูกกำหนดให้ผู้ขอจัดเตรียมกระดาษเองเสมอ จึงไม่นับรวมในค่าเริ่มต้นนี้</p>
+        <p class="filter-note">
+          <span class="icon" data-icon="info"><%- icon('info') %></span>
+          <span data-i18n="dashboard.paperSourceDefaultNote">ค่าเริ่มต้นนับเฉพาะกระดาษที่ฝ่ายทะเบียนจัดเตรียม เพื่อใช้รายงานงบประมาณ</span>
+        </p>
       </div>
     </div>
 
-    <div class="stat-grid">
-      <div class="card stat-tile">
+    <div class="tab-row">
+      <div class="tab-nav" id="tab-nav">
+        <div class="tab-nav-thumb" id="tab-nav-thumb"></div>
+        <button type="button" class="tab-btn active" id="tab-btn-overview" data-tab="overview" data-i18n="dashboard.tab.overview">ภาพรวม</button>
+        <button type="button" class="tab-btn" id="tab-btn-category" data-tab="category" data-i18n="dashboard.tab.category">ตามประเภทหน่วยงาน</button>
+        <button type="button" class="tab-btn" id="tab-btn-unit" data-tab="unit" data-i18n="dashboard.tab.unit">ตามหน่วยงาน</button>
+      </div>
+      <button type="button" class="export-btn" id="dashboard-export-btn">
+          <span class="icon" data-icon="download"><%- icon('download') %></span>
+          <span class="export-btn-label" data-i18n="export.excel">ส่งออก Excel</span>
+        </button>
+    </div>
+
+    <div id="tab-panel-overview">
+      <div class="stat-grid">
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="dashboard.kpi.totalRequests">จำนวนคำขอทั้งหมด</div>
+            <div class="stat-value" id="kpi-total-requests">—</div>
+          </div>
+        </div>
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="dashboard.kpi.totalSheets">จำนวนแผ่นกระดาษที่ใช้ไป (รวม)</div>
+            <div class="stat-value" id="kpi-total-sheets">—</div>
+          </div>
+        </div>
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="dashboard.kpi.avgSheets">เฉลี่ยแผ่นกระดาษ/คำขอ</div>
+            <div class="stat-value" id="kpi-avg-sheets">—</div>
+          </div>
+        </div>
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="dashboard.kpi.activeUnits">จำนวนหน่วยงานที่มีการใช้งาน</div>
+            <div class="stat-value" id="kpi-active-units">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card trend-card">
+        <div class="card-header trend-card-header">
+          <div class="trend-heading">
+            <div class="trend-title">
+              <span data-i18n="dashboard.trendSheetsTitle">จำนวนแผ่นกระดาษที่ใช้ต่อปี</span>
+              <span class="viz-demo-badge" id="trend-demo-badge" hidden>ข้อมูลจำลอง</span>
+            </div>
+            <div class="trend-subtitle" data-i18n="dashboard.trendNote">ไม่ขึ้นกับตัวกรองช่วงเวลาด้านบน แต่ขึ้นกับตัวกรองประเภทเอกสารและแหล่งที่มากระดาษ</div>
+          </div>
+          <div class="trend-controls">
+            <div class="viz-range" id="year-range-buttons" hidden></div>
+            <div class="trend-view-switch" role="tablist">
+              <button type="button" class="trend-view-btn active" data-view="chart" role="tab" aria-selected="true">
+                <span class="icon" data-icon="bar-chart"><%- icon('bar-chart') %></span>
+                <span data-i18n="dashboard.trend.view.chart">กราฟ</span>
+              </button>
+              <button type="button" class="trend-view-btn" data-view="table" role="tab" aria-selected="false">
+                <span class="icon" data-icon="clipboard"><%- icon('clipboard') %></span>
+                <span data-i18n="dashboard.trend.view.table">ตาราง</span>
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.totalRequests">จำนวนคำขอทั้งหมด</div>
-          <div class="stat-value" id="kpi-total-requests">—</div>
-        </div>
-      </div>
-      <div class="card stat-tile">
-        <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.totalSheets">จำนวนแผ่นกระดาษที่ใช้ไป (รวม)</div>
-          <div class="stat-value" id="kpi-total-sheets">—</div>
-        </div>
-      </div>
-      <div class="card stat-tile">
-        <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.avgSheets">เฉลี่ยแผ่นกระดาษ/คำขอ</div>
-          <div class="stat-value" id="kpi-avg-sheets">—</div>
-        </div>
-      </div>
-      <div class="card stat-tile">
-        <div class="card-body">
-          <div class="stat-label" data-i18n="dashboard.kpi.activeUnits">จำนวนหน่วยงานที่มีการใช้งาน</div>
-          <div class="stat-value" id="kpi-active-units">—</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <span data-i18n="dashboard.trendSheetsTitle">จำนวนแผ่นกระดาษที่ใช้ต่อปี</span>
-        <span class="hint" data-i18n="dashboard.trendNote">แสดงทุกปีเสมอ (ไม่ผูกกับตัวกรองปีด้านบน แต่ยังคงผูกกับตัวกรองประเภทเอกสาร/แหล่งที่มากระดาษ)</span>
-      </div>
-      <div class="card-body">
-        <div id="year-sheets-chart" class="viz-col-chart"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <span data-i18n="dashboard.categorySheetsTitle">จำนวนแผ่นกระดาษที่ใช้ แยกตามประเภทหน่วยงาน</span>
-      </div>
-      <div class="card-body">
-        <p class="hint" style="margin-bottom:14px;" data-i18n="dashboard.sheetsNote">คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) นับเป็นจำนวนแผ่นกระดาษจริงที่ใช้ (พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า) — ใช้ตัวเลขนี้ประกอบการรายงานและประมาณการงบประมาณ</p>
-        <div id="category-sheets-chart" class="viz-bar-chart"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span data-i18n="dashboard.categoryTableTitle">ตารางสรุปรายประเภทหน่วยงาน</span></div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
-              <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
-              <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
-              <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
-              <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
-            </tr>
-          </thead>
-          <tbody id="category-table-body"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <span data-i18n="dashboard.unitTopTitle">10 อันดับหน่วยงานที่ใช้กระดาษมากที่สุด</span>
-      </div>
-      <div class="card-body">
-        <div id="unit-top-chart" class="viz-bar-chart"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span data-i18n="dashboard.unitTableTitle">ตารางสรุปรายหน่วยงาน (ทั้งหมด)</span></div>
-      <div class="card-body">
-        <div class="form-grid">
-          <div class="field span-2">
-            <label data-i18n="dashboard.unitSearchLabel">ค้นหาหน่วยงาน</label>
-            <input type="text" id="unit-search-input" data-i18n-placeholder="dashboard.unitSearchPlaceholder" placeholder="พิมพ์ชื่อหน่วยงาน">
+          <div class="trend-summary" id="trend-summary"></div>
+          <div class="trend-view" id="trend-view-chart">
+            <div id="year-sheets-chart" class="viz-line-chart"></div>
           </div>
-          <div class="field">
-            <label data-i18n="dashboard.unitCategoryFilterLabel">กรองตามประเภทหน่วยงาน</label>
-            <select id="unit-category-filter"></select>
+          <div class="trend-view trend-table-wrap" id="trend-view-table" hidden>
+            <table class="trend-table">
+              <thead>
+                <tr>
+                  <th data-i18n="dashboard.trend.th.year">ปี พ.ศ.</th>
+                  <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
+                  <th class="num" data-i18n="dashboard.trend.th.change">เปลี่ยนแปลงจากปีก่อนหน้า</th>
+                </tr>
+              </thead>
+              <tbody id="trend-table-body"></tbody>
+            </table>
           </div>
         </div>
       </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th data-i18n="dashboard.th.unit">หน่วยงาน</th>
-              <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
-              <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
-              <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
-              <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
-              <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
-            </tr>
-          </thead>
-          <tbody id="unit-table-body"></tbody>
-        </table>
+    </div>
+
+    <div id="tab-panel-category" hidden>
+      <div class="card">
+        <div class="card-header">
+          <span data-i18n="dashboard.categorySheetsTitle">จำนวนแผ่นกระดาษที่ใช้ แยกตามประเภทหน่วยงาน</span>
+        </div>
+        <div class="card-body">
+          <p class="hint" style="margin-bottom:14px;" data-i18n="dashboard.sheetsNote">คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) นับเป็นจำนวนแผ่นกระดาษจริงที่ใช้ (พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า) — ใช้ตัวเลขนี้ประกอบการรายงานและประมาณการงบประมาณ</p>
+          <div id="category-sheets-chart" class="viz-bar-chart"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span data-i18n="dashboard.categoryTableTitle">ตารางสรุปรายประเภทหน่วยงาน</span></div>
+        <div class="card-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
+                <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
+                <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
+                <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
+                <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
+              </tr>
+            </thead>
+            <tbody id="category-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-panel-unit" hidden>
+      <div class="card">
+        <div class="card-header">
+          <span data-i18n="dashboard.unitTopTitle">10 อันดับหน่วยงานที่ใช้กระดาษมากที่สุด</span>
+        </div>
+        <div class="card-body">
+          <div id="unit-top-chart" class="viz-bar-chart"></div>
+        </div>
+      </div>
+
+      <div class="card filter-panel">
+        <div class="card-header"><span data-i18n="dashboard.unitTableTitle">ตารางสรุปรายหน่วยงาน (ทั้งหมด)</span></div>
+        <div class="card-body">
+          <div class="filter-inline">
+            <div class="filter-search">
+              <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+              <input type="text" id="unit-search-input" data-i18n-placeholder="dashboard.unitSearchPlaceholder" placeholder="พิมพ์ชื่อหน่วยงาน">
+            </div>
+            <select id="unit-category-filter" class="toolbar-select"></select>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-i18n="dashboard.th.unit">หน่วยงาน</th>
+                <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
+                <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
+                <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
+                <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
+                <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
+              </tr>
+            </thead>
+            <tbody id="unit-table-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>
@@ -149,7 +221,14 @@
   // (GET /api/dashboard-summary); the browser only ever handles small,
   // pre-summarized arrays (per-category, per-unit), regardless of how many
   // total requests exist.
+  const customRangeToggle = document.getElementById("dash-custom-range-toggle");
+  const calendarFields = document.getElementById("dash-calendar-fields");
+  const customRangeFields = document.getElementById("dash-custom-range-fields");
+  const customRangeClearBtn = document.getElementById("dash-custom-range-clear");
   const yearFilter = document.getElementById("dash-year-filter");
+  const monthFilter = document.getElementById("dash-month-filter");
+  const fromDateInput = document.getElementById("dash-from-date");
+  const toDateInput = document.getElementById("dash-to-date");
   const documentTypeFilter = document.getElementById("dash-document-type-filter");
   const paperSourceFilter = document.getElementById("dash-paper-source-filter");
   const unitCategoryFilter = document.getElementById("unit-category-filter");
@@ -157,22 +236,72 @@
 
   let summary = null;
 
-  async function fetchSummary() {
+  // TEMPORARY preview aid: /officer/dashboard?demoYears=20 swaps the yearly
+  // trend for N years of made-up numbers so the line chart can be seen at a
+  // long span. Browser-only — nothing is written to the database, the other
+  // stats/tables stay real, and a "ข้อมูลจำลอง" badge marks the chart.
+  // Remove this block (and the badge) once the chart has been reviewed.
+  const trendDemoYears = Math.min(100, Number(new URLSearchParams(window.location.search).get("demoYears")) || 0);
+  function applyTrendDemo() {
+    if (!trendDemoYears) return;
+    const last = new Date().getFullYear();
+    let seed = 7;
+    const rand = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const demo = {};
+    for (let i = 0; i < trendDemoYears; i++) {
+      const y = last - trendDemoYears + 1 + i;
+      const growth = 18000 + i * 2600;                 // slow long-run growth
+      const noise = (rand() - 0.5) * 9000;             // year-to-year wobble
+      const dip = (y === 2020 || y === 2021) ? -14000 : 0; // a COVID-style dip
+      demo[y] = Math.max(0, Math.round(growth + noise + dip));
+    }
+    summary.yearTrend = demo;
+    document.getElementById("trend-demo-badge").hidden = false;
+  }
+
+  // Just one toggle: pick a Year, or check the box to pick an exact
+  // from/to range instead. A single from/to range already covers a whole
+  // year, a whole month, or one specific day — so that's simpler than
+  // separate Year/Month/Day dropdowns (an earlier version had those, plus a
+  // "mode" dropdown on top; three dependent selects proved confusing).
+  // Shared by the summary fetch and the Excel export (one workbook with the
+  // summary, per-year, per-category and per-department sheets).
+  function dashboardFilterParams() {
     const params = new URLSearchParams();
-    if (yearFilter.value) params.set("year", yearFilter.value);
     if (documentTypeFilter.value) params.set("documentType", documentTypeFilter.value);
     if (paperSourceFilter.value) params.set("paperSource", paperSourceFilter.value);
+
+    if (customRangeToggle.checked) {
+      if (fromDateInput.value) params.set("fromDate", fromDateInput.value);
+      if (toDateInput.value) params.set("toDate", toDateInput.value);
+    } else {
+      if (yearFilter.value) params.set("year", yearFilter.value);
+      if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    }
+    return params;
+  }
+
+  document.getElementById("dashboard-export-btn").addEventListener("click", function () {
+    downloadReport("/api/reports/dashboard.xlsx?" + dashboardFilterParams().toString(), this);
+  });
+
+  async function fetchSummary() {
+    const params = dashboardFilterParams();
     const res = await fetch("/api/dashboard-summary?" + params.toString());
     summary = await res.json();
+    applyTrendDemo();
   }
 
   function formatNumber(n) {
     return n.toLocaleString(getLang() === "en" ? "en-US" : "th-TH");
   }
 
-  function categoryLabelFor(category) {
-    const lang = getLang();
-    return lang === "en" ? (AGENCY_CATEGORY_EN[category] || category) : category;
+  // nameEn comes straight off the categoryBreakdown/unitBreakdown row —
+  // requests.js's dashboardSummary() already resolved it live from
+  // src/agencies.js (falls back to null for an older/unmatched request with
+  // no category id, hence the `|| nameTh` below).
+  function categoryLabelFor(nameTh, nameEn) {
+    return getLang() === "en" ? (nameEn || nameTh) : nameTh;
   }
 
   function renderYearFilterOptions() {
@@ -195,6 +324,27 @@
     yearFilter.value = previous;
   }
 
+  function renderMonthFilterOptions() {
+    const lang = getLang();
+    const previous = monthFilter.value;
+    monthFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("dashboard.monthFilter.all");
+    monthFilter.appendChild(allOpt);
+
+    const months = lang === "en" ? ENG_MONTHS : THAI_MONTHS;
+    months.forEach(function (label, index) {
+      const opt = document.createElement("option");
+      opt.value = String(index);
+      opt.textContent = label;
+      monthFilter.appendChild(opt);
+    });
+
+    monthFilter.value = previous;
+  }
+
   function renderUnitCategoryFilterOptions() {
     const previous = unitCategoryFilter.value;
     unitCategoryFilter.innerHTML = "";
@@ -204,11 +354,13 @@
     allOpt.textContent = t("dashboard.unitCategoryFilter.all");
     unitCategoryFilter.appendChild(allOpt);
 
-    const categories = summary.categoryBreakdown.map(function (c) { return c.category; }).sort();
+    const nameEnByCategory = {};
+    summary.categoryBreakdown.forEach(function (c) { nameEnByCategory[c.category] = c.categoryEn; });
+    const categories = Object.keys(nameEnByCategory).sort();
     categories.forEach(function (category) {
       const opt = document.createElement("option");
       opt.value = category;
-      opt.textContent = categoryLabelFor(category);
+      opt.textContent = categoryLabelFor(category, nameEnByCategory[category]);
       unitCategoryFilter.appendChild(opt);
     });
 
@@ -243,29 +395,289 @@
     }).join("");
   }
 
-  function renderYearColumnChart(containerId, counts) {
-    const lang = getLang();
-    const years = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
-    const container = document.getElementById(containerId);
+  // ---- Yearly trend: summary strip + line chart (inline SVG) + table ----
+  // Laid out like a standard analytics "trend card": the headline numbers
+  // first (latest year, change vs. the year before, peak, average), then
+  // the line for the shape, then an optional table for exact figures.
+  // Scales from one year to a century without changing shape:
+  //  - every year between the first and last is on the axis (a year with no
+  //    printed requests plots as 0 instead of silently vanishing);
+  //  - year labels thin out to a round step (1/2/5/10/20/25/50) so they
+  //    never collide;
+  //  - point markers only show while points are far enough apart to read;
+  //  - range buttons (last 5 / 10 / 20 / 50 years / all) appear only once
+  //    there are more years than that range.
+  const YEAR_RANGE_OPTIONS = [5, 10, 20, 50];
+  let yearRange = 0; // 0 = all years
 
+  function yearLabelFor(y) {
+    return getLang() === "en" ? String(y) : String(y + 543);
+  }
+
+  function niceStep(rawStep) {
+    const exp = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const f = rawStep / exp;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * exp;
+  }
+
+  function percentChange(curr, prev) {
+    if (!prev) return null;
+    return ((curr - prev) / prev) * 100;
+  }
+
+  // Neutral ink on purpose: more paper isn't "bad" and less isn't "good"
+  // in itself, so no red/green — just an arrow and the number.
+  function changeHtml(pct) {
+    if (pct === null) return '<span class="trend-change flat">—</span>';
+    const rounded = Math.round(pct * 10) / 10;
+    if (rounded === 0) return '<span class="trend-change flat">0%</span>';
+    const up = rounded > 0;
+    return '<span class="trend-change ' + (up ? "up" : "down") + '">' + (up ? "▲ " : "▼ ") +
+      Math.abs(rounded).toLocaleString(getLang() === "en" ? "en-US" : "th-TH", { maximumFractionDigits: 1 }) + '%</span>';
+  }
+
+  function trendSeries(counts) {
+    const recorded = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
+    if (recorded.length === 0) return { allYears: [], years: [], values: [] };
+    const allYears = [];
+    for (let y = recorded[0]; y <= recorded[recorded.length - 1]; y++) allYears.push(y);
+    const years = yearRange ? allYears.slice(-yearRange) : allYears;
+    return { allYears: allYears, years: years, values: years.map(function (y) { return counts[y] || 0; }) };
+  }
+
+  function renderYearRangeButtons(totalYears) {
+    const wrap = document.getElementById("year-range-buttons");
+    const options = YEAR_RANGE_OPTIONS.filter(function (n) { return n < totalYears; });
+    if (yearRange && options.indexOf(yearRange) === -1) yearRange = 0;
+    if (options.length === 0) { wrap.innerHTML = ""; wrap.hidden = true; return; }
+    wrap.hidden = false;
+    wrap.innerHTML = options.concat([0]).map(function (n) {
+      const label = n === 0 ? t("dashboard.range.all") : t("dashboard.range.lastYears").replace("{n}", n);
+      return '<button type="button" class="viz-range-btn' + (n === yearRange ? " active" : "") + '" data-range="' + n + '">' + label + '</button>';
+    }).join("");
+  }
+
+  document.getElementById("year-range-buttons").addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-range]");
+    if (!btn) return;
+    yearRange = Number(btn.getAttribute("data-range"));
+    renderYearTrend();
+  });
+
+  function renderTrendSummary(years, values) {
+    const el = document.getElementById("trend-summary");
+    if (years.length === 0) { el.innerHTML = ""; return; }
+    const n = years.length;
+    let peak = 0;
+    values.forEach(function (v, i) { if (v > values[peak]) peak = i; });
+    const avg = Math.round(values.reduce(function (s, v) { return s + v; }, 0) / n);
+    const unit = '<span class="trend-stat-unit">' + t("dashboard.sheetsUnit") + '</span>';
+    const rangeText = n > 1
+      ? t("dashboard.trend.rangeYears").replace("{from}", yearLabelFor(years[0])).replace("{to}", yearLabelFor(years[n - 1]))
+      : yearLabelFor(years[0]);
+
+    const stats = [
+      { icon: "printer", label: t("dashboard.trend.latest"), value: formatNumber(values[n - 1]) + unit,
+        note: t("dashboard.yearWord") + " " + yearLabelFor(years[n - 1]) },
+      { icon: "bar-chart", label: t("dashboard.trend.change"),
+        value: n > 1 ? changeHtml(percentChange(values[n - 1], values[n - 2])) : '<span class="trend-change flat">—</span>',
+        note: n > 1 ? t("dashboard.trend.vsYear").replace("{y}", yearLabelFor(years[n - 2])) : "" },
+      { icon: "star", label: t("dashboard.trend.peak"), value: formatNumber(values[peak]) + unit,
+        note: t("dashboard.yearWord") + " " + yearLabelFor(years[peak]) },
+      { icon: "clipboard", label: t("dashboard.trend.avg"), value: formatNumber(avg) + unit, note: rangeText }
+    ];
+    el.innerHTML = stats.map(function (s) {
+      return '<div class="trend-stat">' +
+        '<span class="trend-stat-icon icon">' + (ICONS[s.icon] || "") + '</span>' +
+        '<div class="trend-stat-body">' +
+          '<div class="trend-stat-label">' + s.label + '</div>' +
+          '<div class="trend-stat-value">' + s.value + '</div>' +
+          (s.note ? '<div class="trend-stat-note">' + s.note + '</div>' : '') +
+        '</div></div>';
+    }).join("");
+  }
+
+  function renderTrendTable(years, values) {
+    const tbody = document.getElementById("trend-table-body");
+    if (years.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
+      return;
+    }
+    const max = Math.max.apply(null, values) || 1;
+    let peak = 0;
+    values.forEach(function (v, i) { if (v > values[peak]) peak = i; });
+    // Newest first — that's the row people look for. Each row carries a
+    // small bar so the table still shows the shape at a glance.
+    tbody.innerHTML = years.map(function (y, i) {
+      const pct = Math.round((values[i] / max) * 100);
+      return '<tr' + (i === peak ? ' class="is-peak"' : '') + '>' +
+        '<td class="trend-td-year">' + yearLabelFor(y) +
+          (i === peak ? ' <span class="trend-peak-badge">' + t("dashboard.highest") + '</span>' : '') + '</td>' +
+        '<td><div class="trend-td-sheets">' +
+          '<span class="trend-td-value">' + formatNumber(values[i]) + '</span>' +
+          '<span class="trend-td-bar"><span style="width:' + pct + '%"></span></span>' +
+        '</div></td>' +
+        '<td class="num">' + (i > 0 ? changeHtml(percentChange(values[i], values[i - 1])) : '<span class="trend-change flat">—</span>') + '</td>' +
+        '</tr>';
+    }).reverse().join("");
+  }
+
+  function renderYearTrend() {
+    const series = trendSeries(summary.yearTrend);
+    renderYearRangeButtons(series.allYears.length);
+    // Range may have been reset by renderYearRangeButtons — recompute.
+    const s2 = trendSeries(summary.yearTrend);
+    renderTrendSummary(s2.years, s2.values);
+    renderYearLineChart("year-sheets-chart", s2.years, s2.values);
+    renderTrendTable(s2.years, s2.values);
+  }
+
+  function renderYearLineChart(containerId, years, values) {
+    const container = document.getElementById(containerId);
     if (years.length === 0) {
       container.innerHTML = '<div class="empty-state">' + t("dashboard.noData") + '</div>';
       return;
     }
 
-    const max = Math.max.apply(null, years.map(function (y) { return counts[y]; }));
+    const width = Math.max(container.clientWidth, 280);
+    const narrow = width < 520;
+    const height = narrow ? 260 : 320;
+    const m = { top: 36, right: narrow ? 16 : 28, bottom: 48, left: narrow ? 58 : 72 };
+    const plotW = width - m.left - m.right;
+    const plotH = height - m.top - m.bottom;
 
-    container.innerHTML = years.map(function (y) {
-      const value = counts[y];
-      const heightPct = max > 0 ? Math.round((value / max) * 100) : 0;
-      const label = lang === "en" ? String(y) : String(y + 543);
-      return '<div class="viz-col" title="' + label + ': ' + formatNumber(value) + '">' +
-        '<div class="viz-col-value">' + formatNumber(value) + '</div>' +
-        '<div class="viz-col-bar-zone"><div class="viz-col-bar" style="height:' + heightPct + '%"></div></div>' +
-        '<div class="viz-col-label">' + label + '</div>' +
-        '</div>';
-    }).join("");
+    // Y axis: 4 evenly spaced, round gridlines (e.g. 0 / 20,000 / 40,000 …).
+    const rawMax = Math.max.apply(null, values);
+    const yStep = niceStep(Math.max(rawMax, 1) / 4);
+    const yMax = yStep * Math.max(1, Math.ceil(rawMax / yStep));
+    const n = years.length;
+    const xAt = function (i) { return n === 1 ? m.left + plotW / 2 : m.left + (i / (n - 1)) * plotW; };
+    const yAt = function (v) { return m.top + plotH - (v / yMax) * plotH; };
+
+    const maxLabels = Math.max(2, Math.floor(plotW / 58));
+    const step = [1, 2, 5, 10, 20, 25, 50, 100].find(function (s) { return Math.ceil(n / s) <= maxLabels; }) || 100;
+    const showMarkers = n === 1 || plotW / (n - 1) >= 22;
+
+    let svg = '<svg class="viz-line-svg" width="' + width + '" height="' + height + '" role="img" aria-label="' + t("dashboard.trendSheetsTitle") + '">';
+    svg += '<defs><linearGradient id="viz-line-area" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="var(--viz-bar)" stop-opacity="0.22"/>' +
+      '<stop offset="100%" stop-color="var(--viz-bar)" stop-opacity="0.02"/></linearGradient></defs>';
+    const bandW = n > 1 ? Math.min(plotW / (n - 1), 64) : 64;
+    svg += '<rect class="viz-hover-band" id="viz-crosshair" y="' + m.top + '" height="' + plotH + '" x="0" width="' + bandW + '" rx="6" visibility="hidden"/>';
+
+    // Axis titles, so nobody has to guess what the numbers mean.
+    svg += '<text class="viz-axis-title" x="' + m.left + '" y="14" text-anchor="start">' + t("dashboard.trend.yAxis") + '</text>';
+    svg += '<text class="viz-axis-title" x="' + (m.left + plotW / 2) + '" y="' + (height - 4) + '" text-anchor="middle">' + t("dashboard.trend.xAxis") + '</text>';
+
+    for (let v = 0; v <= yMax + 1e-9; v += yStep) {
+      const y = yAt(v);
+      svg += '<line class="viz-grid' + (v === 0 ? " viz-baseline" : "") + '" x1="' + m.left + '" x2="' + (m.left + plotW) + '" y1="' + y + '" y2="' + y + '"/>';
+      svg += '<text class="viz-axis-label" x="' + (m.left - 10) + '" y="' + (y + 4) + '" text-anchor="end">' + formatNumber(Math.round(v)) + '</text>';
+    }
+
+    // Rounded on the year as displayed (B.E. in Thai, C.E. in English), so
+    // Thai labels land on 2570, 2580 … rather than C.E.-round 2573, 2583 ….
+    // The first and latest years are labelled too, unless they'd crowd the
+    // nearest round-year label.
+    const yearOffset = getLang() === "en" ? 0 : 543;
+    years.forEach(function (y, i) {
+      const shown = y + yearOffset;
+      const onStep = shown % step === 0;
+      const isFirst = i === 0, isLast = i === n - 1;
+      let show = onStep;
+      if (!onStep && isLast) show = (shown % step) >= step * 0.6;
+      if (!onStep && isFirst) show = (step - (shown % step)) >= step * 0.6;
+      if (!show) return;
+      svg += '<line class="viz-tick" x1="' + xAt(i) + '" x2="' + xAt(i) + '" y1="' + yAt(0) + '" y2="' + (yAt(0) + 5) + '"/>';
+      svg += '<text class="viz-axis-label" x="' + xAt(i) + '" y="' + (yAt(0) + 20) + '" text-anchor="middle">' + yearLabelFor(y) + '</text>';
+    });
+
+    const pts = values.map(function (v, i) { return [xAt(i), yAt(v)]; });
+    if (n > 1) {
+      const line = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
+      const area = line + " L" + pts[n - 1][0].toFixed(1) + " " + yAt(0) + " L" + pts[0][0].toFixed(1) + " " + yAt(0) + " Z";
+      svg += '<path class="viz-line-area" d="' + area + '"/>';
+      svg += '<path class="viz-line-path" d="' + line + '"/>';
+    }
+    if (showMarkers) {
+      pts.forEach(function (p, i) { if (i !== n - 1) svg += '<circle class="viz-line-dot" cx="' + p[0] + '" cy="' + p[1] + '" r="4"/>'; });
+    }
+
+    // One direct label only — the latest year, as a pill — since the
+    // summary strip above already names the peak and the average.
+    const last = pts[n - 1];
+    svg += '<circle class="viz-line-dot viz-line-dot-latest" cx="' + last[0] + '" cy="' + last[1] + '" r="5.5"/>';
+    const pillText = formatNumber(values[n - 1]);
+    const pillW = pillText.length * 7.6 + 18;
+    const pillX = Math.min(Math.max(last[0] - pillW / 2, m.left), m.left + plotW - pillW + m.right - 4);
+    const pillY = Math.max(last[1] - 34, 2);
+    svg += '<g class="viz-pill"><rect x="' + pillX + '" y="' + pillY + '" width="' + pillW + '" height="22" rx="11"/>' +
+      '<text x="' + (pillX + pillW / 2) + '" y="' + (pillY + 15) + '" text-anchor="middle">' + pillText + '</text></g>';
+
+    // Hover layer: crosshair + highlighted point, driven by one overlay rect.
+    svg += '<circle class="viz-line-dot viz-line-dot-active" id="viz-hover-dot" r="6" cx="0" cy="0" visibility="hidden"/>';
+    svg += '<rect class="viz-hit" x="' + (m.left - 12) + '" y="' + m.top + '" width="' + (plotW + 24) + '" height="' + plotH + '"/>';
+    svg += '</svg>';
+
+    container.innerHTML = svg + '<div class="viz-tooltip" id="viz-tooltip" hidden></div>';
+
+    const hit = container.querySelector(".viz-hit");
+    const crosshair = container.querySelector("#viz-crosshair");
+    const dot = container.querySelector("#viz-hover-dot");
+    const tip = container.querySelector("#viz-tooltip");
+
+    function showAt(clientX) {
+      const rect = container.querySelector("svg").getBoundingClientRect();
+      const x = clientX - rect.left;
+      const i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round(((x - m.left) / plotW) * (n - 1))));
+      crosshair.setAttribute("x", pts[i][0] - bandW / 2);
+      crosshair.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", pts[i][0]); dot.setAttribute("cy", pts[i][1]);
+      dot.setAttribute("visibility", "visible");
+      const pct = i > 0 ? percentChange(values[i], values[i - 1]) : null;
+      tip.innerHTML = '<div class="viz-tooltip-title">' + t("dashboard.yearWord") + " " + yearLabelFor(years[i]) + '</div>' +
+        '<div class="viz-tooltip-value">' + formatNumber(values[i]) + ' <span>' + t("dashboard.sheetsUnit") + '</span></div>' +
+        (i > 0 ? '<div class="viz-tooltip-change">' + changeHtml(pct) + ' ' + t("dashboard.trend.fromPrev") + '</div>' : '');
+      tip.hidden = false;
+      const tipW = tip.offsetWidth;
+      const left = Math.max(0, Math.min(rect.width - tipW, pts[i][0] - tipW / 2));
+      tip.style.left = left + "px";
+      tip.style.top = Math.max(0, pts[i][1] - tip.offsetHeight - 16) + "px";
+    }
+    function hide() {
+      crosshair.setAttribute("visibility", "hidden");
+      dot.setAttribute("visibility", "hidden");
+      tip.hidden = true;
+    }
+    hit.addEventListener("pointermove", function (e) { showAt(e.clientX); });
+    hit.addEventListener("pointerdown", function (e) { showAt(e.clientX); });
+    hit.addEventListener("pointerleave", hide);
   }
+
+  let trendView = "chart";
+  document.querySelectorAll(".trend-view-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      trendView = btn.getAttribute("data-view");
+      document.querySelectorAll(".trend-view-btn").forEach(function (b) {
+        const on = b === btn;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      document.getElementById("trend-view-chart").hidden = trendView !== "chart";
+      document.getElementById("trend-view-table").hidden = trendView !== "table";
+      if (trendView === "chart" && summary) renderYearTrend();
+    });
+  });
+
+  // Redraw at the new width (the SVG is laid out in real pixels so text
+  // never stretches) — debounced so a window drag doesn't redraw 60×/s.
+  let yearChartResizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(yearChartResizeTimer);
+    yearChartResizeTimer = setTimeout(function () {
+      if (summary) renderYearTrend();
+    }, 150);
+  });
 
   function renderCategoryTable(items) {
     const tbody = document.getElementById("category-table-body");
@@ -279,7 +691,7 @@
     tbody.innerHTML = sorted.map(function (it) {
       const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
       return '<tr>' +
-        '<td>' + categoryLabelFor(it.category) + '</td>' +
+        '<td>' + categoryLabelFor(it.category, it.categoryEn) + '</td>' +
         '<td>' + formatNumber(it.count) + '</td>' +
         '<td>' + formatNumber(it.copies) + '</td>' +
         '<td>' + formatNumber(it.sheets) + '</td>' +
@@ -314,7 +726,7 @@
       const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
       return '<tr>' +
         '<td>' + it.unit + '</td>' +
-        '<td>' + categoryLabelFor(it.category) + '</td>' +
+        '<td>' + categoryLabelFor(it.category, it.categoryEn) + '</td>' +
         '<td>' + formatNumber(it.count) + '</td>' +
         '<td>' + formatNumber(it.copies) + '</td>' +
         '<td>' + formatNumber(it.sheets) + '</td>' +
@@ -329,27 +741,50 @@
     document.getElementById("kpi-avg-sheets").textContent = formatNumber(summary.avgSheets);
     document.getElementById("kpi-active-units").textContent = formatNumber(summary.activeUnits);
 
-    renderBarChart("category-sheets-chart", summary.categoryBreakdown, "sheets", function (it) { return categoryLabelFor(it.category); });
+    renderBarChart("category-sheets-chart", summary.categoryBreakdown, "sheets", function (it) { return categoryLabelFor(it.category, it.categoryEn); });
     renderCategoryTable(summary.categoryBreakdown);
 
     const top10 = summary.unitBreakdown.slice().sort(function (a, b) { return b.sheets - a.sheets; }).slice(0, 10);
     renderBarChart("unit-top-chart", top10, "sheets", function (it) { return it.unit; });
     renderUnitTable(summary.unitBreakdown);
 
-    renderYearColumnChart("year-sheets-chart", summary.yearTrend);
+    renderYearTrend();
   }
 
-  // Year/document-type/paper-source changes need a fresh server-side
-  // aggregation; unit search/category-filter only re-slice the array already
-  // in memory.
+  // Year/month/custom-range/document-type/paper-source changes need a fresh
+  // server-side aggregation; unit search/category-filter only re-slice the
+  // array already in memory.
   async function reload() {
     await fetchSummary();
     renderYearFilterOptions();
+    renderMonthFilterOptions();
     renderUnitCategoryFilterOptions();
     renderAll();
   }
 
+  function onCustomRangeToggleChange() {
+    const isCustom = customRangeToggle.checked;
+    calendarFields.hidden = isCustom;
+    customRangeFields.hidden = !isCustom;
+    reload();
+  }
+
+  // One click undoes the whole custom range — clears both dates, unchecks
+  // the toggle, and goes back to the plain Year/Month dropdowns — instead of
+  // needing to clear each date field individually plus the checkbox.
+  function clearCustomRange() {
+    fromDateInput.value = "";
+    toDateInput.value = "";
+    customRangeToggle.checked = false;
+    onCustomRangeToggleChange();
+  }
+
+  customRangeToggle.addEventListener("change", onCustomRangeToggleChange);
+  customRangeClearBtn.addEventListener("click", clearCustomRange);
   yearFilter.addEventListener("change", reload);
+  monthFilter.addEventListener("change", reload);
+  fromDateInput.addEventListener("change", reload);
+  toDateInput.addEventListener("change", reload);
   documentTypeFilter.addEventListener("change", reload);
   paperSourceFilter.addEventListener("change", reload);
   unitCategoryFilter.addEventListener("change", function () { renderUnitTable(summary.unitBreakdown); });
@@ -357,9 +792,55 @@
 
   document.addEventListener("odprs:langchange", function () {
     renderYearFilterOptions();
+    renderMonthFilterOptions();
     renderUnitCategoryFilterOptions();
     renderAll();
+    positionTabThumb(true);
   });
+
+  // ---- Tabs (Overview / By Category / By Unit) ----
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  const tabThumb = document.getElementById("tab-nav-thumb");
+  const tabPanels = {
+    overview: document.getElementById("tab-panel-overview"),
+    category: document.getElementById("tab-panel-category"),
+    unit: document.getElementById("tab-panel-unit")
+  };
+
+  function positionTabThumb(skipAnimation) {
+    const activeBtn = document.querySelector(".tab-btn.active");
+    if (!activeBtn) return;
+    if (skipAnimation) tabThumb.style.transition = "none";
+    tabThumb.style.left = activeBtn.offsetLeft + "px";
+    tabThumb.style.width = activeBtn.offsetWidth + "px";
+    if (skipAnimation) {
+      void tabThumb.offsetWidth; // force reflow before restoring the transition
+      tabThumb.style.transition = "";
+    }
+  }
+
+  function activateTab(name, skipAnimation) {
+    if (!tabPanels[name]) name = "overview";
+    tabButtons.forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-tab") === name);
+    });
+    Object.keys(tabPanels).forEach(function (key) {
+      tabPanels[key].hidden = key !== name;
+    });
+    positionTabThumb(skipAnimation);
+    history.replaceState(null, "", "#" + name);
+    // The trend chart sizes itself to its container, which has no width
+    // while its panel is hidden — redraw it once it's visible again.
+    if (name === "overview" && summary) renderYearTrend();
+  }
+
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      activateTab(btn.getAttribute("data-tab"));
+    });
+  });
+
+  activateTab(window.location.hash.replace("#", "") || "overview", true);
 
   reload();
 </script>

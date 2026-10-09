@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตรวจสอบสถานะการรับเอกสาร | ฝ่ายทะเบียน มฟล.</title>
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+  :root {
+    /* MFU red & gold: soft red fills the page; champagne gold + cream are
+       the companions (text, rules, ornaments, cream cards). Deep red stays
+       for buttons so they stand out on the cream cards. Scoped to this page.
+       Mirrors login.ejs so the two entry screens read as one set. */
+    --color-primary: #7a1d24;
+    --color-primary-dark: #5e151b;
+    --color-primary-tint: #f6e6e2;
+    --color-surface: #fffaf2;
+    --color-border: #ecdfca;
+    --kiosk-gold: #e2c285;
+    --kiosk-gold-deep: #b08a3e;
+    --kiosk-gold-soft: rgba(226, 194, 133, 0.45);
+    --kiosk-gold-faint: rgba(226, 194, 133, 0.14);
+    --kiosk-ink: #fbefdc;
+    --kiosk-ink-soft: rgba(251, 239, 220, 0.8);
+    --kiosk-page-bg: linear-gradient(160deg, #9a4448 0%, #843a3f 50%, #6e3035 100%);
+  }
+  /* Whole-page soft university red, fixed so it never ends partway down a
+     short page. Two soft glows add depth; the fine diagonal texture sits on top. */
+  html { background: #843a3f; }
+  body { margin: 0; min-height: 100vh; background: var(--kiosk-page-bg) fixed; }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(226, 194, 133, 0.18), transparent 55%),
+      radial-gradient(ellipse at 100% 100%, rgba(40, 8, 12, 0.35), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 14px);
+    pointer-events: none;
+  }
+  /* Gold corner brackets framing the whole screen (same ornament as login). */
+  .kiosk-corners { position: fixed; inset: 20px; pointer-events: none; z-index: 0; }
+  .kiosk-corners span { position: absolute; width: 44px; height: 44px; border: 0 solid var(--kiosk-gold-soft); }
+  .kiosk-corners span:nth-child(1) { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+  .kiosk-corners span:nth-child(2) { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+  .kiosk-corners span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+  .kiosk-corners span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+  @keyframes kioskRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- Header ---------- */
+  .kiosk-hero {
+    position: relative;
+    padding: 64px 24px 36px;
+    text-align: center;
+    color: var(--kiosk-ink);
+  }
+  .kiosk-hero > * { position: relative; animation: kioskRise .7s ease both; }
+
+  .kiosk-hero > .kiosk-lang-toggle {
+    position: absolute; top: 36px; right: 44px; z-index: 1;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--kiosk-gold-soft);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--kiosk-ink-soft);
+    animation: none;
+  }
+  .kiosk-lang-toggle span { border-radius: 999px; padding: 3px 11px; cursor: pointer; }
+  .kiosk-lang-toggle span.active { background: var(--kiosk-gold); color: #5e151b; }
+
+  .kiosk-hero > .kiosk-back {
+    position: absolute; top: 36px; left: 44px; z-index: 1;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px 6px 10px;
+    border: 1px solid var(--kiosk-gold-soft);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--kiosk-ink-soft);
+    text-decoration: none;
+    animation: none;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .kiosk-back:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--kiosk-gold); color: var(--kiosk-ink); }
+  .kiosk-back .icon { width: 16px; height: 16px; transition: transform .15s ease; }
+  .kiosk-back:hover .icon { transform: translateX(-2px); }
+
+  /* Emblem with soft concentric gold rings radiating behind it. */
+  .kiosk-emblem-wrap {
+    width: 108px; height: 108px;
+    margin: 0 auto 26px;
+  }
+  .kiosk-emblem-wrap::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 340px; height: 340px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0 28px, var(--kiosk-gold-faint) 28px 29px);
+    -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    pointer-events: none;
+  }
+  .kiosk-emblem {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: #fffaf2;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      0 0 0 4px #8a3c41,
+      0 0 0 5.5px var(--kiosk-gold),
+      0 0 0 11px var(--kiosk-gold-faint),
+      0 16px 36px rgba(20, 4, 6, 0.35);
+  }
+  .kiosk-emblem img { width: 80px; height: 80px; object-fit: contain; }
+
+  .kiosk-hero h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.3;
+    text-shadow: 0 2px 12px rgba(20, 4, 6, 0.25);
+    animation-delay: .08s;
+  }
+  .kiosk-rule {
+    display: flex; align-items: center; gap: 10px;
+    width: 200px; margin: 20px auto;
+    animation-delay: .14s;
+  }
+  .kiosk-rule::before, .kiosk-rule::after { content: ""; flex: 1; height: 1px; }
+  .kiosk-rule::before { background: linear-gradient(90deg, transparent, var(--kiosk-gold)); }
+  .kiosk-rule::after  { background: linear-gradient(90deg, var(--kiosk-gold), transparent); }
+  .kiosk-rule span { width: 7px; height: 7px; background: var(--kiosk-gold); transform: rotate(45deg); }
+  .kiosk-hero .subtitle {
+    margin: 0 auto;
+    max-width: 520px;
+    font-size: 16px;
+    font-weight: 300;
+    line-height: 1.6;
+    letter-spacing: 0.2px;
+    color: var(--kiosk-ink-soft);
+    animation-delay: .2s;
+  }
+  .kiosk-officer-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 22px;
+    padding: 7px 18px 7px 8px;
+    border: 1px solid var(--kiosk-gold-soft);
+    border-radius: 999px;
+    background: rgba(40, 8, 12, 0.2);
+    font-size: 13.5px;
+    color: var(--kiosk-ink);
+    animation-delay: .26s;
+  }
+  .kiosk-officer-badge .icon {
+    width: 26px; height: 26px;
+    padding: 5px;
+    border-radius: 50%;
+    background: var(--kiosk-gold);
+    color: #5e151b;
+  }
+  .kiosk-officer-badge strong { font-weight: 600; }
+
+  /* ---------- Content ---------- */
+  .kiosk-page {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding: 0 24px 72px;
+  }
+  .kiosk-wrap { width: 100%; max-width: 560px; }
+  .kiosk-wrap > .card {
+    position: relative;
+    overflow: visible;
+    border: 1px solid rgba(226, 194, 133, 0.6);
+    border-radius: 18px;
+    box-shadow:
+      0 0 0 6px rgba(255, 250, 242, 0.08),
+      0 24px 60px rgba(20, 4, 6, 0.35);
+    margin-bottom: 24px;
+    animation: kioskRise .7s .12s ease both;
+  }
+  /* Small gold diamond ornament on the top edge of every main card. */
+  .kiosk-wrap > .card::before {
+    content: "";
+    position: absolute;
+    top: -9px; left: 50%;
+    width: 16px; height: 16px;
+    transform: translateX(-50%) rotate(45deg);
+    background: var(--kiosk-gold);
+    border: 3px solid #fffaf2;
+    box-shadow: 0 0 0 1px rgba(226, 194, 133, 0.6);
+    z-index: 1;
+  }
+  .kiosk-wrap > .card > .card-body { padding: 32px 32px 30px; }
+  .kiosk-wrap > .card > .card-header { padding: 22px 32px 16px; border-bottom-color: var(--color-border); }
+  .kiosk-wrap > .card > .card-header .step-title { color: var(--color-success); }
+
+  .kiosk-wrap > .notice { border-radius: 14px; box-shadow: 0 12px 32px rgba(20, 4, 6, 0.25); }
+
+  /* Claim Code entry — the one thing a visitor comes here to do. */
+  .kiosk-wrap .claim-search-label { text-align: center; font-size: 14px; color: var(--color-muted); margin-bottom: 14px; }
+  .kiosk-wrap .claim-search-input {
+    padding: 16px 18px;
+    background: #fff;
+    border: 1.5px solid var(--color-border);
+    border-radius: 14px;
+    font-size: 30px;
+    letter-spacing: 12px;
+    color: var(--color-primary);
+    box-shadow: inset 0 2px 4px rgba(38, 34, 32, 0.04);
+  }
+  .kiosk-wrap .claim-search-input:focus { border-color: var(--kiosk-gold-deep); box-shadow: 0 0 0 4px rgba(226, 194, 133, 0.3); }
+  .kiosk-wrap .btn-primary {
+    border-radius: 14px;
+    background: linear-gradient(180deg, #8a232b 0%, var(--color-primary) 100%);
+    box-shadow: 0 6px 16px rgba(122, 29, 36, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .kiosk-wrap .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    box-shadow: 0 10px 22px rgba(122, 29, 36, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .kiosk-signin-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 14px 20px;
+    background: linear-gradient(180deg, #8a232b 0%, var(--color-primary) 100%);
+    color: #fff;
+    border: none; border-radius: 12px;
+    font-family: var(--font-family); font-size: 15.5px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    box-shadow: 0 6px 16px rgba(122, 29, 36, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .kiosk-signin-btn:hover {
+    background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    box-shadow: 0 10px 22px rgba(122, 29, 36, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+  }
+
+  /* "Not signed in" / "wrong account" status card — a proper icon + heading
+     + explanation + (for the wrong-account case) exactly which account is
+     stuck signed in, instead of one dense paragraph. */
+  .kiosk-wrap > .card > .kiosk-status { text-align: center; padding: 44px 36px 36px; }
+  .kiosk-status-icon-wrap {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+  }
+  .kiosk-status-icon-wrap .icon { width: 28px; height: 28px; }
+  .kiosk-status-icon-wrap.tone-primary { background: var(--color-primary-tint); color: var(--color-primary); box-shadow: 0 0 0 6px rgba(246, 230, 226, 0.5); }
+  .kiosk-status-icon-wrap.tone-warning { background: var(--color-warning-tint); color: var(--color-warning); box-shadow: 0 0 0 6px rgba(251, 240, 220, 0.6); }
+  .kiosk-status-title { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: var(--color-primary); }
+  .kiosk-status-text { margin: 0 0 22px; color: var(--color-muted); font-size: 14px; line-height: 1.6; }
+  .kiosk-status-account {
+    display: inline-block;
+    margin: -6px 0 22px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid var(--color-border);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+
+  @media (max-width: 600px) {
+    .kiosk-corners { inset: 10px; }
+    .kiosk-corners span { width: 26px; height: 26px; }
+    .kiosk-hero { padding: 72px 16px 28px; }
+    .kiosk-hero > .kiosk-back { top: 20px; left: 20px; }
+    .kiosk-hero > .kiosk-lang-toggle { top: 20px; right: 20px; }
+    .kiosk-emblem-wrap { width: 84px; height: 84px; margin-bottom: 18px; }
+    .kiosk-emblem-wrap::before { width: 260px; height: 260px; }
+    .kiosk-emblem img { width: 62px; height: 62px; }
+    .kiosk-hero h1 { font-size: 24px; }
+    .kiosk-hero .subtitle { font-size: 14.5px; }
+    .kiosk-page { padding: 0 16px 48px; }
+    .kiosk-wrap > .card > .card-body { padding: 26px 20px 22px; }
+    .kiosk-wrap > .card > .card-header { padding: 20px 20px 14px; }
+    .kiosk-wrap > .card > .kiosk-status { padding: 36px 20px 28px; }
+    .kiosk-wrap .claim-search-input { font-size: 26px; letter-spacing: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="kiosk-corners" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<header class="kiosk-hero">
+  <%# "/" bounces a signed-in user straight to their dashboard, so sign out
+      first (/logout then redirects to "/") to actually land on the login page. %>
+  <a class="kiosk-back" href="<%= loggedIn ? '/logout' : '/' %>">
+    <span class="icon" data-icon="arrow-left"><%- icon('arrow-left') %></span>
+    <span data-i18n="kiosk.backToLogin">กลับหน้าเข้าสู่ระบบ</span>
+  </a>
+  <div class="lang-toggle kiosk-lang-toggle">
+    <span data-lang="en">EN</span><span data-lang="th" class="active">TH</span>
+  </div>
+  <div class="kiosk-emblem-wrap">
+    <div class="kiosk-emblem">
+      <img src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
+    </div>
+  </div>
+  <h1 data-i18n="kiosk.title">ตรวจสอบเอกสารพร้อมรับ</h1>
+  <div class="kiosk-rule" aria-hidden="true"><span></span></div>
+  <p class="subtitle" data-i18n="kiosk.subtitle">กรอก Claim Code 6 หลักที่ได้รับแจ้ง เพื่อตรวจสอบว่าเอกสารของท่านพร้อมรับหรือยัง</p>
+  <% if (authorized) { %>
+  <div class="kiosk-officer-badge">
+    <span class="icon" data-icon="user-check"><%- icon('user-check') %></span>
+    <span><span data-i18n="kiosk.responsibleOfficer">เจ้าหน้าที่ผู้รับผิดชอบ</span>: <strong><%= officerName %></strong></span>
+  </div>
+  <% } %>
+</header>
+
+<main class="kiosk-page">
+  <div class="kiosk-wrap">
+    <% if (!authorized) { %>
+    <div class="card">
+      <div class="card-body kiosk-status">
+        <% if (loggedIn) { %>
+        <div class="kiosk-status-icon-wrap tone-warning">
+          <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+        </div>
+        <h2 class="kiosk-status-title" data-i18n="kiosk.wrongAccountTitle">เข้าสู่ระบบผิดบัญชี</h2>
+        <p class="kiosk-status-text" data-i18n="kiosk.wrongAccount">บัญชีนี้ไม่ใช่บัญชีเจ้าหน้าที่ จึงใช้งานจุดรับเอกสารนี้ไม่ได้</p>
+        <div class="kiosk-status-account"><%= loggedInEmail %></div>
+        <a class="kiosk-signin-btn" href="/logout">
+          <span class="icon" data-icon="log-out"><%- icon('log-out') %></span>
+          <span data-i18n="kiosk.logoutBtn">ออกจากระบบ</span>
+        </a>
+        <% } else { %>
+        <div class="kiosk-status-icon-wrap tone-primary">
+          <span class="icon" data-icon="user-check"><%- icon('user-check') %></span>
+        </div>
+        <h2 class="kiosk-status-title" data-i18n="kiosk.needSignInTitle">จุดรับเอกสารนี้ยังไม่พร้อมใช้งาน</h2>
+        <p class="kiosk-status-text" data-i18n="kiosk.needSignIn">ต้องมีเจ้าหน้าที่เข้าสู่ระบบก่อน จึงจะใช้งานได้</p>
+        <a class="kiosk-signin-btn" href="/auth/google?returnTo=/kiosk">
+          <span data-i18n="kiosk.signInBtn">เจ้าหน้าที่เข้าสู่ระบบที่นี่</span>
+        </a>
+        <% } %>
+      </div>
+    </div>
+    <% } else { %>
+
+    <div class="card">
+      <div class="card-body">
+        <label class="claim-search-label" for="claim-code-input" data-i18n="handover.claimCodeLabel">Claim Code (6 หลัก)</label>
+        <div class="claim-search">
+          <input type="text" id="claim-code-input" class="claim-search-input" inputmode="numeric" maxlength="6" placeholder="000000" autofocus>
+          <button class="btn btn-primary" id="search-btn">
+            <span class="icon" data-icon="search"><%- icon('search') %></span>
+            <span data-i18n="handover.searchBtn">ค้นหา</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice notice-warning" id="kiosk-error" style="display:none;">
+      <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+      <div id="kiosk-error-text"></div>
+    </div>
+
+    <div class="card" id="kiosk-result" style="display:none;">
+      <div class="card-header">
+        <span class="step-title">
+          <span class="icon" data-icon="check-circle"><%- icon('check-circle') %></span>
+          <span data-i18n="kiosk.readyTitle">เอกสารของท่านพร้อมรับแล้ว</span>
+        </span>
+      </div>
+      <div class="card-body">
+        <dl class="summary-list">
+          <dt data-i18n="kiosk.forName">สำหรับ</dt><dd id="k-name">—</dd>
+          <dt>RUN NUMBER</dt><dd id="k-runno">—</dd>
+          <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="k-items">—</dd>
+          <dt data-i18n="handover.pickupLocation">สถานที่รับเอกสาร</dt><dd id="k-pickup">—</dd>
+          <dt data-i18n="handover.availableFrom">รับได้ตั้งแต่</dt><dd id="k-available">—</dd>
+        </dl>
+
+        <div class="loc-section" id="kiosk-receiver-section">
+          <div class="loc-section-title">
+            <span class="icon" data-icon="user-check"><%- icon('user-check') %></span>
+            <span data-i18n="handover.receiverSectionTitle">ข้อมูลผู้รับ</span>
+          </div>
+          <span class="hint" data-i18n="handover.receiverInfo.hint">ข้อมูลนี้เป็นบันทึกว่าใครมารับเอกสาร</span>
+
+          <form id="kiosk-receiver-form" autocomplete="on">
+            <div class="form-grid" style="margin-top:12px;">
+              <div class="field" id="k-receiver-name-field">
+                <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
+                <input type="text" id="k-receiver-name" name="receiverName" autocomplete="name">
+                <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
+              </div>
+              <div class="field" id="k-receiver-work-phone-field">
+                <label data-i18n="handover.receiverWorkPhone">เบอร์โทรศัพท์ที่ทำงาน *</label>
+                <input type="text" id="k-receiver-work-phone" name="receiverWorkPhone" autocomplete="tel" inputmode="numeric" maxlength="10" data-max-digits="10">
+                <span class="field-error" data-i18n="handover.receiverWorkPhone.required">กรุณากรอกเบอร์โทรศัพท์ที่ทำงาน</span>
+              </div>
+              <div class="field" id="k-receiver-workplace-field">
+                <label data-i18n="handover.receiverWorkplace">ที่ทำงาน *</label>
+                <input type="text" id="k-receiver-workplace" name="receiverWorkplace" autocomplete="organization">
+                <span class="field-error" data-i18n="handover.receiverWorkplace.required">กรุณากรอกที่ทำงานของผู้รับ</span>
+              </div>
+              <div class="field" id="k-receiver-position-field">
+                <label data-i18n="handover.receiverPosition">ตำแหน่ง (หน้าที่ในที่ทำงาน) *</label>
+                <input type="text" id="k-receiver-position" name="receiverPosition" autocomplete="organization-title">
+                <span class="field-error" data-i18n="handover.receiverPosition.required">กรุณากรอกตำแหน่งผู้รับ</span>
+              </div>
+            </div>
+
+            <div class="notice notice-error" id="kiosk-confirm-error" style="display:none; margin-top:12px;">
+              <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+              <div id="kiosk-confirm-error-text"></div>
+            </div>
+
+            <div class="loc-actions">
+              <button type="submit" class="btn btn-primary" id="kiosk-confirm-btn" data-i18n="kiosk.confirmBtn">ยืนยันรับเอกสาร</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="notice notice-success" id="kiosk-success" style="display:none;">
+      <span class="icon" data-icon="check-circle"><%- icon('check-circle') %></span>
+      <div>
+        <div data-i18n="kiosk.successNotice">รับเอกสารเรียบร้อยแล้ว ขอบคุณที่ใช้บริการ</div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-secondary" id="kiosk-search-again-btn" data-i18n="handover.searchAgain">ค้นหารายการถัดไป</button>
+        </div>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</main>
+
+<script src="/assets/js/app.js"></script>
+<% if (authorized) { %>
+<script>
+  const claimInput = document.getElementById("claim-code-input");
+  const errorNotice = document.getElementById("kiosk-error");
+  const resultCard = document.getElementById("kiosk-result");
+  const successNotice = document.getElementById("kiosk-success");
+  const searchBtn = document.getElementById("search-btn");
+  const nameField = document.getElementById("k-receiver-name-field");
+  const positionField = document.getElementById("k-receiver-position-field");
+  const workplaceField = document.getElementById("k-receiver-workplace-field");
+  const workPhoneField = document.getElementById("k-receiver-work-phone-field");
+  const confirmErrorNotice = document.getElementById("kiosk-confirm-error");
+  let currentMatch = null;
+
+  // A session can expire mid-use (Officer signed out in another tab, etc.)
+  // — reload so the page re-renders its "please sign in" state instead of
+  // leaving the visitor stuck on a form that will just keep failing.
+  function handleSessionExpired() {
+    window.location.reload();
+  }
+
+  function renderMatch() {
+    document.getElementById("k-name").textContent = currentMatch.requesterName || "—";
+    document.getElementById("k-runno").textContent = currentMatch.runNumber || "—";
+    document.getElementById("k-items").textContent = currentMatch.itemList || "—";
+    document.getElementById("k-pickup").textContent = currentMatch.pickupLocation
+      ? formatLocation(currentMatch.pickupLocation, getLang())
+      : "—";
+    document.getElementById("k-available").textContent = currentMatch.pickupAvailableFrom
+      ? formatDateTime(new Date(currentMatch.pickupAvailableFrom), getLang())
+      : "—";
+  }
+
+  // The common case is the Requester themself standing at the kiosk, so
+  // prefill from what the lookup already returned instead of asking them to
+  // retype their own name/phone/workplace — still all editable, since
+  // someone else may be collecting on their behalf.
+  function prefillReceiverForm() {
+    document.getElementById("k-receiver-name").value = currentMatch.requesterName || "";
+    document.getElementById("k-receiver-work-phone").value = currentMatch.tel || "";
+    document.getElementById("k-receiver-workplace").value = currentMatch.agencyUnit || "";
+    document.getElementById("k-receiver-position").value = "";
+    [nameField, workPhoneField, workplaceField, positionField].forEach(function (f) { f.classList.remove("invalid"); });
+    confirmErrorNotice.style.display = "none";
+  }
+
+  async function doSearch() {
+    const code = claimInput.value.trim();
+    errorNotice.style.display = "none";
+    resultCard.style.display = "none";
+    successNotice.style.display = "none";
+    if (!code || searchBtn.disabled) return;
+
+    searchBtn.disabled = true;
+    try {
+      const res = await fetch("/kiosk/lookup/" + encodeURIComponent(code));
+      if (res.status === 403) return handleSessionExpired();
+      if (res.status === 429) {
+        document.getElementById("kiosk-error-text").textContent = t("kiosk.tooManyRequests");
+        errorNotice.style.display = "";
+        return;
+      }
+      const match = res.ok ? await res.json().catch(function () { return null; }) : null;
+      if (!match) {
+        document.getElementById("kiosk-error-text").textContent = t("handover.notFound");
+        errorNotice.style.display = "";
+        currentMatch = null;
+        return;
+      }
+      currentMatch = match;
+      renderMatch();
+      prefillReceiverForm();
+      resultCard.style.display = "";
+      resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  searchBtn.addEventListener("click", doSearch);
+  claimInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doSearch();
+  });
+
+  const confirmBtn = document.getElementById("kiosk-confirm-btn");
+
+  document.getElementById("kiosk-receiver-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (confirmBtn.disabled || !currentMatch) return;
+
+    const name = document.getElementById("k-receiver-name").value.trim();
+    const position = document.getElementById("k-receiver-position").value.trim();
+    const workplace = document.getElementById("k-receiver-workplace").value.trim();
+    const workPhone = document.getElementById("k-receiver-work-phone").value.trim();
+
+    nameField.classList.toggle("invalid", !name);
+    positionField.classList.toggle("invalid", !position);
+    workplaceField.classList.toggle("invalid", !workplace);
+    workPhoneField.classList.toggle("invalid", !workPhone);
+    if (!name || !position || !workplace || !workPhone) return;
+
+    confirmErrorNotice.style.display = "none";
+    confirmBtn.disabled = true;
+    showProcessing();
+    try {
+      const res = await fetch("/kiosk/confirm/" + encodeURIComponent(claimInput.value.trim()), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverName: name, receiverPosition: position, receiverWorkplace: workplace, receiverWorkPhone: workPhone })
+      });
+      if (res.status === 403) return handleSessionExpired();
+      if (!res.ok) {
+        const message = res.status === 429 ? t("kiosk.tooManyRequests") : t("kiosk.confirmError");
+        document.getElementById("kiosk-confirm-error-text").textContent = message;
+        confirmErrorNotice.style.display = "";
+        showActionResult(false, message);
+        return;
+      }
+      const done = await res.json().catch(function () { return {}; });
+      resultCard.style.display = "none";
+      successNotice.style.display = "";
+      showActionResult(true, t("handover.result.done").replace("{ref}", done.referenceNo || currentMatch.runNumber || "").replace("{name}", name));
+    } catch (err) {
+      showActionResult(false, t("result.network"));
+    } finally {
+      hideProcessing();
+      confirmBtn.disabled = false;
+    }
+  });
+
+  document.getElementById("kiosk-search-again-btn").addEventListener("click", function () {
+    successNotice.style.display = "none";
+    resultCard.style.display = "none";
+    errorNotice.style.display = "none";
+    currentMatch = null;
+    claimInput.value = "";
+    claimInput.focus();
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    if (currentMatch) renderMatch();
+  });
+</script>
+<% } %>
+</body>
+</html>

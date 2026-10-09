@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — คิวรอเอกสารต้นฉบับ" }) %>
+<%- include("../partials/head", { title: "คิวรอเอกสารต้นฉบับ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.officerQueue", crumbFallback: 'คิวรอเอกสารต้นฉบับ / <strong>ภาพรวม</strong>' }) %>
 
@@ -6,12 +6,18 @@
     <h1 class="page-title" data-i18n="officerQueue.title">คิวรอเอกสารต้นฉบับ</h1>
     <p class="page-subtitle" data-i18n="officerQueue.subtitle">รายการคำขอที่รอผู้ขอนำเอกสารต้นฉบับมาส่งที่เคาน์เตอร์</p>
 
-    <div class="card">
+    <div class="card filter-panel">
       <div class="card-header">
-        <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:14px; cursor:pointer;">
-          <input type="checkbox" id="overdue-filter">
-          <span data-i18n="officerQueue.filterLabel">แสดงเฉพาะที่เลยกำหนดส่ง (ค้าง)</span>
-        </label>
+        <div class="filter-inline" style="width:100%;">
+          <div class="filter-search">
+            <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+            <input type="text" id="queue-search" data-i18n-placeholder="officerQueue.searchPlaceholder" placeholder="ค้นหาเลขอ้างอิง ชื่อผู้ขอ หรือหน่วยงาน">
+          </div>
+          <label class="filter-chip">
+            <input type="checkbox" id="overdue-filter">
+            <span data-i18n="officerQueue.filterLabel">เฉพาะที่เลยกำหนดส่ง</span>
+          </label>
+        </div>
       </div>
       <div class="card-body" style="padding:0;">
         <table class="data-table">
@@ -22,6 +28,7 @@
               <th data-i18n="officerQueue.th.agency">หน่วยงาน</th>
               <th data-i18n="officerQueue.th.submitted">วันที่ส่งคำขอ</th>
               <th data-i18n="officerQueue.th.deadline">กำหนดส่งต้นฉบับ</th>
+              <th data-i18n="summary.completion">วันที่ต้องการรับเอกสาร</th>
               <th data-i18n="officerQueue.th.status">สถานะ</th>
             </tr>
           </thead>
@@ -36,29 +43,53 @@
   // Only ever fetches the (naturally small) awaiting-original-document
   // slice — filtered server-side — instead of every request in the system.
   let allRequests = [];
+  // All agency categories (active + archived), for translating a request's
+  // stored Thai category name to English — see src/agencies.js.
+  let AGENCY_CATEGORIES = [];
 
   async function loadRequests() {
     const res = await fetch("/api/requests/awaiting");
     allRequests = await res.json();
   }
 
+  async function loadAgencyCategories() {
+    const res = await fetch("/api/agencies/categories");
+    AGENCY_CATEGORIES = res.ok ? await res.json() : [];
+  }
+
+  function agencyLabelOf(nameTh, lang) {
+    if (lang !== "en") return nameTh;
+    const found = AGENCY_CATEGORIES.find(function (c) { return c.nameTh === nameTh; });
+    return (found && found.nameEn) || nameTh;
+  }
+
   function renderQueue() {
     const lang = getLang();
     const showOverdueOnly = document.getElementById("overdue-filter").checked;
+    const query = document.getElementById("queue-search").value.trim().toLowerCase();
 
     const records = allRequests
       .filter(function (r) { return !showOverdueOnly || isOverdue(r); })
-      .sort(function (a, b) { return new Date(a.submissionDate) - new Date(b.submissionDate); });
+      .filter(function (r) {
+        if (!query) return true;
+        const agencyLabel = agencyLabelOf(r.agencyCategory, lang);
+        const haystack = [r.referenceNo, r.requesterName, agencyLabel, r.agencyUnit].join(" ").toLowerCase();
+        return haystack.includes(query);
+      })
+      // Default sort: soonest requested pickup/completion date first, so
+      // Officers see the most time-sensitive requests at the top of the
+      // queue instead of oldest-submitted-first.
+      .sort(function (a, b) { return new Date(a.completionDateProposed) - new Date(b.completionDateProposed); });
 
     const tbody = document.getElementById("queue-body");
 
     if (records.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + t("officerQueue.empty") + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + t("officerQueue.empty") + '</td></tr>';
       return;
     }
 
     tbody.innerHTML = records.map(function (r) {
-      const agencyLabel = lang === "en" ? (AGENCY_CATEGORY_EN[r.agencyCategory] || r.agencyCategory) : r.agencyCategory;
+      const agencyLabel = agencyLabelOf(r.agencyCategory, lang);
       const statusBadge = isOverdue(r)
         ? '<span class="badge badge-overdue">' + t("officerQueue.overdue") + '</span>'
         : '<span class="badge badge-awaiting">' + t("status.awaiting") + '</span>';
@@ -69,6 +100,7 @@
         '<td>' + agencyLabel + '</td>' +
         '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
         '<td>' + formatDateTime(new Date(r.dropoffDeadlineDate), lang) + '</td>' +
+        '<td>' + formatDate(new Date(r.completionDateProposed + "T00:00:00"), lang) + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '</tr>';
     }).join("");
@@ -76,14 +108,15 @@
     tbody.querySelectorAll("tr[data-ref]").forEach(function (tr) {
       tr.style.cursor = "pointer";
       tr.addEventListener("click", function () {
-        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref"));
+        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref")) + "&from=queue";
       });
     });
   }
 
   document.getElementById("overdue-filter").addEventListener("change", renderQueue);
+  document.getElementById("queue-search").addEventListener("input", renderQueue);
   document.addEventListener("odprs:langchange", renderQueue);
-  loadRequests().then(renderQueue);
+  Promise.all([loadRequests(), loadAgencyCategories()]).then(renderQueue);
 </script>
 </body>
 </html>

@@ -1,0 +1,21 @@
+<%#
+  Markup for the custom date picker (behaviour: createDatePicker() in app.js).
+  Locals: id (root element id), name (form field name of the hidden
+  "YYYY-MM-DD" input), inputId (optional id for that hidden input).
+%>
+<div class="date-picker" id="<%= id %>">
+  <button type="button" class="date-picker-input placeholder" aria-haspopup="true" aria-expanded="false">
+    <span class="date-picker-label"></span>
+    <span class="icon" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+  </button>
+  <input type="hidden" name="<%= name %>"<% if (typeof inputId !== "undefined") { %> id="<%= inputId %>"<% } %>>
+  <div class="date-picker-panel" hidden>
+    <div class="date-picker-panel-header">
+      <button type="button" class="date-picker-nav" data-dir="-1" aria-label="Previous month">‹</button>
+      <span class="date-picker-panel-title"></span>
+      <button type="button" class="date-picker-nav" data-dir="1" aria-label="Next month">›</button>
+    </div>
+    <div class="date-picker-weekdays"></div>
+    <div class="date-picker-grid"></div>
+  </div>
+</div>

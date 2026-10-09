@@ -33,3 +33,12 @@ desktop.ini
 /prototype/
 /ref/
 /ref and logos/
+
+# Whole-database backups written before each restore (src/backup.js) — real data, never commit
+server/backups/
+
+# Docs/screenshots, scratch build of the UI reference .docx, local notes — kept locally only
+/document/
+/HANDOFF_*.md
+/tunnel.log
+server/tmp_docx_build/

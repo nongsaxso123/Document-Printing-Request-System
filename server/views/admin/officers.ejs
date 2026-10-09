@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — จัดการบัญชีเจ้าหน้าที่" }) %>
+<%- include("../partials/head", { title: "จัดการบัญชีเจ้าหน้าที่ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.admin", crumbFallback: "จัดการบัญชีเจ้าหน้าที่ / <strong>ภาพรวม</strong>" }) %>
 
@@ -6,7 +6,7 @@
     <h1 class="page-title" data-i18n="admin.title">จัดการบัญชีเจ้าหน้าที่</h1>
     <p class="page-subtitle" data-i18n="admin.subtitle">กำหนดว่าอีเมลมหาวิทยาลัยใดได้รับสิทธิ์เป็นเจ้าหน้าที่ (Officer) — อีเมลที่ไม่อยู่ในรายชื่อนี้จะเป็นสิทธิ์ผู้ขอ (Requester) โดยอัตโนมัติ</p>
 
-    <div class="card">
+    <div class="card admin-card">
       <div class="card-header"><span data-i18n="admin.addTitle">เพิ่มเจ้าหน้าที่ใหม่</span></div>
       <div class="card-body">
         <form id="add-officer-form" novalidate>
@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card admin-card">
       <div class="card-header"><span data-i18n="admin.tableTitle">รายชื่อเจ้าหน้าที่ปัจจุบัน</span></div>
       <div class="card-body" style="padding:0;">
         <table class="data-table">
@@ -92,9 +92,14 @@
           confirmText: t("admin.confirmRevokeBtn"),
           danger: true,
           onConfirm: async function () {
-            await fetch("/api/admin/officers/" + encodeURIComponent(email) + "/remove", { method: "POST" });
-            await loadOfficers();
-            renderTable();
+            try {
+              const res = await fetch("/api/admin/officers/" + encodeURIComponent(email) + "/remove", { method: "POST" });
+              await loadOfficers();
+              renderTable();
+              showActionResult(res.ok, t(res.ok ? "admin.result.removed" : "result.generic").replace("{name}", name).replace("{email}", email));
+            } catch (err) {
+              showActionResult(false, t("result.network"));
+            }
           }
         });
       });
@@ -120,17 +125,28 @@
       confirmText: t("admin.addBtn"),
       danger: false,
       onConfirm: async function () {
-        await fetch("/api/admin/officers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name, email: email })
-        });
+        let res;
+        try {
+          res = await fetch("/api/admin/officers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: name, email: email })
+          });
+        } catch (err) {
+          showActionResult(false, t("result.network"));
+          return;
+        }
+        if (!res.ok) {
+          showActionResult(false, t("result.generic"));
+          return;
+        }
         nameInput.value = "";
         emailInput.value = "";
         nameField.classList.remove("invalid");
         emailField.classList.remove("invalid");
         await loadOfficers();
         renderTable();
+        showActionResult(true, t("admin.result.added").replace("{name}", name).replace("{email}", email));
       }
     });
   });

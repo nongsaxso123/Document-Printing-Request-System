@@ -1,0 +1,554 @@
+<%- include("../partials/head", { title: "ผลการประเมินความพึงพอใจ | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.evaluations", crumbFallback: "ผลประเมินความพึงพอใจ / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="evalReport.title">ผลประเมินความพึงพอใจ</h1>
+    <p class="page-subtitle" data-i18n="evalReport.subtitle">ภาพรวมคะแนนความพึงพอใจและความคิดเห็นจากผู้ขอ หลังได้รับเอกสารเรียบร้อยแล้ว</p>
+
+    <div class="tab-row">
+      <div class="tab-nav" id="tab-nav">
+        <div class="tab-nav-thumb" id="tab-nav-thumb"></div>
+        <button type="button" class="tab-btn active" id="tab-btn-overview" data-tab="overview" data-i18n="evalReport.tab.overview">ภาพรวม</button>
+        <button type="button" class="tab-btn" id="tab-btn-list" data-tab="list" data-i18n="evalReport.tab.list">ค้นหา / รายการทั้งหมด</button>
+      </div>
+      <div class="tab-row-actions">
+        <select id="eval-year-filter" class="toolbar-select"></select>
+        <button type="button" class="export-btn" id="eval-export-btn">
+          <span class="icon" data-icon="download"><%- icon('download') %></span>
+          <span class="export-btn-label" data-i18n="export.excel">ส่งออก Excel</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="tab-panel-overview">
+      <div class="stat-grid">
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="evalReport.kpi.totalEvaluated">จำนวนที่ได้รับการประเมิน</div>
+            <div class="stat-value" id="kpi-total-evaluated">—</div>
+          </div>
+        </div>
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="evalReport.kpi.totalCompleted">จำนวนคำขอที่เสร็จสมบูรณ์</div>
+            <div class="stat-value" id="kpi-total-completed">—</div>
+          </div>
+        </div>
+        <div class="card stat-tile">
+          <div class="card-body">
+            <div class="stat-label" data-i18n="evalReport.kpi.totalWithComments">จำนวนที่มีความคิดเห็น</div>
+            <div class="stat-value" id="kpi-total-with-comments">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span data-i18n="evalReport.scoresTitle">คะแนนเฉลี่ยแยกตามหัวข้อ (เต็ม 5)</span></div>
+        <div class="card-body">
+          <div class="stat-grid scores-grid" id="scores-grid"></div>
+        </div>
+      </div>
+
+      <div class="card feed-card">
+        <div class="card-header feed-card-header">
+          <div>
+            <div class="feed-title" data-i18n="evalReport.commentsTitle">ความคิดเห็นล่าสุด</div>
+            <div class="feed-subtitle" id="comments-feed-subtitle"></div>
+          </div>
+          <div class="trend-view-switch" id="comments-sort-switch" role="tablist">
+            <button type="button" class="trend-view-btn active" data-sort="recent" role="tab" aria-selected="true">
+              <span class="icon" data-icon="clock"><%- icon('clock') %></span>
+              <span data-i18n="evalReport.feedSort.recent">ล่าสุด</span>
+            </button>
+            <button type="button" class="trend-view-btn" data-sort="lowest" role="tab" aria-selected="false">
+              <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+              <span data-i18n="evalReport.feedSort.lowest">คะแนนต่ำก่อน</span>
+            </button>
+          </div>
+        </div>
+        <div class="feed-list" id="comments-feed"></div>
+        <div class="feed-footer">
+          <button type="button" class="feed-more-btn" id="view-all-comments-btn">
+            <span data-i18n="evalReport.viewAllComments">ดูความคิดเห็นทั้งหมด</span>
+            <span class="feed-more-arrow" aria-hidden="true">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-panel-list" hidden>
+      <div class="card filter-panel">
+        <div class="card-body">
+          <div class="filter-search">
+            <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+            <input type="text" id="eval-search-input" data-i18n-placeholder="evalReport.searchPlaceholder"
+                   placeholder="เลขอ้างอิง, ชื่อผู้ขอ, หรือคำในความคิดเห็น">
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-group">
+              <div class="filter-head"><span class="filter-label" data-i18n="filter.month">เดือน</span></div>
+              <div class="filter-controls">
+                <select id="eval-month-filter" class="toolbar-select"></select>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <div class="filter-head"><span class="filter-label" data-i18n="evalReport.sortFilter">เรียงตาม</span></div>
+              <div class="filter-controls">
+                <select id="eval-sort-filter" class="toolbar-select">
+                  <option value="recent" data-i18n="evalReport.sortFilter.recent">ล่าสุดก่อน</option>
+                  <option value="lowest" data-i18n="evalReport.sortFilter.lowest">คะแนนต่ำไปสูง</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <div class="filter-head"><span class="filter-label" data-i18n="filter.show">แสดง</span></div>
+              <div class="filter-controls">
+                <label class="filter-chip">
+                  <input type="checkbox" id="eval-has-comment-filter">
+                  <span data-i18n="evalReport.hasCommentFilter">เฉพาะที่มีความเห็น</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span id="eval-result-count"></span>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;">
+            <span data-i18n="evalReport.rowsPerPage">แสดงต่อหน้า</span>
+            <select id="eval-page-size-select" style="padding:6px 10px; border:1px solid var(--color-border); border-radius:8px; font-family:var(--font-family); font-size:13px;">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+        </div>
+        <div class="card-body" style="padding:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-i18n="evalReport.th.ref">เลขอ้างอิง / RUN NUMBER</th>
+                <th data-i18n="evalReport.th.requester">ผู้ขอ</th>
+                <th data-i18n="evalReport.th.item">รายการ</th>
+                <th data-i18n="evalReport.th.officer">พนักงานที่รับผิดชอบ</th>
+                <th data-i18n="evalReport.th.overall">คะแนนโดยรวม</th>
+                <th data-i18n="evalReport.th.comment">ความคิดเห็น</th>
+                <th data-i18n="evalReport.th.submitted">วันที่ประเมิน</th>
+              </tr>
+            </thead>
+            <tbody id="eval-body"></tbody>
+          </table>
+        </div>
+        <div class="card-body" style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--color-border);">
+          <span id="eval-page-info" style="font-size:13px; color:var(--color-muted);"></span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" id="eval-prev-page-btn" data-i18n="evalReport.prevPage">‹ ก่อนหน้า</button>
+            <button class="btn btn-secondary" id="eval-next-page-btn" data-i18n="evalReport.nextPage">ถัดไป ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  // Same server-side aggregation/pagination philosophy as dashboard.ejs and
+  // history.ejs — the browser only ever handles a KPI summary object or one
+  // page's worth of feedback rows, never every evaluation row at once.
+  const RATING_DIMENSIONS = [
+    { field: "ratingStaffService", labelKey: "evaluate.q.staffService", icon: "user-check" },
+    { field: "ratingSystemEase", labelKey: "evaluate.q.systemEase", icon: "clipboard" },
+    { field: "ratingSpeed", labelKey: "evaluate.q.speed", icon: "clock" },
+    { field: "ratingPrintQuality", labelKey: "evaluate.q.printQuality", icon: "printer" },
+    { field: "ratingOverall", labelKey: "evaluate.q.overall", icon: "star" }
+  ];
+
+  // Green/amber/red tiers on the score bar give an at-a-glance read on which
+  // dimensions need attention, without requiring the officer to compare raw
+  // numbers across five cards.
+  function scoreTier(value) {
+    if (value >= 4) return "score-tier-good";
+    if (value >= 3) return "score-tier-mid";
+    return "score-tier-low";
+  }
+
+  const yearFilter = document.getElementById("eval-year-filter");
+  const monthFilter = document.getElementById("eval-month-filter");
+  const sortFilter = document.getElementById("eval-sort-filter");
+  const searchInput = document.getElementById("eval-search-input");
+  const hasCommentFilter = document.getElementById("eval-has-comment-filter");
+  const pageSizeSelect = document.getElementById("eval-page-size-select");
+  const prevPageBtn = document.getElementById("eval-prev-page-btn");
+  const nextPageBtn = document.getElementById("eval-next-page-btn");
+
+  let summary = null;
+  let commentsFeedRecords = [];
+  let currentPage = 1;
+  let requestSeq = 0; // guards against an older, slower fetch overwriting a newer one's result
+
+  function debounce(fn, delay) {
+    let timer;
+    return function () {
+      const args = arguments;
+      const self = this;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(self, args); }, delay);
+    };
+  }
+
+  function formatNumber(n) {
+    return n.toLocaleString(getLang() === "en" ? "en-US" : "th-TH");
+  }
+
+  function renderYearFilterOptions() {
+    const lang = getLang();
+    const previous = yearFilter.value;
+    yearFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("evalReport.yearFilter.all");
+    yearFilter.appendChild(allOpt);
+
+    (summary.availableYears || []).forEach(function (year) {
+      const opt = document.createElement("option");
+      opt.value = String(year);
+      opt.textContent = lang === "en" ? String(year) : String(year + 543);
+      yearFilter.appendChild(opt);
+    });
+
+    yearFilter.value = previous;
+  }
+
+  function renderMonthFilterOptions() {
+    const lang = getLang();
+    const previous = monthFilter.value;
+    monthFilter.innerHTML = "";
+
+    const allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = t("evalReport.monthFilter.all");
+    monthFilter.appendChild(allOpt);
+
+    const months = lang === "en" ? ENG_MONTHS : THAI_MONTHS;
+    months.forEach(function (label, index) {
+      const opt = document.createElement("option");
+      opt.value = String(index);
+      opt.textContent = label;
+      monthFilter.appendChild(opt);
+    });
+
+    monthFilter.value = previous;
+  }
+
+  function renderKpis() {
+    document.getElementById("kpi-total-evaluated").textContent = formatNumber(summary.totalEvaluated);
+    document.getElementById("kpi-total-completed").textContent = formatNumber(summary.totalCompleted);
+    document.getElementById("kpi-total-with-comments").textContent = formatNumber(summary.totalWithComments);
+  }
+
+  function renderScoresGrid() {
+    const container = document.getElementById("scores-grid");
+
+    if (summary.totalEvaluated === 0) {
+      container.innerHTML = '<div class="empty-state">' + t("evalReport.noData") + '</div>';
+      return;
+    }
+
+    container.innerHTML = RATING_DIMENSIONS.map(function (dim) {
+      const value = summary.averages[dim.field];
+      const label = t(dim.labelKey).replace(" *", "");
+      const pct = Math.round((value / 5) * 100);
+      return '<div class="card stat-tile ' + scoreTier(value) + '">' +
+        '<div class="card-body">' +
+        '<div class="score-card-header"><span class="icon" data-icon="' + dim.icon + '"></span><span class="stat-label" style="margin-bottom:0;">' + label + '</span></div>' +
+        '<div class="stat-value">' + value.toFixed(1) + ' / 5.0</div>' +
+        '<div class="score-card-bar-track"><div class="score-card-bar-fill" style="width:' + pct + '%"></div></div>' +
+        '</div></div>';
+    }).join("");
+
+    applyIcons();
+  }
+
+  async function fetchSummary() {
+    const params = new URLSearchParams();
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    const res = await fetch("/api/evaluations-summary?" + params.toString());
+    summary = await res.json();
+  }
+
+  // "Latest comments" feed: the 10 newest evaluations that have a comment,
+  // with a switch to the 10 lowest-rated instead when hunting for problems.
+  const COMMENTS_FEED_SIZE = 10;
+  let commentsFeedSort = "recent";
+
+  async function loadCommentsFeed() {
+    const params = new URLSearchParams();
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    params.set("hasComment", "1");
+    if (commentsFeedSort === "lowest") params.set("sort", "lowest");
+    params.set("page", "1");
+    params.set("pageSize", String(COMMENTS_FEED_SIZE));
+    const res = await fetch("/api/evaluations?" + params.toString());
+    const data = await res.json();
+    commentsFeedRecords = data.records;
+    renderCommentsFeed(commentsFeedRecords);
+  }
+
+  function relativeDay(date) {
+    const lang = getLang();
+    const startOf = function (d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); };
+    const days = Math.round((startOf(new Date()) - startOf(date)) / 86400000);
+    if (days <= 0) return t("evalReport.feed.today");
+    if (days === 1) return t("evalReport.feed.yesterday");
+    if (days < 30) return t("evalReport.feed.daysAgo").replace("{n}", days);
+    return lang === "en" ? formatDateEn(date) : formatDateThai(date);
+  }
+
+  function initialOf(name) {
+    const trimmed = String(name || "").replace(/^(นาย|นางสาว|นาง|ดร\.|ผศ\.|รศ\.|ศ\.|อ\.)\s*/, "").trim();
+    return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
+  }
+
+  function renderCommentsFeed(records) {
+    const lang = getLang();
+    const container = document.getElementById("comments-feed");
+    document.getElementById("comments-feed-subtitle").textContent =
+      t(commentsFeedSort === "lowest" ? "evalReport.feed.subtitleLowest" : "evalReport.feed.subtitleRecent").replace("{n}", COMMENTS_FEED_SIZE);
+
+    if (records.length === 0) {
+      container.innerHTML = '<div class="empty-state">' + t("evalReport.commentsFeedEmpty") + '</div>';
+      return;
+    }
+
+    container.innerHTML = records.map(function (r) {
+      const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
+      const submitted = new Date(r.submittedAt);
+      // Only the sub-scores that were rated low (1-3) — the ones that explain
+      // the comment. A clean 4-5 across the board shows no chips at all.
+      const lowDims = RATING_DIMENSIONS.filter(function (dim) {
+        return dim.field !== "ratingOverall" && r[dim.field] <= 3;
+      }).map(function (dim) {
+        return '<span class="feed-dim ' + scoreTier(r[dim.field]) + '">' + escapeHtml(t(dim.labelKey).replace(" *", "")) +
+          ' <strong>' + r[dim.field] + '/5</strong></span>';
+      }).join("");
+
+      return '<article class="feed-item">' +
+        '<div class="feed-avatar" aria-hidden="true">' + escapeHtml(initialOf(r.requesterName)) + '</div>' +
+        '<div class="feed-main">' +
+          '<div class="feed-meta">' +
+            '<span class="feed-name">' + escapeHtml(r.requesterName) + '</span>' +
+            '<span class="feed-when" title="' + escapeHtml(formatDateTime(submitted, lang)) + '">' +
+              '<span class="icon">' + ICONS.clock + '</span>' + escapeHtml(relativeDay(submitted)) +
+            '</span>' +
+          '</div>' +
+          '<p class="feed-text">' + escapeHtml(r.comment) + '</p>' +
+          '<div class="feed-foot">' +
+            '<span class="feed-ref">' + escapeHtml(idLabel) + '</span>' +
+            lowDims +
+          '</div>' +
+        '</div>' +
+        '<div class="feed-score ' + scoreTier(r.ratingOverall) + '" title="' + escapeHtml(t("evaluate.q.overall")) + '">' +
+          '<span class="feed-score-star">★</span>' +
+          '<span class="feed-score-num">' + r.ratingOverall + '</span>' +
+          '<span class="feed-score-max">/5</span>' +
+        '</div>' +
+      '</article>';
+    }).join("");
+  }
+
+  document.getElementById("comments-sort-switch").addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-sort]");
+    if (!btn || btn.getAttribute("data-sort") === commentsFeedSort) return;
+    commentsFeedSort = btn.getAttribute("data-sort");
+    this.querySelectorAll("[data-sort]").forEach(function (b) {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    loadCommentsFeed();
+  });
+
+  async function reloadSummary() {
+    await fetchSummary();
+    renderYearFilterOptions();
+    renderKpis();
+    renderScoresGrid();
+    await loadCommentsFeed();
+  }
+
+  async function renderTable() {
+    const lang = getLang();
+    const pageSize = Number(pageSizeSelect.value);
+
+    const params = new URLSearchParams();
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+    if (hasCommentFilter.checked) params.set("hasComment", "1");
+    if (sortFilter.value === "lowest") params.set("sort", "lowest");
+    params.set("page", currentPage);
+    params.set("pageSize", pageSize);
+
+    const seq = ++requestSeq;
+    const res = await fetch("/api/evaluations?" + params.toString());
+    const data = await res.json();
+    if (seq !== requestSeq) return; // a newer request has already landed
+
+    const total = data.total;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) { currentPage = totalPages; return renderTable(); }
+
+    const startIdx = (currentPage - 1) * pageSize;
+    const from = total === 0 ? 0 : startIdx + 1;
+    const to = Math.min(startIdx + pageSize, total);
+
+    document.getElementById("eval-result-count").textContent = t("evalReport.resultCount")
+      .replace("{from}", from).replace("{to}", to).replace("{total}", total);
+    document.getElementById("eval-page-info").textContent = t("evalReport.pageInfo")
+      .replace("{page}", currentPage).replace("{pages}", totalPages);
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+
+    const tbody = document.getElementById("eval-body");
+
+    if (data.records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + t("evalReport.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.records.map(function (r) {
+      const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
+      const breakdown = RATING_DIMENSIONS.map(function (dim) {
+        return t(dim.labelKey).replace(" *", "") + ": " + r[dim.field];
+      }).join("\n");
+      // Requester-typed text — escaped before it goes into innerHTML.
+      const comment = r.comment ? escapeHtml(r.comment) : ('<span class="hint">' + t("evalReport.noComment") + '</span>');
+      const officerLabel = escapeHtml(r.officerName || "—");
+
+      return '<tr>' +
+        '<td>' + escapeHtml(idLabel) + '</td>' +
+        '<td>' + escapeHtml(r.requesterName) + '</td>' +
+        '<td>' + escapeHtml(r.itemList) + '</td>' +
+        '<td>' + officerLabel + '</td>' +
+        '<td title="' + escapeHtml(breakdown) + '">' + r.ratingOverall + ' / 5</td>' +
+        '<td>' + comment + '</td>' +
+        '<td>' + formatDateTime(new Date(r.submittedAt), lang) + '</td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  function onFilterChange() {
+    currentPage = 1;
+    renderTable();
+  }
+
+  async function onYearChange() {
+    currentPage = 1;
+    await reloadSummary();
+    renderTable();
+  }
+
+  const onSearchInput = debounce(onFilterChange, 300);
+
+  // Summary sheet follows the year filter; the list sheet follows the
+  // search / month / sort / comment filters on the list tab.
+  document.getElementById("eval-export-btn").addEventListener("click", function () {
+    const params = new URLSearchParams();
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+    if (hasCommentFilter.checked) params.set("hasComment", "1");
+    if (sortFilter.value === "lowest") params.set("sort", "lowest");
+    downloadReport("/api/reports/evaluations.xlsx?" + params.toString(), this);
+  });
+
+  yearFilter.addEventListener("change", onYearChange);
+  monthFilter.addEventListener("change", onFilterChange);
+  sortFilter.addEventListener("change", onFilterChange);
+  searchInput.addEventListener("input", onSearchInput);
+  hasCommentFilter.addEventListener("change", onFilterChange);
+  pageSizeSelect.addEventListener("change", onFilterChange);
+
+  prevPageBtn.addEventListener("click", function () {
+    currentPage -= 1;
+    renderTable();
+  });
+  nextPageBtn.addEventListener("click", function () {
+    currentPage += 1;
+    renderTable();
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    renderYearFilterOptions();
+    renderMonthFilterOptions();
+    renderKpis();
+    renderScoresGrid();
+    renderCommentsFeed(commentsFeedRecords);
+    renderTable();
+    positionTabThumb(true); // label width changes with language, snap without a slide
+  });
+
+  // Both tabs' data load up front regardless of which is visible — each
+  // fetch is already small (a summary object, or one page of feedback rows)
+  // so there's no real cost to having it ready before the officer switches.
+  const tabButtons = document.querySelectorAll(".tab-btn");
+  const tabThumb = document.getElementById("tab-nav-thumb");
+  const tabPanels = {
+    overview: document.getElementById("tab-panel-overview"),
+    list: document.getElementById("tab-panel-list")
+  };
+
+  // Slides/resizes the thumb to sit behind whichever button is active — the
+  // two labels are different lengths, so this reads real layout (offsetLeft/
+  // offsetWidth) each time rather than assuming a fixed thumb width.
+  function positionTabThumb(skipAnimation) {
+    const activeBtn = document.querySelector(".tab-btn.active");
+    if (!activeBtn) return;
+    if (skipAnimation) tabThumb.style.transition = "none";
+    tabThumb.style.left = activeBtn.offsetLeft + "px";
+    tabThumb.style.width = activeBtn.offsetWidth + "px";
+    if (skipAnimation) {
+      void tabThumb.offsetWidth; // force reflow before restoring the transition
+      tabThumb.style.transition = "";
+    }
+  }
+
+  function activateTab(name, skipAnimation) {
+    if (!tabPanels[name]) name = "overview";
+    tabButtons.forEach(function (btn) {
+      btn.classList.toggle("active", btn.getAttribute("data-tab") === name);
+    });
+    Object.keys(tabPanels).forEach(function (key) {
+      tabPanels[key].hidden = key !== name;
+    });
+    positionTabThumb(skipAnimation);
+    history.replaceState(null, "", "#" + name);
+  }
+
+  tabButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      activateTab(btn.getAttribute("data-tab"));
+    });
+  });
+
+  activateTab(window.location.hash.replace("#", "") || "overview", true);
+
+  document.getElementById("view-all-comments-btn").addEventListener("click", function () {
+    hasCommentFilter.checked = true;
+    sortFilter.value = commentsFeedSort; // carry the feed's current order over
+    activateTab("list");
+    onFilterChange();
+  });
+
+  renderMonthFilterOptions();
+  reloadSummary().then(renderTable);
+</script>
+</body>
+</html>

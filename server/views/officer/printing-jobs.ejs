@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — งานที่กำลังปริ้น" }) %>
+<%- include("../partials/head", { title: "งานที่อยู่ระหว่างพิมพ์ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.printingJobs", crumbFallback: 'งานที่กำลังปริ้น / <strong>ภาพรวม</strong>' }) %>
 
@@ -34,9 +34,146 @@
     return res.json();
   }
 
+  // Places an Officer can name as the pickup point (src/locations.js).
+  async function loadPickupOptions() {
+    const res = await fetch("/api/locations/pickup");
+    return res.ok ? res.json() : [];
+  }
+
+  // Next 14 business days that still have a slot for the given hour window
+  // (decimal hours, e.g. { start: 9, end: 16.5 } — see hourWindowOf in
+  // app.js); today only from now on. Pulled out of buildReadyFields so it
+  // can be re-run whenever the selected pickup place changes, since
+  // different places can have different hours.
+  function computeSlotDays(hourStart, hourEnd) {
+    const now = new Date();
+    const startMinutes = Math.round(hourStart * 60);
+    const endMinutes = Math.round(hourEnd * 60);
+    const slotMinutes = [];
+    for (let m = startMinutes; m < endMinutes; m += 30) slotMinutes.push(m);
+
+    const days = [];
+    for (let offset = 0; offset < 30 && days.length < 14; offset++) {
+      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+      if (!isBusinessDay(day)) continue;
+      const isToday = offset === 0;
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const open = !isToday || nowMinutes < endMinutes;
+      const times = slotMinutes.filter(function (m) { return !isToday || m > nowMinutes; });
+      if (!open || (times.length === 0 && !(isToday && nowMinutes >= startMinutes))) continue;
+      days.push({ date: day, isToday: isToday, times: times, canNow: isToday && nowMinutes >= startMinutes });
+    }
+    return days;
+  }
+
+  // Body of the "mark ready" confirmation: which pickup place, and from when
+  // the Requester may collect. Times are limited to business days inside
+  // that place's real hours (hourWindowOf in app.js — the server re-checks
+  // the same window against the same place); falls back to the site-wide
+  // BUSINESS_HOUR_START/END for a place with no structured hours. The date/
+  // time lists regenerate whenever the place dropdown changes. Returns the
+  // getter showConfirmModal calls on confirm.
+  function buildReadyFields(container, pickupOptions, defaultPickup, lang) {
+    function fieldWith(labelText, control) {
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const label = document.createElement("label");
+      label.textContent = labelText;
+      wrap.appendChild(label);
+      wrap.appendChild(control);
+      container.appendChild(wrap);
+      return wrap;
+    }
+
+    let placeSelect = null;
+    if (pickupOptions.length > 0) {
+      placeSelect = document.createElement("select");
+      pickupOptions.forEach(function (p) {
+        const opt = document.createElement("option");
+        opt.value = String(p.id);
+        opt.textContent = formatLocation(p, lang);
+        placeSelect.appendChild(opt);
+      });
+      if (defaultPickup) placeSelect.value = String(defaultPickup.id);
+      fieldWith(t("printingJobs.pickupLabel"), placeSelect);
+    }
+
+    const dateSelect = document.createElement("select");
+    const timeSelect = document.createElement("select");
+    const hint = document.createElement("span");
+    hint.className = "hint";
+    let days = [];
+
+    function fillTimes() {
+      const d = days[Number(dateSelect.value)];
+      timeSelect.innerHTML = "";
+      if (!d) return;
+      if (d.canNow) {
+        const nowOpt = document.createElement("option");
+        nowOpt.value = "now";
+        nowOpt.textContent = t("printingJobs.availableNow");
+        timeSelect.appendChild(nowOpt);
+      }
+      d.times.forEach(function (m) {
+        const hh = String(Math.floor(m / 60)).padStart(2, "0");
+        const mm = String(m % 60).padStart(2, "0");
+        const opt = document.createElement("option");
+        opt.value = String(m);
+        opt.textContent = hh + ":" + mm + (lang === "en" ? "" : " น.");
+        timeSelect.appendChild(opt);
+      });
+    }
+
+    function fillDays() {
+      const selectedPlace = placeSelect ? pickupOptions.find(function (p) { return String(p.id) === placeSelect.value; }) : null;
+      const window = hourWindowOf(selectedPlace);
+      days = computeSlotDays(window ? window.start : BUSINESS_HOUR_START, window ? window.end : BUSINESS_HOUR_END);
+
+      dateSelect.innerHTML = "";
+      days.forEach(function (d, i) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = formatDate(d.date, lang) + (d.isToday ? " (" + t("printingJobs.availableToday") + ")" : "");
+        dateSelect.appendChild(opt);
+      });
+      fillTimes();
+
+      // The hint states the actual window being offered above, so it can
+      // never drift from what the date/time lists just showed — same
+      // hours, same source (this place's own hourWindowOf, or the
+      // site-wide default when it has none).
+      const hoursText = formatClockHour(window ? window.start : BUSINESS_HOUR_START) + "–" + formatClockHour(window ? window.end : BUSINESS_HOUR_END);
+      hint.textContent = t("printingJobs.availableHint").replace("{hours}", hoursText);
+    }
+
+    dateSelect.addEventListener("change", fillTimes);
+    if (placeSelect) placeSelect.addEventListener("change", fillDays);
+    fillDays();
+
+    const row = document.createElement("div");
+    row.className = "ready-when";
+    row.appendChild(dateSelect);
+    row.appendChild(timeSelect);
+    const whenField = fieldWith(t("printingJobs.availableFromLabel"), row);
+    whenField.appendChild(hint);
+
+    return function getValue() {
+      let availableFrom; // undefined = as soon as possible (server decides)
+      const d = days[Number(dateSelect.value)];
+      if (d && timeSelect.value && timeSelect.value !== "now") {
+        const m = Number(timeSelect.value);
+        availableFrom = new Date(d.date.getFullYear(), d.date.getMonth(), d.date.getDate(), Math.floor(m / 60), m % 60).toISOString();
+      }
+      return { pickupLocationId: placeSelect ? placeSelect.value : undefined, pickupAvailableFrom: availableFrom };
+    };
+  }
+
   async function renderPrintingJobs() {
     const lang = getLang();
-    const records = await loadRequests();
+    // Soonest confirmed pickup date first, so Officers prioritize printing
+    // jobs by how urgently they're due rather than by intake order.
+    const records = (await loadRequests())
+      .sort(function (a, b) { return new Date(a.completionDateConfirmed) - new Date(b.completionDateConfirmed); });
 
     const tbody = document.getElementById("printing-body");
 
@@ -68,15 +205,20 @@
       tr.title = t("printingJobs.clickForDetail");
       tr.addEventListener("click", function (e) {
         if (e.target.closest("button")) return;
-        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref"));
+        window.location.href = "/officer/request-detail?ref=" + encodeURIComponent(this.getAttribute("data-ref")) + "&from=printing";
       });
     });
 
     tbody.querySelectorAll("button[data-ref]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
+      btn.addEventListener("click", async function () {
         const ref = this.getAttribute("data-ref");
         const record = records.find(function (r) { return r.referenceNo === ref; });
         if (!record) return;
+
+        // Fetched at click time (not with the page) so a place the admin
+        // just added or archived is reflected immediately.
+        const pickupOptions = await loadPickupOptions();
+        const defaultPickup = pickupOptions.find(function (p) { return p.isDefault; }) || pickupOptions[0];
 
         const total = Number(record.originalPages) * Number(record.copies);
         const message = t("printingJobs.confirmReady.message")
@@ -91,9 +233,30 @@
           title: t("printingJobs.confirmReady.title"),
           message: message,
           confirmText: t("printingJobs.confirmReady.confirmBtn"),
-          onConfirm: async function () {
-            await fetch("/api/requests/" + encodeURIComponent(ref) + "/ready", { method: "POST" });
-            renderPrintingJobs();
+          build: function (container) { return buildReadyFields(container, pickupOptions, defaultPickup, lang); },
+          onConfirm: async function (chosen) {
+            showProcessing();
+            try {
+              const res = await fetch("/api/requests/" + encodeURIComponent(ref) + "/ready", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(chosen || {})
+              });
+              if (!res.ok) {
+                showResultModal({
+                  success: false,
+                  title: t("printingJobs.readyErrorTitle"),
+                  message: t("printingJobs.readyError")
+                });
+              } else {
+                showActionResult(true, t("printingJobs.readySuccess").replace("{ref}", ref));
+              }
+              renderPrintingJobs();
+            } catch (err) {
+              showActionResult(false, t("result.network"));
+            } finally {
+              hideProcessing();
+            }
           }
         });
       });

@@ -1,0 +1,461 @@
+<%- include("../partials/head", { title: "สำรองและกู้คืนข้อมูล | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminBackup", crumbFallback: "สำรองและกู้คืนข้อมูล / <strong>ภาพรวม</strong>" }) %>
+
+<%
+  const TABLE_KEYS = ["Request", "Evaluation", "Profile", "Officer", "AgencyCategory", "AgencyUnit", "Location", "Notification", "AuditLog", "Counter", "SystemSetting"];
+  // The few tables worth a glance in the "current data" banner; the full
+  // per-table breakdown is in the confirm dialog when a file is used.
+  const HEADLINE_KEYS = ["Request", "Profile", "Officer", "Location"];
+  const totalRecords = TABLE_KEYS.reduce(function (s, k) { return s + Number(counts[k] || 0); }, 0);
+  const fmtNum = function (n) { return Number(n || 0).toLocaleString("en-US"); };
+%>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="backup.title">สำรองและกู้คืนข้อมูล</h1>
+    <p class="page-subtitle" data-i18n="backup.subtitle">เก็บข้อมูลทั้งหมดในระบบเป็นไฟล์ และเลือกไฟล์ที่ต้องการนำกลับมาใช้ได้ทุกเมื่อ</p>
+
+    <!-- ---------------- Current data ---------------- -->
+    <section class="bk-hero bk-current">
+      <div class="bk-hero-main">
+        <span class="bk-hero-icon icon"><%- icon('archive') %></span>
+        <div class="bk-current-text">
+          <div class="bk-hero-label" data-i18n="backup.current.title">ข้อมูลในระบบตอนนี้</div>
+          <div class="bk-current-source" id="bk-current-source"></div>
+          <div class="bk-hero-sub" id="bk-current-since"></div>
+        </div>
+      </div>
+      <div class="bk-current-side">
+        <div class="bk-current-counts">
+          <div class="bk-count">
+            <span class="bk-count-value"><%= fmtNum(totalRecords) %></span>
+            <span class="bk-count-label" data-i18n="backup.current.total">รายการทั้งหมด</span>
+          </div>
+          <% HEADLINE_KEYS.forEach(function (k) { %>
+          <div class="bk-count">
+            <span class="bk-count-value"><%= fmtNum(counts[k]) %></span>
+            <span class="bk-count-label" data-i18n="backup.table.<%= k %>"><%= k %></span>
+          </div>
+          <% }) %>
+        </div>
+        <div class="bk-current-actions">
+          <button type="button" class="bk-hero-btn" id="bk-snapshot-btn">
+            <span class="icon" data-icon="download"><%- icon('download') %></span>
+            <span data-i18n="backup.current.saveBtn">บันทึกเป็นไฟล์ใหม่</span>
+          </button>
+          <button type="button" class="bk-hero-btn is-danger" id="bk-clear-btn">
+            <span class="icon" data-icon="x-circle"><%- icon('x-circle') %></span>
+            <span data-i18n="backup.current.clearBtn">ล้างข้อมูลทั้งหมด</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- Files ---------------- -->
+    <section class="card bk-card bk-library" id="bk-library">
+      <header class="bk-lib-head">
+        <div>
+          <h2 class="bk-card-title" data-i18n="backup.files.title">ไฟล์สำรองข้อมูล</h2>
+          <p class="bk-card-desc" data-i18n="backup.files.desc">กด “ใช้ไฟล์นี้” เพื่อแทนที่ข้อมูลทั้งหมดในระบบด้วยข้อมูลในไฟล์ ก่อนทุกครั้งระบบจะสำรองข้อมูลปัจจุบันเก็บไว้ในรายการนี้ให้อัตโนมัติ จึงย้อนกลับได้เสมอ</p>
+        </div>
+        <label class="btn btn-primary bk-upload-btn">
+          <input type="file" id="bk-file-input" accept=".gz,application/gzip" hidden>
+          <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+          <span data-i18n="backup.files.uploadBtn">อัปโหลดไฟล์</span>
+        </label>
+      </header>
+
+      <div class="notice notice-error bk-lib-error" id="bk-error" hidden>
+        <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+        <div id="bk-error-text"></div>
+      </div>
+
+      <div class="bk-drop-hint" id="bk-drop-hint" hidden>
+        <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+        <span data-i18n="backup.files.dropHint">วางไฟล์ที่นี่เพื่ออัปโหลด</span>
+      </div>
+
+      <div class="bk-file-list" id="bk-file-list"></div>
+      <p class="bk-lib-foot" id="bk-lib-foot"></p>
+    </section>
+
+    <!-- ---------------- History ---------------- -->
+    <section class="card bk-card bk-log">
+      <header class="bk-log-head">
+        <h2 class="bk-card-title" data-i18n="backup.history.title">ประวัติ</h2>
+        <p class="bk-log-hint" data-i18n="backup.history.hint">การสำรอง อัปโหลด ใช้ไฟล์ ล้าง และลบไฟล์ทั้งหมด เรียงจากล่าสุด</p>
+      </header>
+      <div class="bk-log-panel">
+        <% if (history.length === 0) { %>
+        <div class="bk-empty">
+          <span class="icon"><%- icon('clock') %></span>
+          <span data-i18n="backup.history.empty">ยังไม่มีประวัติ</span>
+        </div>
+        <% } else { %>
+        <div class="bk-scroll">
+          <ol class="bk-timeline" id="bk-timeline"></ol>
+          <div class="bk-more" id="bk-more-wrap" <% if (historyTotal <= history.length) { %>hidden<% } %>>
+            <button type="button" class="bk-more-btn" id="bk-more-btn">
+              <span data-i18n="backup.history.more">แสดงเพิ่ม</span>
+              <span class="bk-more-count" id="bk-more-count"></span>
+            </button>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </section>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const TABLE_KEYS = <%- JSON.stringify(TABLE_KEYS) %>;
+  const CURRENT_COUNTS = <%- JSON.stringify(counts) %>;
+  const LIBRARY = <%- JSON.stringify(library) %>;
+  const MAX_AUTO = <%- JSON.stringify(maxAutoBackups) %>;
+  const CLEAR_PHRASE = <%- JSON.stringify(clearPhrase) %>;
+  const fileList = document.getElementById("bk-file-list");
+  const errorBox = document.getElementById("bk-error");
+
+  function fmt(n) { return Number(n || 0).toLocaleString(getLang() === "en" ? "en-US" : "th-TH"); }
+  function fmtBytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+  function fmtWhen(iso) { return iso ? formatDateTime(new Date(iso), getLang()) : "—"; }
+  function fileById(id) { return LIBRARY.files.find(function (f) { return f.id === id; }) || null; }
+  function isActive(f) { return !!(LIBRARY.active && LIBRARY.active.id === f.id); }
+
+  // Human name for a file: an upload keeps its own file name; the others
+  // are described by what they are and when their data is from.
+  function fileLabel(f) {
+    if (f.label) return f.label;
+    if (f.kind === "auto") {
+      if (f.reason === "beforeClear") return t("backup.kind.autoBeforeClear");
+      const related = f.relatedId ? fileById(f.relatedId) : null;
+      const relatedName = related ? fileLabel(related) : f.relatedLabel;
+      return relatedName ? t("backup.kind.autoBeforeApply").replace("{name}", relatedName) : t("backup.kind.autoBeforeRestore");
+    }
+    return t("backup.kind.snapshot").replace("{date}", fmtWhen(f.meta.createdAt));
+  }
+
+  function showError(code, detail) {
+    let text = t("backup.error." + code);
+    if (text === "backup.error." + code) text = t("backup.error.generic");
+    document.getElementById("bk-error-text").textContent = text;
+    errorBox.hidden = false;
+    showActionResult(false, text);
+  }
+
+  // Every successful change reloads the page (counts, list and history are
+  // all stale) and says what happened at the top.
+  function reloadWith(flash, id) {
+    const q = new URLSearchParams({ done: flash });
+    if (id) q.set("id", id);
+    window.location.href = "/admin/backup?" + q.toString();
+  }
+
+  async function postJSON(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(function () { return {}; });
+    return { ok: res.ok && data.ok, data: data };
+  }
+
+  /* ---------------- Current data banner ---------------- */
+  function renderCurrent() {
+    const sourceEl = document.getElementById("bk-current-source");
+    const sinceEl = document.getElementById("bk-current-since");
+    const a = LIBRARY.active;
+    if (a && a.cleared) {
+      sourceEl.textContent = t("backup.current.cleared");
+      sinceEl.textContent = t("backup.current.clearedAt").replace("{date}", fmtWhen(a.at));
+    } else if (a && a.id) {
+      const f = fileById(a.id);
+      sourceEl.textContent = t("backup.current.fromFile").replace("{name}", f ? fileLabel(f) : a.label);
+      sinceEl.textContent = t(f ? "backup.current.loadedAt" : "backup.current.loadedAtDeleted").replace("{date}", fmtWhen(a.at));
+    } else {
+      sourceEl.textContent = t("backup.current.live");
+      sinceEl.textContent = t("backup.current.liveHint");
+    }
+  }
+
+  /* ---------------- File list ---------------- */
+  const KIND_ICONS = { upload: "file-plus", snapshot: "download", auto: "clock" };
+
+  function renderFiles() {
+    if (!LIBRARY.files.length) {
+      fileList.innerHTML = '<div class="bk-empty"><span class="icon">' + ICONS.archive + '</span><span>' + escapeHtml(t("backup.files.empty")) + '</span></div>';
+    } else {
+      fileList.innerHTML = LIBRARY.files.map(function (f) {
+        const active = isActive(f);
+        const blocked = f.compatibility === "newer";
+        const badges = [];
+        if (active) badges.push('<span class="bk-badge is-active">' + escapeHtml(t("backup.files.activeBadge")) + '</span>');
+        if (f.kind === "auto") badges.push('<span class="bk-badge">' + escapeHtml(t("backup.files.autoBadge")) + '</span>');
+        if (f.compatibility === "older") badges.push('<span class="bk-badge is-info" title="' + escapeHtml(t("backup.files.olderHint")) + '">' + escapeHtml(t("backup.files.olderBadge")) + '</span>');
+        if (blocked) badges.push('<span class="bk-badge is-danger">' + escapeHtml(t("backup.files.newerBadge")) + '</span>');
+        const meta = [
+          t("backup.files.dataAt").replace("{date}", fmtWhen(f.meta.createdAt)),
+          t("backup.files.requests").replace("{n}", fmt((f.meta.counts || {}).Request)),
+          fmtBytes(f.size)
+        ];
+        if (f.addedBy) meta.push(f.addedBy);
+        const useBtn = active ? "" :
+          '<button type="button" class="btn btn-primary btn-sm" data-action="apply" data-id="' + f.id + '"' + (blocked ? ' disabled title="' + escapeHtml(t("backup.error.schemaNewer")) + '"' : "") + '>' + escapeHtml(t("backup.files.useBtn")) + '</button>';
+        return '<div class="bk-file' + (active ? ' is-active' : '') + '" id="file-' + f.id + '">' +
+          '<span class="bk-file-icon icon">' + (ICONS[KIND_ICONS[f.kind]] || ICONS.archive) + '</span>' +
+          '<div class="bk-file-main">' +
+            '<div class="bk-file-title"><span class="bk-file-name">' + escapeHtml(fileLabel(f)) + '</span>' + badges.join("") + '</div>' +
+            '<div class="bk-file-meta">' + meta.map(function (m) { return '<span>' + escapeHtml(m) + '</span>'; }).join("") + '</div>' +
+          '</div>' +
+          '<div class="bk-file-actions">' + useBtn +
+            '<a class="bk-file-link" href="/admin/backup/files/' + f.id + '/download" title="' + escapeHtml(t("backup.files.downloadBtn")) + '" aria-label="' + escapeHtml(t("backup.files.downloadBtn")) + '"><span class="icon">' + ICONS.download + '</span></a>' +
+            '<button type="button" class="bk-file-link is-danger" data-action="delete" data-id="' + f.id + '" title="' + escapeHtml(t("backup.files.deleteBtn")) + '" aria-label="' + escapeHtml(t("backup.files.deleteBtn")) + '"><span class="icon">' + ICONS["x-circle"] + '</span></button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+    }
+    document.getElementById("bk-lib-foot").textContent = t("backup.files.autoKeep").replace("{n}", MAX_AUTO);
+  }
+
+  // Current vs. file, per table — shown inside the "use this file" dialog.
+  function compareTable(fileCounts) {
+    return '<div class="bk-compare-wrap"><table class="bk-compare"><thead><tr>' +
+      '<th>' + escapeHtml(t("backup.compare.table")) + '</th>' +
+      '<th class="num">' + escapeHtml(t("backup.compare.current")) + '</th>' +
+      '<th class="num">' + escapeHtml(t("backup.compare.file")) + '</th></tr></thead><tbody>' +
+      TABLE_KEYS.map(function (k) {
+        const cur = CURRENT_COUNTS[k] || 0;
+        const next = (fileCounts || {})[k] || 0;
+        const diff = next - cur;
+        const diffText = diff === 0 ? "" : '<span class="bk-diff">' + (diff > 0 ? "+" : "−") + fmt(Math.abs(diff)) + '</span>';
+        return '<tr><td>' + escapeHtml(t("backup.table." + k)) + '</td><td class="num">' + fmt(cur) + '</td><td class="num"><strong>' + fmt(next) + '</strong>' + diffText + '</td></tr>';
+      }).join("") +
+      '</tbody></table></div>';
+  }
+
+  function currentSourceName() {
+    const a = LIBRARY.active;
+    if (!a || a.cleared || !a.id) return null;
+    const f = fileById(a.id);
+    return f ? fileLabel(f) : a.label;
+  }
+
+  function confirmApply(f) {
+    const name = fileLabel(f);
+    const source = currentSourceName();
+    const message = (source
+      ? t("backup.apply.messageFrom").replace("{current}", source)
+      : t("backup.apply.message")).replace("{name}", name);
+    showConfirmModal({
+      title: t("backup.apply.title").replace("{name}", name),
+      message: message,
+      confirmText: t("backup.files.useBtn"),
+      danger: true,
+      build: function (extra) {
+        extra.innerHTML = (f.compatibility === "older" ? '<p class="bk-modal-note">' + escapeHtml(t("backup.files.olderHint")) + '</p>' : "") + compareTable(f.meta.counts);
+        return null;
+      },
+      onConfirm: async function () {
+        errorBox.hidden = true;
+        showProcessing(t("backup.apply.processing"));
+        try {
+          const r = await postJSON("/admin/backup/files/" + f.id + "/apply", { confirm: true });
+          if (!r.ok) { hideProcessing(); showError(r.data.error || "generic", r.data.detail); return; }
+          reloadWith("applied", f.id);
+        } catch (e) {
+          hideProcessing();
+          showError("generic");
+        }
+      }
+    });
+  }
+
+  function confirmDelete(f) {
+    const name = fileLabel(f);
+    showConfirmModal({
+      title: t("backup.delete.title").replace("{name}", name),
+      message: t(isActive(f) ? "backup.delete.messageActive" : "backup.delete.message"),
+      confirmText: t("backup.files.deleteBtn"),
+      danger: true,
+      onConfirm: async function () {
+        errorBox.hidden = true;
+        try {
+          const res = await fetch("/admin/backup/files/" + f.id, { method: "DELETE" });
+          if (!res.ok) { showError("generic"); return; }
+          reloadWith("deleted");
+        } catch (e) {
+          showError("generic");
+        }
+      }
+    });
+  }
+
+  fileList.addEventListener("click", function (e) {
+    const btn = e.target.closest("[data-action]");
+    if (!btn || btn.disabled) return;
+    const f = fileById(btn.getAttribute("data-id"));
+    if (!f) return;
+    if (btn.getAttribute("data-action") === "apply") confirmApply(f);
+    else confirmDelete(f);
+  });
+
+  /* ---------------- Save / clear ---------------- */
+  document.getElementById("bk-snapshot-btn").addEventListener("click", async function () {
+    errorBox.hidden = true;
+    showProcessing(t("backup.current.saving"));
+    try {
+      const r = await postJSON("/admin/backup/snapshot", { confirm: true });
+      if (!r.ok) { hideProcessing(); showError(r.data.error || "generic"); return; }
+      reloadWith("saved", r.data.id);
+    } catch (e) {
+      hideProcessing();
+      showError("generic");
+    }
+  });
+
+  document.getElementById("bk-clear-btn").addEventListener("click", function () {
+    showConfirmModal({
+      title: t("backup.clear.title"),
+      message: t("backup.clear.message"),
+      confirmText: t("backup.current.clearBtn"),
+      danger: true,
+      build: function (extra) {
+        extra.innerHTML =
+          '<label class="bk-confirm-label" for="bk-clear-input"><span>' + escapeHtml(t("backup.confirm.label")) +
+          ' <strong class="bk-confirm-phrase">' + escapeHtml(CLEAR_PHRASE) + '</strong> ' + escapeHtml(t("backup.confirm.label2")) + '</span></label>' +
+          '<input type="text" id="bk-clear-input" class="bk-confirm-input" autocomplete="off" spellcheck="false">';
+        setTimeout(function () { document.getElementById("bk-clear-input").focus(); }, 50);
+        return function () { return document.getElementById("bk-clear-input").value.trim(); };
+      },
+      onConfirm: async function (typed) {
+        errorBox.hidden = true;
+        if (typed !== CLEAR_PHRASE) { showError("confirmPhrase"); return; }
+        showProcessing(t("backup.clear.processing"));
+        try {
+          const r = await postJSON("/admin/backup/clear", { confirm: typed });
+          if (!r.ok) { hideProcessing(); showError(r.data.error || "generic"); return; }
+          reloadWith("cleared");
+        } catch (e) {
+          hideProcessing();
+          showError("generic");
+        }
+      }
+    });
+  });
+
+  /* ---------------- Upload (button or drag & drop onto the list) ---------------- */
+  async function uploadFile(file) {
+    if (!file) return;
+    errorBox.hidden = true;
+    showProcessing(t("backup.files.uploading"));
+    try {
+      const res = await fetch("/admin/backup/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) },
+        body: file
+      });
+      const data = await res.json().catch(function () { return {}; });
+      if (!res.ok || !data.ok) { hideProcessing(); showError(data.error || (res.status === 413 ? "tooLarge" : "generic"), data.detail); return; }
+      reloadWith("uploaded", data.id);
+    } catch (e) {
+      hideProcessing();
+      showError("generic");
+    }
+  }
+
+  const fileInput = document.getElementById("bk-file-input");
+  fileInput.addEventListener("change", function () { uploadFile(fileInput.files[0]); fileInput.value = ""; });
+
+  const library = document.getElementById("bk-library");
+  const dropHint = document.getElementById("bk-drop-hint");
+  let dragDepth = 0;
+  library.addEventListener("dragenter", function (e) { e.preventDefault(); dragDepth++; dropHint.hidden = false; library.classList.add("is-drag"); });
+  library.addEventListener("dragover", function (e) { e.preventDefault(); });
+  library.addEventListener("dragleave", function () {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) { dropHint.hidden = true; library.classList.remove("is-drag"); }
+  });
+  library.addEventListener("drop", function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    dropHint.hidden = true;
+    library.classList.remove("is-drag");
+    const file = e.dataTransfer && e.dataTransfer.files[0];
+    if (file) uploadFile(file);
+  });
+
+  /* ---------------- Result of the last action (?done=...) ---------------- */
+  function handleFlash() {
+    const q = new URLSearchParams(window.location.search);
+    const done = q.get("done");
+    if (!done) return;
+    const f = q.get("id") ? fileById(q.get("id")) : null;
+    history.replaceState(null, "", "/admin/backup");
+    if (f) {
+      const row = document.getElementById("file-" + f.id);
+      if (row) { row.classList.add("is-new"); row.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    }
+    // Just uploaded: after the result popup, offer to use it straight away
+    // (Cancel keeps it in the list).
+    const offerUse = done === "uploaded" && f && f.compatibility !== "newer";
+    showActionResult(true, t("backup.flash." + done).replace("{name}", f ? fileLabel(f) : ""), {
+      onClose: offerUse ? function () { confirmApply(f); } : null
+    });
+  }
+
+  /* ---------------- History ---------------- */
+  const HISTORY_ICONS = {
+    backupExport: "download", backupSnapshot: "download", backupUpload: "file-plus",
+    backupRestore: "archive", backupRollback: "archive", backupClear: "x-circle", backupDelete: "x-circle"
+  };
+  let historyItems = <%- JSON.stringify(history.map(function (h) { return { action: h.action, entityLabel: h.entityLabel, actorEmail: h.actorEmail, createdAt: h.createdAt.toISOString() }; })) %>;
+  let historyTotal = <%- JSON.stringify(historyTotal) %>;
+
+  function renderHistory() {
+    const list = document.getElementById("bk-timeline");
+    if (!list) return;
+    list.innerHTML = historyItems.map(function (h) {
+      const tone = h.action === "backupClear" || h.action === "backupDelete" ? " is-danger" : (h.action === "backupRestore" || h.action === "backupRollback") ? " is-restore" : "";
+      const showLabel = h.entityLabel && h.entityLabel !== "—" && h.action !== "backupExport";
+      return '<li class="bk-tl-item' + tone + '">' +
+        '<span class="bk-tl-dot icon">' + (ICONS[HISTORY_ICONS[h.action]] || "") + '</span>' +
+        '<div class="bk-tl-body">' +
+          '<div class="bk-tl-title">' + escapeHtml(t("backup.history." + h.action)) + (showLabel ? ' <span class="bk-tl-label">' + escapeHtml(h.entityLabel) + '</span>' : "") + '</div>' +
+          '<div class="bk-tl-meta"><span>' + escapeHtml(fmtWhen(h.createdAt)) + '</span><span>' + escapeHtml(h.actorEmail) + '</span></div>' +
+        '</div></li>';
+    }).join("");
+    const more = document.getElementById("bk-more-count");
+    if (more) more.textContent = t("backup.history.remaining").replace("{n}", fmt(historyTotal - historyItems.length));
+  }
+
+  const moreBtn = document.getElementById("bk-more-btn");
+  if (moreBtn) {
+    moreBtn.addEventListener("click", async function () {
+      moreBtn.disabled = true;
+      try {
+        const res = await fetch("/admin/backup/history?offset=" + historyItems.length);
+        const data = await res.json();
+        historyTotal = data.total;
+        historyItems = historyItems.concat(data.items);
+        renderHistory();
+        document.getElementById("bk-more-wrap").hidden = historyItems.length >= historyTotal || data.items.length === 0;
+      } finally {
+        moreBtn.disabled = false;
+      }
+    });
+  }
+
+  function renderAll() {
+    renderCurrent();
+    renderFiles();
+    renderHistory();
+  }
+  document.addEventListener("odprs:langchange", renderAll);
+  document.addEventListener("DOMContentLoaded", function () {
+    renderAll();
+    handleFlash();
+  });
+</script>
+</body>
+</html>

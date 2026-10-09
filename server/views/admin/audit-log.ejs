@@ -1,0 +1,255 @@
+<%- include("../partials/head", { title: "ประวัติการแก้ไขข้อมูล | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminAuditLog", crumbFallback: "ประวัติการแก้ไข / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="auditLog.title">ประวัติการแก้ไข</h1>
+    <p class="page-subtitle" data-i18n="auditLog.subtitle">บันทึกว่าใครแก้ไขข้อมูลอ้างอิง (เช่น สถานที่รับ-ส่งเอกสาร) เมื่อไหร่ เรียงจากล่าสุด</p>
+
+    <div class="card filter-panel">
+      <div class="card-body">
+        <div class="filter-row">
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.actor">ผู้แก้ไข</span></div>
+            <div class="filter-controls">
+              <select id="actor-filter" class="toolbar-select">
+                <option value="" data-i18n="auditLog.filterActor.all">ผู้แก้ไขทั้งหมด</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.action">การดำเนินการ</span></div>
+            <div class="filter-controls">
+              <select id="action-filter" class="toolbar-select">
+                <option value="" data-i18n="auditLog.filterAction.all">การดำเนินการทั้งหมด</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.dateRange">ช่วงวันที่</span></div>
+            <div class="filter-controls">
+              <input type="date" id="from-date" class="toolbar-select" aria-label="From date">
+              <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
+              <input type="date" id="to-date" class="toolbar-select" aria-label="To date">
+              <button type="button" id="filter-clear-btn" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card admin-card">
+      <div class="card-header">
+        <span id="audit-result-count"></span>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400; font-size:13px;">
+          <span data-i18n="history.rowsPerPage">แสดงต่อหน้า</span>
+          <select id="page-size-select" style="padding:6px 10px; border:1px solid var(--color-border); border-radius:8px; font-family:var(--font-family); font-size:13px;">
+            <option value="20">20</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="white-space:nowrap;" data-i18n="auditLog.th.time">เวลา</th>
+              <th data-i18n="auditLog.th.actor">ผู้แก้ไข</th>
+              <th data-i18n="auditLog.th.action">การดำเนินการ</th>
+              <th data-i18n="auditLog.th.entity">รายการ</th>
+              <th data-i18n="auditLog.th.detail">รายละเอียดที่เปลี่ยน</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body"></tbody>
+        </table>
+      </div>
+      <div class="card-body" style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--color-border);">
+        <span id="audit-page-info" style="font-size:13px; color:var(--color-muted);"></span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" id="prev-page-btn" data-i18n="history.prevPage">‹ ก่อนหน้า</button>
+          <button class="btn btn-secondary" id="next-page-btn" data-i18n="history.nextPage">ถัดไป ›</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<script>
+  const ACTION_KEYS = {
+    "location.create": "auditLog.action.locationCreate",
+    "location.update": "auditLog.action.locationUpdate",
+    "location.archive": "auditLog.action.locationArchive",
+    "location.restore": "auditLog.action.locationRestore",
+    "location.delete": "auditLog.action.locationDelete"
+  };
+
+  // label() reuses the admin/locations.ejs form's own translated field
+  // labels (with a TH/EN suffix for the two language columns) instead of a
+  // parallel set of "field name" translations — one word list to keep in
+  // sync with the form, not two.
+  const FIELD_LABELS = {
+    nameTh: function () { return t("adminLocations.form.rowName") + " (TH)"; },
+    nameEn: function () { return t("adminLocations.form.rowName") + " (EN)"; },
+    detailTh: function () { return t("adminLocations.form.rowDetail") + " (TH)"; },
+    detailEn: function () { return t("adminLocations.form.rowDetail") + " (EN)"; },
+    hoursTh: function () { return t("adminLocations.form.hours") + " (TH)"; },
+    hoursEn: function () { return t("adminLocations.form.hours") + " (EN)"; },
+    phone: function () { return t("adminLocations.form.phone"); },
+    mapUrl: function () { return t("adminLocations.form.mapUrl"); },
+    acceptsDropoff: function () { return t("adminLocations.form.acceptsDropoff"); },
+    acceptsPickup: function () { return t("adminLocations.form.acceptsPickup"); },
+    isDefaultDropoff: function () { return t("adminLocations.badge.dropoff") + " · " + t("adminLocations.badge.default"); },
+    isDefaultPickup: function () { return t("adminLocations.badge.pickup") + " · " + t("adminLocations.badge.default"); },
+    isActive: function () { return t("auditLog.field.isActive"); }
+  };
+
+  const actionFilter = document.getElementById("action-filter");
+  const actorFilter = document.getElementById("actor-filter");
+  const fromDateInput = document.getElementById("from-date");
+  const toDateInput = document.getElementById("to-date");
+  const pageSizeSelect = document.getElementById("page-size-select");
+  const prevPageBtn = document.getElementById("prev-page-btn");
+  const nextPageBtn = document.getElementById("next-page-btn");
+  let currentPage = 1;
+  let requestSeq = 0; // guards against an older, slower fetch overwriting a newer one's result
+  let auditList = [];
+
+  Object.keys(ACTION_KEYS).forEach(function (action) {
+    const opt = document.createElement("option");
+    opt.value = action;
+    opt.setAttribute("data-i18n", ACTION_KEYS[action]);
+    actionFilter.appendChild(opt);
+  });
+
+  async function loadActors() {
+    const res = await fetch("/api/admin/audit-log/actors?entityType=location");
+    const actors = res.ok ? await res.json() : [];
+    actors.forEach(function (email) {
+      const opt = document.createElement("option");
+      opt.value = email;
+      opt.textContent = email;
+      actorFilter.appendChild(opt);
+    });
+  }
+
+  function escHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // Booleans render as a check/dash (language-neutral); everything else as
+  // its own text, "—" for empty/null.
+  function displayValue(v) {
+    if (v === true) return "✓";
+    if (v === false) return "—";
+    if (v == null || v === "") return "—";
+    return String(v);
+  }
+
+  function diffHtml(before, after) {
+    if (!before && !after) return "—";
+    if (!before) return '<span class="hint">' + escHtml(t("auditLog.createdNote")) + "</span>";
+    if (!after) return '<span class="hint">' + escHtml(t("auditLog.deletedNote")) + "</span>";
+
+    const keys = Object.keys(FIELD_LABELS).filter(function (k) {
+      return Object.prototype.hasOwnProperty.call(before, k) || Object.prototype.hasOwnProperty.call(after, k);
+    });
+    const changed = keys.filter(function (k) { return before[k] !== after[k]; });
+    if (changed.length === 0) return "—";
+
+    return changed.map(function (k) {
+      return "<div><strong>" + escHtml(FIELD_LABELS[k]()) + ":</strong> " +
+        escHtml(displayValue(before[k])) + " → " + escHtml(displayValue(after[k])) + "</div>";
+    }).join("");
+  }
+
+  function renderRows() {
+    const lang = getLang();
+    const tbody = document.getElementById("audit-table-body");
+
+    if (auditList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("auditLog.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = auditList.map(function (row) {
+      return "<tr>" +
+        '<td style="white-space:nowrap;">' + escHtml(formatDateTime(new Date(row.createdAt), lang)) + "</td>" +
+        "<td>" + escHtml(row.actorEmail) + "</td>" +
+        "<td>" + escHtml(t(ACTION_KEYS[row.action] || row.action)) + "</td>" +
+        "<td>" + escHtml(row.entityLabel || "—") + "</td>" +
+        "<td>" + diffHtml(row.before, row.after) + "</td>" +
+        "</tr>";
+    }).join("");
+  }
+
+  // Same query/pagination shape as officer/history.ejs's renderHistory() —
+  // filters reset to page 1 (see onFilterChange), page size / prev / next
+  // just re-fetch the current filter set at a different page.
+  async function loadAuditLog() {
+    const pageSize = Number(pageSizeSelect.value);
+
+    const params = new URLSearchParams();
+    params.set("entityType", "location");
+    if (actionFilter.value) params.set("action", actionFilter.value);
+    if (actorFilter.value) params.set("actorEmail", actorFilter.value);
+    if (fromDateInput.value) params.set("dateFrom", fromDateInput.value);
+    if (toDateInput.value) params.set("dateTo", toDateInput.value);
+    params.set("page", currentPage);
+    params.set("pageSize", pageSize);
+
+    const seq = ++requestSeq;
+    const res = await fetch("/api/admin/audit-log?" + params.toString());
+    const data = await res.json();
+    if (seq !== requestSeq) return; // a newer request has already landed
+
+    const total = data.total;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) { currentPage = totalPages; return loadAuditLog(); }
+
+    const startIdx = (currentPage - 1) * pageSize;
+    const from = total === 0 ? 0 : startIdx + 1;
+    const to = Math.min(startIdx + pageSize, total);
+
+    document.getElementById("audit-result-count").textContent = t("history.resultCount")
+      .replace("{from}", from).replace("{to}", to).replace("{total}", total);
+    document.getElementById("audit-page-info").textContent = t("history.pageInfo")
+      .replace("{page}", currentPage).replace("{pages}", totalPages);
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+
+    auditList = data.rows;
+    renderRows();
+  }
+
+  function onFilterChange() {
+    currentPage = 1;
+    loadAuditLog();
+  }
+
+  function clearFilters() {
+    actionFilter.value = "";
+    actorFilter.value = "";
+    fromDateInput.value = "";
+    toDateInput.value = "";
+    onFilterChange();
+  }
+
+  actionFilter.addEventListener("change", onFilterChange);
+  actorFilter.addEventListener("change", onFilterChange);
+  fromDateInput.addEventListener("change", onFilterChange);
+  toDateInput.addEventListener("change", onFilterChange);
+  document.getElementById("filter-clear-btn").addEventListener("click", clearFilters);
+  pageSizeSelect.addEventListener("change", onFilterChange);
+  prevPageBtn.addEventListener("click", function () { currentPage--; loadAuditLog(); });
+  nextPageBtn.addEventListener("click", function () { currentPage++; loadAuditLog(); });
+
+  document.addEventListener("odprs:langchange", renderRows);
+  loadActors();
+  loadAuditLog();
+</script>
+
+<%- include("../partials/foot") %>

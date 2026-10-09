@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ปิดปรับปรุงระบบชั่วคราว | ฝ่ายทะเบียน มฟล.</title>
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+  :root {
+    /* Same MFU red & gold palette as login.ejs / kiosk — soft red page,
+       champagne gold ornaments, cream card. Scoped to this page. */
+    --color-primary: #7a1d24;
+    --color-primary-dark: #5e151b;
+    --color-surface: #fffaf2;
+    --color-border: #ecdfca;
+    --closed-gold: #e2c285;
+    --closed-gold-deep: #b08a3e;
+    --closed-gold-soft: rgba(226, 194, 133, 0.45);
+    --closed-gold-faint: rgba(226, 194, 133, 0.14);
+    --closed-ink: #fbefdc;
+    --closed-ink-soft: rgba(251, 239, 220, 0.8);
+    --closed-page-bg: linear-gradient(160deg, #9a4448 0%, #843a3f 50%, #6e3035 100%);
+  }
+  html { background: #843a3f; }
+  body { margin: 0; min-height: 100vh; background: var(--closed-page-bg) fixed; }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(226, 194, 133, 0.18), transparent 55%),
+      radial-gradient(ellipse at 100% 100%, rgba(40, 8, 12, 0.35), transparent 60%),
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 14px);
+    pointer-events: none;
+  }
+
+  /* Gold corner brackets framing the screen (same ornament as login). */
+  .closed-corners { position: fixed; inset: 20px; pointer-events: none; }
+  .closed-corners span { position: absolute; width: 44px; height: 44px; border: 0 solid var(--closed-gold-soft); }
+  .closed-corners span:nth-child(1) { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+  .closed-corners span:nth-child(2) { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+  .closed-corners span:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+  .closed-corners span:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+
+  @keyframes closedRise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes closedSpin { to { transform: rotate(360deg); } }
+  @keyframes closedPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(181, 121, 10, 0.45); }
+    70%  { box-shadow: 0 0 0 8px rgba(181, 121, 10, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(181, 121, 10, 0); }
+  }
+
+  .closed-lang-toggle {
+    position: fixed; top: 36px; right: 44px; z-index: 2;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--closed-gold-soft);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--closed-ink-soft);
+  }
+  .closed-lang-toggle span { border-radius: 999px; padding: 3px 11px; cursor: pointer; }
+  .closed-lang-toggle span.active { background: var(--closed-gold); color: #5e151b; }
+
+  .closed-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 72px 24px;
+    text-align: center;
+  }
+
+  /* Brand block: emblem with concentric gold rings, system name. */
+  .closed-brand { color: var(--closed-ink); animation: closedRise .7s ease both; }
+  .closed-emblem-wrap { position: relative; width: 96px; height: 96px; margin: 0 auto 20px; }
+  .closed-emblem-wrap::before {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 300px; height: 300px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle, transparent 0 26px, var(--closed-gold-faint) 26px 27px);
+    -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+    pointer-events: none;
+  }
+  .closed-emblem {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: #fffaf2;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      0 0 0 4px #8a3c41,
+      0 0 0 5.5px var(--closed-gold),
+      0 0 0 11px var(--closed-gold-faint),
+      0 16px 36px rgba(20, 4, 6, 0.35);
+  }
+  .closed-emblem img { width: 72px; height: 72px; object-fit: contain; }
+  .closed-brand-name { margin: 0; font-size: 20px; font-weight: 600; text-shadow: 0 2px 12px rgba(20, 4, 6, 0.25); }
+  .closed-brand-sub { margin: 4px 0 0; font-size: 14px; font-weight: 300; color: var(--closed-ink-soft); letter-spacing: 0.3px; }
+
+  /* The notice card. */
+  .closed-card {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin-top: 34px;
+    padding: 44px 40px 32px;
+    background: #fffaf2;
+    border: 1px solid rgba(226, 194, 133, 0.6);
+    border-radius: 20px;
+    box-shadow:
+      0 0 0 6px rgba(255, 250, 242, 0.08),
+      0 24px 60px rgba(20, 4, 6, 0.35);
+    animation: closedRise .7s .12s ease both;
+  }
+  /* Small gold diamond ornament on the card's top edge. */
+  .closed-card::before {
+    content: "";
+    position: absolute;
+    top: -9px; left: 50%;
+    width: 16px; height: 16px;
+    transform: translateX(-50%) rotate(45deg);
+    background: var(--closed-gold);
+    border: 3px solid #fffaf2;
+    box-shadow: 0 0 0 1px rgba(226, 194, 133, 0.6);
+  }
+
+  /* Gear inside a slowly turning dashed gold ring. */
+  .closed-icon {
+    position: relative;
+    width: 88px; height: 88px;
+    margin: 0 auto 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .closed-icon::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 2px dashed var(--closed-gold);
+    animation: closedSpin 18s linear infinite;
+  }
+  .closed-icon-core {
+    width: 66px; height: 66px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #8a232b 0%, var(--color-primary) 100%);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(122, 29, 36, 0.3);
+  }
+  .closed-icon-core .icon { width: 32px; height: 32px; animation: closedSpin 8s linear infinite; }
+
+  .closed-status {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: var(--color-warning-tint);
+    color: var(--color-warning);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .closed-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-warning); animation: closedPulse 1.8s ease-out infinite; }
+
+  .closed-title { margin: 14px 0 0; font-size: 24px; font-weight: 700; color: var(--color-primary); line-height: 1.35; }
+  .closed-rule { display: flex; align-items: center; gap: 10px; width: 150px; margin: 16px auto; }
+  .closed-rule::before, .closed-rule::after { content: ""; flex: 1; height: 1px; }
+  .closed-rule::before { background: linear-gradient(90deg, transparent, var(--closed-gold-deep)); }
+  .closed-rule::after  { background: linear-gradient(90deg, var(--closed-gold-deep), transparent); }
+  .closed-rule span { width: 6px; height: 6px; background: var(--closed-gold-deep); transform: rotate(45deg); }
+  .closed-message {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--color-text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+
+  .closed-reopens { margin: 14px 0 0; font-size: 14px; font-weight: 600; color: var(--closed-gold-deep); }
+
+  .closed-actions { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--color-border); }
+  .closed-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 22px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--color-text);
+    font-family: var(--font-family);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: border-color .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .closed-btn .icon { width: 17px; height: 17px; color: var(--closed-gold-deep); }
+  .closed-btn:hover { border-color: var(--closed-gold); color: var(--color-primary); box-shadow: 0 4px 12px rgba(176, 138, 62, 0.18); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .closed-icon::before, .closed-icon-core .icon, .closed-status-dot { animation: none; }
+  }
+  @media (max-width: 560px) {
+    .closed-corners { inset: 10px; }
+    .closed-corners span { width: 26px; height: 26px; }
+    .closed-lang-toggle { top: 20px; right: 20px; }
+    .closed-page { padding: 64px 16px 40px; }
+    .closed-emblem-wrap { width: 78px; height: 78px; }
+    .closed-emblem img { width: 58px; height: 58px; }
+    .closed-brand-name { font-size: 17px; }
+    .closed-card { padding: 36px 22px 26px; margin-top: 28px; }
+    .closed-title { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="closed-corners" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+<div class="lang-toggle closed-lang-toggle">
+  <span data-lang="en">EN</span><span data-lang="th" class="active">TH</span>
+</div>
+
+<main class="closed-page">
+  <div class="closed-brand">
+    <div class="closed-emblem-wrap">
+      <div class="closed-emblem">
+        <img src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
+      </div>
+    </div>
+    <p class="closed-brand-name" data-i18n="login.title">ระบบขอพิมพ์เอกสารออนไลน์</p>
+    <p class="closed-brand-sub" data-i18n="login.subtitle">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</p>
+  </div>
+
+  <section class="closed-card">
+    <div class="closed-icon" aria-hidden="true">
+      <div class="closed-icon-core"><span class="icon"><%- icon('settings') %></span></div>
+    </div>
+
+    <span class="closed-status">
+      <span class="closed-status-dot" aria-hidden="true"></span>
+      <span data-i18n="systemClosed.status">กำลังปรับปรุงระบบ</span>
+    </span>
+
+    <h1 class="closed-title" data-i18n="systemClosed.title">ระบบปิดปรับปรุงชั่วคราว</h1>
+    <div class="closed-rule" aria-hidden="true"><span></span></div>
+    <p class="closed-message" id="system-closed-message"><%= message || "" %></p>
+    <p class="closed-reopens" id="system-closed-reopens" hidden></p>
+
+    <div class="closed-actions">
+      <a class="closed-btn" href="/logout">
+        <span class="icon" data-icon="log-out"><%- icon('log-out') %></span>
+        <span data-i18n="user.logoutBtn">ออกจากระบบ</span>
+      </a>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/js/app.js"></script>
+<script>
+  const customMessageTh = <%- JSON.stringify(message || "") %>;
+  // Auto-translated from customMessageTh when the admin saved it (see
+  // settings.js / translate.js) — best-effort, can be empty if translation
+  // failed, in which case English viewers fall back to the Thai text
+  // rather than showing nothing.
+  const customMessageEn = <%- JSON.stringify(messageEn || "") %>;
+  const reopensAt = <%- JSON.stringify(typeof endsAt !== "undefined" && endsAt ? endsAt : null) %>;
+  function renderMessage() {
+    const custom = getLang() === "en" ? (customMessageEn || customMessageTh) : customMessageTh;
+    document.getElementById("system-closed-message").textContent = custom || t("systemClosed.defaultMessage");
+    const reopens = document.getElementById("system-closed-reopens");
+    if (reopensAt) {
+      reopens.textContent = t("systemClosed.reopensAt").replace("{end}", formatDateTime(new Date(reopensAt), getLang()));
+      reopens.hidden = false;
+    }
+  }
+  document.addEventListener("odprs:langchange", renderMessage);
+  document.addEventListener("DOMContentLoaded", renderMessage);
+</script>
+</body>
+</html>

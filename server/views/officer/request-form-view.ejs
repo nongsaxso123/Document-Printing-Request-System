@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — ใบคำขอพิมพ์เอกสาร" }) %>
+<%- include("../partials/head", { title: "ใบคำขอพิมพ์เอกสาร | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "requestForm.crumb", crumbFallback: "ใบคำขอพิมพ์เอกสาร" }) %>
 
@@ -17,11 +17,11 @@
         </div>
         <div style="display:flex; gap:10px;">
           <a class="btn btn-secondary" href="/officer/request-form-view/pdf?ref=<%= encodeURIComponent(ref) %>" target="_blank">
-            <span class="icon" data-icon="download"></span>
+            <span class="icon" data-icon="download"><%- icon('download') %></span>
             <span data-i18n="submitted.downloadPdfBtn">ดาวน์โหลด PDF</span>
           </a>
           <button class="btn btn-primary" onclick="window.print()">
-            <span class="icon" data-icon="printer"></span>
+            <span class="icon" data-icon="printer"><%- icon('printer') %></span>
             <span data-i18n="submitted.printBtn">พิมพ์ใบคำขอ</span>
           </button>
         </div>

@@ -1,31 +1,40 @@
-<%- include("../partials/head", { title: "ODPRS — ส่งคำขอสำเร็จ" }) %>
+<%- include("../partials/head", { title: "ส่งคำขอเรียบร้อยแล้ว | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.submitted", crumbFallback: "สร้างคำขอพิมพ์เอกสาร / <strong>ส่งคำขอสำเร็จ</strong>" }) %>
 
   <main class="app-main">
     <div class="no-print">
       <h1 class="page-title" data-i18n="submitted.title">ส่งคำขอสำเร็จ</h1>
-      <p class="page-subtitle" data-i18n="submitted.subtitle">กรุณาพิมพ์ใบคำขอด้านล่างและนำไปพร้อมกับเอกสารต้นฉบับ</p>
+      <p class="page-subtitle" data-i18n="submitted.subtitle">กรุณานำใบคำขอด้านล่างไปแสดงต่อเจ้าหน้าที่พร้อมกับเอกสารต้นฉบับ</p>
 
-      <div class="notice notice-warning" id="deadline-notice">
-        <span class="icon" data-icon="clock" id="deadline-icon"></span>
-        <div>
-          <strong id="deadline-title" data-i18n="submitted.deadline.label">นำเอกสารต้นฉบับมาส่งภายใน:</strong> <span id="deadline-label">—</span><br>
-          <span id="deadline-body" data-i18n="submitted.deadline.body">หากไม่นำมาส่งภายในกำหนด คำขอจะยังคงค้างสถานะ "รอส่งเอกสารต้นฉบับ" — กรุณาติดต่อเจ้าหน้าที่หากมีปัญหา</span>
+      <div class="handoff handoff-warning" id="deadline-notice">
+        <div class="handoff-head">
+          <span class="icon" data-icon="clock" id="deadline-icon"><%- icon('clock') %></span>
+          <div>
+            <div class="handoff-title" id="deadline-title" data-i18n="submitted.deadline.label">นำเอกสารต้นฉบับมาส่งภายใน</div>
+            <div class="handoff-when"><span id="deadline-label">—</span> <span class="handoff-time" id="deadline-time"></span></div>
+          </div>
         </div>
+        <dl class="handoff-info">
+          <div id="office-location-line" hidden><dt id="office-location-label"></dt><dd><span id="office-location-value"></span> <a id="office-map-link" href="#" target="_blank" rel="noopener" hidden></a></dd></div>
+          <div id="office-available-line" class="office-contact-line" hidden><span data-i18n="submitted.availableFrom"></span> <strong id="office-available-value"></strong></div>
+          <div id="office-hours-line" hidden><dt id="office-hours-label"></dt><dd id="office-hours-value"></dd></div>
+          <div id="office-phone-line" hidden><dt id="office-phone-label"></dt><dd id="office-phone-value"></dd></div>
+        </dl>
+        <p class="handoff-note" id="deadline-body" data-i18n="submitted.deadline.body">เลยกำหนดแล้วคำขอจะยังค้างที่ "รอส่งเอกสารต้นฉบับ" ติดต่อเจ้าหน้าที่ได้หากมีปัญหา</p>
       </div>
     </div>
 
     <div class="card" id="request-form-card">
       <div class="card-header no-print">
         <span data-i18n="submitted.formCardTitle">ใบคำขอพิมพ์เอกสาร (สำหรับพิมพ์)</span>
-        <div style="display:flex; gap:10px;">
+        <div class="submitted-form-actions">
           <a class="btn btn-secondary" href="/requester/request-submitted/<%= encodeURIComponent(record.referenceNo) %>/pdf" target="_blank">
-            <span class="icon" data-icon="download"></span>
+            <span class="icon" data-icon="download"><%- icon('download') %></span>
             <span data-i18n="submitted.downloadPdfBtn">ดาวน์โหลด PDF</span>
           </a>
           <button class="btn btn-primary" onclick="window.print()">
-            <span class="icon" data-icon="printer"></span>
+            <span class="icon" data-icon="printer"><%- icon('printer') %></span>
             <span data-i18n="submitted.printBtn">พิมพ์ใบคำขอ</span>
           </button>
         </div>
@@ -35,34 +44,104 @@
       </div>
     </div>
 
-    <div class="form-actions no-print">
-      <a class="btn btn-secondary" href="/requester/new-request" data-i18n="submitted.newBtn">สร้างคำขอใหม่</a>
-      <a class="btn btn-primary" href="/requester/my-requests" data-i18n="submitted.goToMyRequests">ไปที่คำขอของฉัน</a>
+    <div class="submitted-actions no-print">
+      <div class="submitted-actions-group">
+        <a class="btn btn-secondary" id="edit-request-btn" hidden href="/requester/request-submitted/<%= encodeURIComponent(record.referenceNo) %>/edit">
+          <span class="icon" data-icon="edit"><%- icon('edit') %></span>
+          <span data-i18n="submitted.editBtn">แก้ไขคำขอ</span>
+        </a>
+        <button type="button" class="btn btn-danger" id="cancel-request-btn" hidden>
+          <span class="icon" data-icon="x-circle"><%- icon('x-circle') %></span>
+          <span data-i18n="submitted.cancelBtn">ยกเลิกคำขอ</span>
+        </button>
+      </div>
+      <div class="submitted-actions-group">
+        <a class="btn btn-secondary" href="/requester/new-request">
+          <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+          <span data-i18n="submitted.newBtn">สร้างคำขอใหม่</span>
+        </a>
+        <a class="btn btn-primary" href="/requester/my-requests">
+          <span class="icon" data-icon="clipboard"><%- icon('clipboard') %></span>
+          <span data-i18n="submitted.goToMyRequests">ไปที่คำขอของฉัน</span>
+        </a>
+      </div>
     </div>
   </main>
 
 <%- include("../partials/foot") %>
 <script>
   const data = <%- JSON.stringify(record) %>;
+  // Where to bring the original document, from the Location the Requester
+  // chose (src/locations.js) — shown in both languages' terms via
+  // formatLocation() so it follows the TH/EN toggle. Only relevant while the
+  // Requester still needs to bring the original document in, not once it's
+  // already been received or the request was rejected (see the two early
+  // returns in renderDeadlineNotice below).
+  const dropoffLocation = <%- JSON.stringify(dropoffLocation || null).replace(/</g, "\\u003c") %>;
+
+  // Same three lines serve two moments: the drop-off place while the
+  // original document is still due, and the pickup place once the copies are
+  // ready. `loc` / `labelKey` default to the drop-off case.
+  // The labels are small headings above their value now, not "Label: value".
+  function noColon(text) { return text.replace(/\s*[:：]\s*$/, ""); }
+
+  function updateOfficeContactLines(show, lang, loc, labelKey) {
+    if (loc === undefined) loc = dropoffLocation;
+    // Set here, not via data-i18n: the label differs by moment, and a
+    // data-i18n attribute would be reset to the drop-off wording on every
+    // language switch before this runs.
+    document.getElementById("office-location-label").textContent = noColon(t(labelKey || "submitted.officeLocation"));
+    document.getElementById("office-hours-label").textContent = noColon(t("location.hours"));
+    document.getElementById("office-phone-label").textContent = noColon(t("location.phone"));
+    const locationText = loc ? formatLocation(loc, lang) : "";
+    const hoursText = loc ? pickLang(loc.hoursTh, loc.hoursEn, lang) : "";
+    const phoneText = loc && loc.phone ? loc.phone : "";
+    const mapUrl = loc && loc.mapUrl && /^https?:\/\//i.test(loc.mapUrl) ? loc.mapUrl : "";
+
+    document.getElementById("office-location-value").textContent = locationText;
+    document.getElementById("office-hours-value").textContent = hoursText;
+    document.getElementById("office-phone-value").textContent = phoneText;
+
+    const mapLink = document.getElementById("office-map-link");
+    mapLink.hidden = !(show && mapUrl);
+    if (mapUrl) {
+      mapLink.href = mapUrl;
+      mapLink.textContent = t("location.map");
+    }
+
+    // "Available from" belongs to the pickup moment only.
+    const availableFrom = labelKey === "submitted.pickupLocation" && data.pickupAvailableFrom ? data.pickupAvailableFrom : "";
+    document.getElementById("office-available-value").textContent = availableFrom ? formatDateTime(new Date(availableFrom), lang) : "";
+    document.getElementById("office-available-line").hidden = !(show && availableFrom);
+
+    document.getElementById("office-location-line").hidden = !(show && locationText);
+    document.getElementById("office-hours-line").hidden = !(show && hoursText);
+    document.getElementById("office-phone-line").hidden = !(show && phoneText);
+  }
 
   function renderDeadlineNotice(lang) {
     const noticeEl = document.getElementById("deadline-notice");
     const titleEl = document.getElementById("deadline-title");
     const bodyEl = document.getElementById("deadline-body");
     const labelEl = document.getElementById("deadline-label");
+    const timeEl = document.getElementById("deadline-time");
 
     if (data.originalDocReceivedTimestamp) {
       // Officer has already confirmed receipt (FR-10) — the "bring it by
       // today" prompt no longer applies, ever, regardless of when this
       // page is revisited.
       noticeEl.style.display = "";
-      noticeEl.classList.remove("notice-warning");
-      noticeEl.classList.add("notice-success");
+      noticeEl.classList.remove("handoff-warning");
+      noticeEl.classList.add("handoff-success");
       document.getElementById("deadline-icon").setAttribute("data-icon", "check-circle");
       applyIcons();
       titleEl.textContent = t("submitted.deadline.received.label");
       labelEl.textContent = formatDateTime(new Date(data.originalDocReceivedTimestamp), lang);
+      timeEl.textContent = "";
       bodyEl.textContent = t("submitted.deadline.received.body");
+      // Copies ready: point at where to collect them.
+      const pickup = data.statusCode === "ready" ? data.pickupLocation : null;
+      updateOfficeContactLines(!!pickup, lang, pickup, "submitted.pickupLocation");
       return;
     }
 
@@ -70,17 +149,21 @@
       // Rejected before the original document was ever received — the
       // drop-off prompt no longer makes sense either.
       noticeEl.style.display = "none";
+      updateOfficeContactLines(false, lang);
       return;
     }
 
     noticeEl.style.display = "";
-    noticeEl.classList.remove("notice-success");
-    noticeEl.classList.add("notice-warning");
+    noticeEl.classList.remove("handoff-success");
+    noticeEl.classList.add("handoff-warning");
     document.getElementById("deadline-icon").setAttribute("data-icon", "clock");
     applyIcons();
     titleEl.textContent = t("submitted.deadline.label");
     bodyEl.textContent = t("submitted.deadline.body");
-    labelEl.textContent = formatDropoffLabel(dropoffInfoFor(lang), lang);
+    const parts = formatDropoffParts(dropoffInfoFor(lang), lang, dropoffLocation);
+    labelEl.textContent = parts.date;
+    timeEl.textContent = parts.time;
+    updateOfficeContactLines(true, lang);
   }
 
   // "Today" must reflect the actual current date, not a frozen fact about
@@ -96,7 +179,60 @@
     const lang = getLang();
     renderDeadlineNotice(lang);
     renderPrintForm(data);
+    // Edit and cancel are both only possible while the request is still
+    // waiting for the original document (no Officer action yet).
+    const stillAwaiting = data.statusCode === "awaiting";
+    document.getElementById("edit-request-btn").hidden = !stillAwaiting;
+    document.getElementById("cancel-request-btn").hidden = !stillAwaiting;
   }
+
+  document.getElementById("cancel-request-btn").addEventListener("click", function () {
+    showConfirmModal({
+      title: t("submitted.cancelConfirmTitle"),
+      message: t("submitted.cancelConfirmMessage"),
+      confirmText: t("submitted.cancelBtn"),
+      danger: true,
+      onConfirm: async function () {
+        showProcessing();
+        let res;
+        try {
+          res = await fetch("/api/my-requests/" + encodeURIComponent(data.referenceNo) + "/cancel", { method: "POST" });
+        } catch (err) {
+          hideProcessing();
+          showResultModal({
+            success: false,
+            title: t("submitted.cancelErrorTitle"),
+            message: t("submitted.cancelErrorGeneric")
+          });
+          return;
+        }
+        hideProcessing();
+
+        if (res.ok) {
+          // Reload on close (not right away) — keeps this page's rendering
+          // in sync with whatever the server actually committed, and gives
+          // the requester a moment to actually read the confirmation.
+          showResultModal({
+            success: true,
+            title: t("submitted.cancelSuccessTitle"),
+            message: t("submitted.cancelSuccessMessage"),
+            onClose: function () { window.location.reload(); }
+          });
+          return;
+        }
+
+        const body = await res.json().catch(function () { return {}; });
+        showResultModal({
+          success: false,
+          title: t("submitted.cancelErrorTitle"),
+          // "not-cancellable" means an Officer's approve()/reject() won the
+          // same race (see requests.js cancel()) — anything else is a
+          // generic server/network hiccup.
+          message: body.error === "not-cancellable" ? t("submitted.cancelError") : t("submitted.cancelErrorGeneric")
+        });
+      }
+    });
+  });
 
   document.addEventListener("odprs:langchange", render);
   render();

@@ -1,0 +1,680 @@
+<%- include("../partials/head", { title: "สถานที่รับและส่งเอกสาร | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminLocations", crumbFallback: "สถานที่รับ-ส่งเอกสาร / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="adminLocations.title">สถานที่รับ-ส่งเอกสาร</h1>
+    <p class="page-subtitle" data-i18n="adminLocations.subtitle">กำหนดสถานที่ที่ผู้ขอนำเอกสารต้นฉบับมาส่ง และสถานที่รับเอกสารที่พิมพ์เสร็จ ข้อมูลจะแสดงตามภาษาที่ผู้ใช้เลือก จึงต้องกรอกทั้งภาษาไทยและอังกฤษ</p>
+
+    <!-- Result of the last action (saved / deleted / error) — deliberately a
+         full-width coloured bar so it can't be missed. -->
+    <div class="notice loc-banner" id="loc-banner" hidden>
+      <span class="icon" id="loc-banner-icon" data-icon="check-circle"><%- icon('check-circle') %></span>
+      <div id="loc-banner-text"></div>
+    </div>
+
+    <div class="card admin-card loc-form-card" id="location-form-card" hidden>
+      <div class="card-header">
+        <span class="step-title"><span class="icon" data-icon="map-pin"><%- icon('map-pin') %></span> <span id="location-form-title" data-i18n="adminLocations.form.addTitle">เพิ่มสถานที่ใหม่</span></span>
+      </div>
+      <div class="card-body">
+        <div class="notice notice-error" id="location-error" hidden>
+          <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+          <div id="location-error-text"></div>
+        </div>
+
+        <form id="location-form" novalidate>
+          <div class="loc-section">
+            <div class="loc-section-title"><span class="step-num">1</span> <span data-i18n="adminLocations.form.basicInfo">ชื่อและรายละเอียด</span></div>
+            <div class="field-box">
+              <div class="loc-form-grid">
+                <span></span>
+                <span class="loc-col-head" data-i18n="adminLocations.form.colTh">ภาษาไทย</span>
+                <span class="loc-col-head" data-i18n="adminLocations.form.colEn">ภาษาอังกฤษ</span>
+
+                <label data-i18n="adminLocations.form.rowName">ชื่อสถานที่ *</label>
+                <div class="field" id="field-nameTh"><input type="text" id="loc-nameTh" placeholder="เช่น เคาน์เตอร์ฝ่ายทะเบียน"></div>
+                <div class="field" id="field-nameEn"><input type="text" id="loc-nameEn" placeholder="e.g. Registrar Division Counter"></div>
+
+                <label data-i18n="adminLocations.form.rowDetail">อาคาร / ชั้น / ห้อง</label>
+                <div class="field"><input type="text" id="loc-detailTh" placeholder="เช่น อาคาร E4 ชั้น 1"></div>
+                <div class="field"><input type="text" id="loc-detailEn" placeholder="e.g. Building E4, 1st Floor"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="loc-section">
+            <div class="loc-section-title"><span class="step-num">2</span> <span data-i18n="adminLocations.form.hours">เวลาทำการ</span></div>
+            <div class="field-box">
+              <div class="hours-picker">
+                <span class="icon" data-icon="clock"><%- icon('clock') %></span>
+                <span class="sep" data-i18n="adminLocations.form.hoursFrom">ตั้งแต่วัน</span>
+                <div class="field"><select id="hours-from-day" aria-label="From day"></select></div>
+                <span class="sep" data-i18n="adminLocations.form.hoursTo">ถึงวัน</span>
+                <div class="field"><select id="hours-to-day" aria-label="To day"></select></div>
+                <span class="sep" data-i18n="adminLocations.form.hoursOpen">เปิด</span>
+                <div class="field" style="width:110px;"><select id="hours-open" aria-label="Opens"></select></div>
+                <span class="sep" data-i18n="adminLocations.form.hoursClose">ปิด</span>
+                <div class="field" style="width:110px;"><select id="hours-close" aria-label="Closes"></select></div>
+              </div>
+              <div class="hours-preview" id="hours-preview" hidden></div>
+              <span class="hint" id="hours-legacy" hidden></span>
+              <span class="hint" id="hours-hint" data-i18n="adminLocations.form.hoursHint">เว้นว่างทั้งหมดถ้าไม่ต้องการแสดงเวลาทำการ</span>
+            </div>
+          </div>
+
+          <div class="loc-section">
+            <div class="loc-section-title"><span class="step-num">3</span> <span data-i18n="adminLocations.form.contact">ติดต่อ</span></div>
+            <div class="field-box">
+              <div class="form-grid">
+                <div class="field">
+                  <label><span class="icon" data-icon="phone"><%- icon('phone') %></span> <span data-i18n="adminLocations.form.phone">เบอร์โทรติดต่อ</span></label>
+                  <input type="text" id="loc-phone" data-i18n-placeholder="adminLocations.form.phonePlaceholder" placeholder="เช่น 053-916xxx (ชื่อผู้ติดต่อ)">
+                </div>
+                <div class="field">
+                  <label><span class="icon" data-icon="map-pin"><%- icon('map-pin') %></span> <span data-i18n="adminLocations.form.mapUrl">ลิงก์แผนที่ (ถ้ามี)</span></label>
+                  <input type="url" id="loc-mapUrl" data-i18n-placeholder="adminLocations.form.mapUrlPlaceholder" placeholder="เช่น https://maps.app.goo.gl/...">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="loc-section">
+            <div class="loc-section-title"><span class="step-num">4</span> <span data-i18n="adminLocations.form.usage">ใช้งานเป็น</span></div>
+            <div class="usage-grid">
+              <div class="usage-card">
+                <label class="check-option usage-card-toggle">
+                  <input type="checkbox" id="loc-acceptsDropoff" checked>
+                  <span class="icon usage-card-icon" data-icon="inbox"><%- icon('inbox') %></span>
+                  <span data-i18n="adminLocations.form.acceptsDropoff">เป็นจุดส่งเอกสารต้นฉบับ</span>
+                </label>
+                <div class="usage-card-sub" id="sub-dropoff">
+                  <label class="check-option"><input type="checkbox" id="loc-isDefaultDropoff"> <span data-i18n="adminLocations.form.defaultDropoff">ใช้เป็นค่าเริ่มต้น</span></label>
+                </div>
+              </div>
+              <div class="usage-card">
+                <label class="check-option usage-card-toggle">
+                  <input type="checkbox" id="loc-acceptsPickup" checked>
+                  <span class="icon usage-card-icon" data-icon="package"><%- icon('package') %></span>
+                  <span data-i18n="adminLocations.form.acceptsPickup">เป็นจุดรับเอกสารที่พิมพ์เสร็จ</span>
+                </label>
+                <div class="usage-card-sub" id="sub-pickup">
+                  <label class="check-option"><input type="checkbox" id="loc-isDefaultPickup"> <span data-i18n="adminLocations.form.defaultPickup">ใช้เป็นค่าเริ่มต้น</span></label>
+                </div>
+              </div>
+            </div>
+            <span class="hint" data-i18n="adminLocations.editHint">การแก้ไขชื่อหรือรายละเอียดจะแสดงกับคำขอที่ยังค้างอยู่ทันที แต่อีเมลที่ส่งไปแล้วแก้ไม่ได้</span>
+          </div>
+
+          <div class="loc-actions">
+            <button type="submit" class="btn btn-primary" id="location-save-btn" data-i18n="adminLocations.form.saveBtn">บันทึกสถานที่</button>
+            <button type="button" class="btn btn-secondary" id="location-cancel-btn" data-i18n="btn.cancel">ยกเลิก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card admin-card">
+      <div class="card-header">
+        <span data-i18n="adminLocations.tableTitle">รายการสถานที่</span>
+        <button type="button" class="btn btn-primary" id="add-location-btn" style="padding:7px 14px; font-size:13.5px;">
+          <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+          <span data-i18n="adminLocations.addBtn">เพิ่มสถานที่</span>
+        </button>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:84px;"></th>
+              <th data-i18n="adminLocations.th.name">สถานที่</th>
+              <th data-i18n="adminLocations.th.usage">ใช้สำหรับ</th>
+              <th data-i18n="adminLocations.th.contact">เวลาทำการ / โทร</th>
+              <th data-i18n="adminLocations.th.action">การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody id="location-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  const TEXT_FIELDS = ["nameTh", "nameEn", "detailTh", "detailEn", "phone", "mapUrl"];
+  const ERROR_KEYS = {
+    "name-required": "adminLocations.err.nameRequired",
+    "purpose-required": "adminLocations.err.purposeRequired",
+    "hours-incomplete": "adminLocations.err.hoursIncomplete",
+    "hours-invalid": "adminLocations.err.hoursInvalid",
+    "last-dropoff": "adminLocations.err.lastDropoff",
+    "last-pickup": "adminLocations.err.lastPickup",
+    "replacement-required": "adminLocations.err.replacementRequired",
+    "replacement-invalid": "adminLocations.err.replacementInvalid",
+    "replacement-purpose-mismatch": "adminLocations.err.replacementPurposeMismatch"
+  };
+
+  // Same day names / output format as buildHours() in src/locations.js — the
+  // server generates the stored strings; this copy only drives the live
+  // preview and reads stored strings back into the pickers.
+  const DAY_NAMES = {
+    th: ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"],
+    en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  };
+
+  const byId = function (id) { return document.getElementById(id); };
+  const formCard = byId("location-form-card");
+  const locationForm = byId("location-form");
+  const errorBox = byId("location-error");
+  const errorText = byId("location-error-text");
+  const banner = byId("loc-banner");
+  const acceptsDropoffBox = byId("loc-acceptsDropoff");
+  const acceptsPickupBox = byId("loc-acceptsPickup");
+  const defaultDropoffBox = byId("loc-isDefaultDropoff");
+  const defaultPickupBox = byId("loc-isDefaultPickup");
+  const hoursSelects = {
+    fromDay: byId("hours-from-day"),
+    toDay: byId("hours-to-day"),
+    open: byId("hours-open"),
+    close: byId("hours-close")
+  };
+
+  let locationList = [];
+  let editingId = null;
+  let legacyHours = null; // { th, en } typed by hand before the pickers existed and not parseable
+  let bannerTimer = null;
+
+  function escHtml(value) {
+    return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---------- result banner ----------
+  // Every save/archive/delete outcome is reported in the shared result
+  // popup (showActionResult in app.js), like every other page.
+  function showBanner(kind, text) {
+    showActionResult(kind === "success", text);
+  }
+
+  function hideBanner() { banner.hidden = true; }
+
+  // ---------- inline form error ----------
+  function showFormError(message, invalidFieldIds) {
+    errorText.textContent = message;
+    errorBox.hidden = false;
+    ["field-nameTh", "field-nameEn"].forEach(function (id) {
+      byId(id).classList.toggle("invalid", (invalidFieldIds || []).indexOf(id) !== -1);
+    });
+    errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function clearFormError() {
+    errorBox.hidden = true;
+    byId("field-nameTh").classList.remove("invalid");
+    byId("field-nameEn").classList.remove("invalid");
+  }
+
+  function messageFor(error, data) {
+    if (error === "in-use") return t("adminLocations.err.inUse").replace("{n}", data && data.count != null ? data.count : "");
+    return t(ERROR_KEYS[error] || "adminLocations.err.generic");
+  }
+
+  // ---------- opening-hours pickers ----------
+  function fillDaySelect(select) {
+    const previous = select.value;
+    const names = DAY_NAMES[getLang() === "en" ? "en" : "th"];
+    select.innerHTML = '<option value="">' + t("adminLocations.form.hoursNone") + '</option>' +
+      names.map(function (n, i) { return '<option value="' + (i + 1) + '">' + n + '</option>'; }).join("");
+    select.value = previous;
+  }
+
+  function fillTimeSelect(select) {
+    const previous = select.value;
+    let html = '<option value="">' + t("adminLocations.form.hoursNone") + '</option>';
+    for (let minutes = 5 * 60; minutes <= 22 * 60; minutes += 30) {
+      const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+      const mm = String(minutes % 60).padStart(2, "0");
+      html += '<option value="' + hh + ':' + mm + '">' + hh + ':' + mm + '</option>';
+    }
+    select.innerHTML = html;
+    select.value = previous;
+  }
+
+  function fillHoursSelects() {
+    fillDaySelect(hoursSelects.fromDay);
+    fillDaySelect(hoursSelects.toDay);
+    fillTimeSelect(hoursSelects.open);
+    fillTimeSelect(hoursSelects.close);
+  }
+
+  function readHours() {
+    return {
+      hoursFromDay: hoursSelects.fromDay.value,
+      hoursToDay: hoursSelects.toDay.value,
+      hoursOpen: hoursSelects.open.value,
+      hoursClose: hoursSelects.close.value
+    };
+  }
+
+  function buildHoursText(h) {
+    const from = Number(h.hoursFromDay);
+    const to = Number(h.hoursToDay);
+    if (!(from >= 1 && to >= from) || !h.hoursOpen || !h.hoursClose || h.hoursClose <= h.hoursOpen) return null;
+    const days = function (lang) {
+      return from === to ? DAY_NAMES[lang][from - 1] : DAY_NAMES[lang][from - 1] + "-" + DAY_NAMES[lang][to - 1];
+    };
+    return {
+      th: days("th") + " " + h.hoursOpen + "-" + h.hoursClose + " น.",
+      en: days("en") + " " + h.hoursOpen + "-" + h.hoursClose
+    };
+  }
+
+  function renderHoursPreview() {
+    const preview = byId("hours-preview");
+    const text = buildHoursText(readHours());
+    if (!text) { preview.hidden = true; return; }
+    preview.hidden = false;
+    preview.innerHTML = escHtml(t("adminLocations.form.hoursPreview")) + "<br>" +
+      "<strong>TH</strong> " + escHtml(text.th) + "<br><strong>EN</strong> " + escHtml(text.en);
+  }
+
+  // Reads a stored string ("จันทร์-ศุกร์ 09:00-15:00 น." / "Mon-Fri 9:00-15:00")
+  // back into picker values; null when it isn't in that shape.
+  function parseHours(str) {
+    if (!str) return null;
+    const all = DAY_NAMES.th.concat(DAY_NAMES.en);
+    const dayPattern = all.slice().sort(function (a, b) { return b.length - a.length; }).join("|");
+    const re = new RegExp("^(" + dayPattern + ")(?:\\s*-\\s*(" + dayPattern + "))?\\s+(\\d{1,2}):(\\d{2})\\s*-\\s*(\\d{1,2}):(\\d{2})");
+    const m = str.replace(/[–—]/g, "-").trim().match(re);
+    if (!m) return null;
+    const dayIndex = function (name) {
+      const i = DAY_NAMES.th.indexOf(name);
+      return (i !== -1 ? i : DAY_NAMES.en.indexOf(name)) + 1;
+    };
+    const pad = function (h, mi) { return String(h).padStart(2, "0") + ":" + mi; };
+    return {
+      fromDay: dayIndex(m[1]),
+      toDay: dayIndex(m[2] || m[1]),
+      open: pad(m[3], m[4]),
+      close: pad(m[5], m[6])
+    };
+  }
+
+  function setHoursFromLocation(loc) {
+    legacyHours = null;
+    hoursSelects.fromDay.value = hoursSelects.toDay.value = hoursSelects.open.value = hoursSelects.close.value = "";
+    byId("hours-legacy").hidden = true;
+
+    const stored = loc && (loc.hoursTh || loc.hoursEn);
+    if (!stored) return;
+
+    const parsed = parseHours(loc.hoursTh) || parseHours(loc.hoursEn);
+    if (parsed) {
+      hoursSelects.fromDay.value = String(parsed.fromDay);
+      hoursSelects.toDay.value = String(parsed.toDay);
+      hoursSelects.open.value = parsed.open;
+      hoursSelects.close.value = parsed.close;
+      // a stored time outside the 30-minute list (e.g. 08:45) can't be selected
+      if (hoursSelects.open.value !== parsed.open || hoursSelects.close.value !== parsed.close) legacyHours = { th: loc.hoursTh, en: loc.hoursEn };
+    } else {
+      legacyHours = { th: loc.hoursTh, en: loc.hoursEn };
+    }
+
+    if (legacyHours) {
+      const legacy = byId("hours-legacy");
+      legacy.textContent = t("adminLocations.form.hoursLegacy") + " " + (legacyHours.th || legacyHours.en) + " — " + t("adminLocations.form.hoursLegacyHint");
+      legacy.hidden = false;
+    }
+  }
+
+  Object.keys(hoursSelects).forEach(function (k) { hoursSelects[k].addEventListener("change", renderHoursPreview); });
+
+  // ---------- default checkboxes only make sense for a purpose the place serves ----------
+  function syncUsageBoxes() {
+    byId("sub-dropoff").hidden = !acceptsDropoffBox.checked;
+    if (!acceptsDropoffBox.checked) defaultDropoffBox.checked = false;
+    byId("sub-pickup").hidden = !acceptsPickupBox.checked;
+    if (!acceptsPickupBox.checked) defaultPickupBox.checked = false;
+  }
+  acceptsDropoffBox.addEventListener("change", syncUsageBoxes);
+  acceptsPickupBox.addEventListener("change", syncUsageBoxes);
+
+  // ---------- form open / close ----------
+  function setFormTitle(text) {
+    const title = byId("location-form-title");
+    title.removeAttribute("data-i18n");
+    title.textContent = text;
+  }
+
+  function openForm(loc) {
+    clearFormError();
+    hideBanner();
+    editingId = loc ? loc.id : null;
+
+    TEXT_FIELDS.forEach(function (f) { byId("loc-" + f).value = loc ? (loc[f] || "") : ""; });
+    acceptsDropoffBox.checked = loc ? loc.acceptsDropoff : true;
+    acceptsPickupBox.checked = loc ? loc.acceptsPickup : true;
+    defaultDropoffBox.checked = loc ? loc.isDefaultDropoff : false;
+    defaultPickupBox.checked = loc ? loc.isDefaultPickup : false;
+    syncUsageBoxes();
+    setHoursFromLocation(loc);
+    renderHoursPreview();
+
+    setFormTitle(loc
+      ? t("adminLocations.form.editTitleNamed").replace("{name}", pickLang(loc.nameTh, loc.nameEn))
+      : t("adminLocations.form.addTitle"));
+    formCard.hidden = false;
+    formCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    byId("loc-nameTh").focus({ preventScroll: true });
+  }
+
+  function closeForm() {
+    formCard.hidden = true;
+    editingId = null;
+    clearFormError();
+  }
+
+  // ---------- table ----------
+  function renderTable(flashId) {
+    const lang = getLang();
+    const tbody = byId("location-table-body");
+
+    if (locationList.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("adminLocations.empty") + '</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = locationList.map(function (l, index) {
+      const badges = [];
+      if (l.acceptsDropoff) badges.push('<span class="badge badge-awaiting">' + t("adminLocations.badge.dropoff") + (l.isDefaultDropoff ? " · " + t("adminLocations.badge.default") : "") + '</span>');
+      if (l.acceptsPickup) badges.push('<span class="badge badge-ready">' + t("adminLocations.badge.pickup") + (l.isDefaultPickup ? " · " + t("adminLocations.badge.default") : "") + '</span>');
+      if (!l.isActive) badges.push('<span class="badge badge-cancelled">' + t("adminLocations.badge.archived") + '</span>');
+      if (!l.nameEn) badges.push('<span class="badge badge-rejected">' + t("adminLocations.badge.missingEn") + '</span>');
+      if (inFlightTotal(l) > 0) badges.push('<span class="badge badge-printing">' + t("adminLocations.badge.inFlight").replace("{n}", inFlightTotal(l)) + '</span>');
+
+      const hours = pickLang(l.hoursTh, l.hoursEn, lang);
+      const contact = [hours, l.phone].filter(Boolean).map(escHtml).join("<br>") || "—";
+      const small = "padding:6px 12px; font-size:13px;";
+
+      return '<tr data-row-id="' + l.id + '"' + (l.isActive ? "" : ' style="opacity:.6;"') + '>' +
+        '<td style="white-space:nowrap;">' +
+          '<button type="button" class="btn btn-secondary" style="padding:4px 9px;" data-move="up" data-id="' + l.id + '" title="' + t("adminLocations.moveUp") + '"' + (index === 0 ? " disabled" : "") + '>↑</button> ' +
+          '<button type="button" class="btn btn-secondary" style="padding:4px 9px;" data-move="down" data-id="' + l.id + '" title="' + t("adminLocations.moveDown") + '"' + (index === locationList.length - 1 ? " disabled" : "") + '>↓</button>' +
+        '</td>' +
+        '<td>' + escHtml(formatLocation(l, lang)) + '</td>' +
+        '<td><div style="display:flex; flex-wrap:wrap; gap:6px;">' + badges.join("") + '</div></td>' +
+        '<td>' + contact + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button type="button" class="btn btn-secondary" style="' + small + '" data-edit="' + l.id + '">' + t("adminLocations.editBtn") + '</button> ' +
+          (l.isActive
+            ? '<button type="button" class="btn btn-secondary" style="' + small + '" data-archive="' + l.id + '">' + t("adminLocations.archiveBtn") + '</button> '
+            : '<button type="button" class="btn btn-secondary" style="' + small + '" data-restore="' + l.id + '">' + t("adminLocations.restoreBtn") + '</button> ') +
+          '<button type="button" class="btn btn-danger" style="' + small + '" data-delete="' + l.id + '">' + t("adminLocations.deleteBtn") + '</button>' +
+        '</td>' +
+        '</tr>';
+    }).join("");
+
+    if (flashId) {
+      const row = tbody.querySelector('tr[data-row-id="' + flashId + '"]');
+      if (row) row.classList.add("row-flash");
+    }
+  }
+
+  async function loadLocations() {
+    const res = await fetch("/api/admin/locations");
+    locationList = await res.json();
+  }
+
+  async function postJson(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    const data = await res.json().catch(function () { return {}; });
+    return { ok: res.ok, data: data };
+  }
+
+  function nameOf(loc) { return loc ? pickLang(loc.nameTh, loc.nameEn) : ""; }
+
+  // Total in-flight requests still pointing at `loc` — 0 means an edit/
+  // archive can proceed with no notice to anyone (see submit handler and
+  // the archive click handler below, which only show the typo/moved or
+  // replacement modal when this is > 0).
+  function inFlightTotal(loc) {
+    return loc && loc.inFlight ? loc.inFlight.dropoff + loc.inFlight.pickup : 0;
+  }
+
+  async function setActive(id, isActive, replacementId) {
+    const loc = locationList.find(function (l) { return l.id === id; });
+    const body = { isActive: isActive };
+    if (replacementId != null) body.replacementId = replacementId;
+    const result = await postJson("/api/admin/locations/" + id + "/active", body);
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await loadLocations();
+    renderTable(id);
+    const notified = result.data.notifiedCount || 0;
+    const key = isActive ? "adminLocations.banner.restored"
+      : (notified > 0 ? "adminLocations.banner.archivedNotified" : "adminLocations.banner.archived");
+    showBanner("success", t(key).replace("{name}", nameOf(loc)).replace("{n}", notified));
+  }
+
+  async function deleteLocation(id) {
+    const loc = locationList.find(function (l) { return l.id === id; });
+    const result = await postJson("/api/admin/locations/" + id + "/delete");
+    if (!result.ok) return showBanner("error", messageFor(result.data.error, result.data));
+    await loadLocations();
+    renderTable();
+    showBanner("success", t("adminLocations.banner.deleted").replace("{name}", nameOf(loc)));
+  }
+
+  // ---------- events ----------
+  byId("add-location-btn").addEventListener("click", function () { openForm(null); });
+  byId("location-cancel-btn").addEventListener("click", closeForm);
+
+  // Builds the two-radio "typo fix / actually moved" choice inside the
+  // shared confirm modal (see showConfirmModal's build() option) — only
+  // shown when the place being edited still has in-flight requests. Returns
+  // a getter the modal reads on confirm, giving { moved: boolean }.
+  function buildMovedFields(container, count) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = t("adminLocations.movedModal.message").replace("{n}", count);
+    container.appendChild(p);
+
+    [
+      { value: "typo", labelKey: "adminLocations.movedModal.optionTypo", checked: true },
+      { value: "moved", labelKey: "adminLocations.movedModal.optionMoved" }
+    ].forEach(function (opt) {
+      const label = document.createElement("label");
+      label.className = "check-option";
+      label.style.display = "block";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "loc-moved-choice";
+      input.value = opt.value;
+      input.checked = !!opt.checked;
+      const span = document.createElement("span");
+      span.textContent = t(opt.labelKey).replace("{n}", count);
+      label.appendChild(input);
+      label.appendChild(span);
+      container.appendChild(label);
+    });
+
+    return function () {
+      const checked = container.querySelector('input[name="loc-moved-choice"]:checked');
+      return { moved: !!checked && checked.value === "moved" };
+    };
+  }
+
+  async function saveLocation(payload) {
+    const saveBtn = byId("location-save-btn");
+    const idleLabel = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = t("btn.saving");
+
+    let result;
+    try {
+      result = await postJson(editingId ? "/api/admin/locations/" + editingId : "/api/admin/locations", payload);
+    } catch (err) {
+      result = { ok: false, data: {} };
+    }
+    saveBtn.disabled = false;
+    saveBtn.textContent = idleLabel;
+
+    if (!result.ok) {
+      const missing = [];
+      if (result.data.error === "name-required") {
+        if (!String(payload.nameTh || "").trim()) missing.push("field-nameTh");
+        if (!String(payload.nameEn || "").trim()) missing.push("field-nameEn");
+      }
+      showFormError(messageFor(result.data.error, result.data), missing);
+      return showBanner("error", messageFor(result.data.error, result.data));
+    }
+
+    const savedId = result.data.id;
+    const notified = result.data.notifiedCount || 0;
+    closeForm();
+    await loadLocations();
+    renderTable(savedId);
+    const key = notified > 0 ? "adminLocations.banner.savedNotified" : "adminLocations.banner.saved";
+    showBanner("success", t(key).replace("{name}", nameOf(result.data)).replace("{n}", notified));
+  }
+
+  locationForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearFormError();
+
+    const payload = {
+      acceptsDropoff: acceptsDropoffBox.checked,
+      acceptsPickup: acceptsPickupBox.checked,
+      isDefaultDropoff: defaultDropoffBox.checked,
+      isDefaultPickup: defaultPickupBox.checked,
+      hoursKeep: !!legacyHours
+    };
+    TEXT_FIELDS.forEach(function (f) { payload[f] = byId("loc-" + f).value; });
+    Object.assign(payload, readHours());
+
+    // Both languages required — say which box is empty rather than only that
+    // something is wrong.
+    const missing = [];
+    if (!payload.nameTh.trim()) missing.push("field-nameTh");
+    if (!payload.nameEn.trim()) missing.push("field-nameEn");
+    if (missing.length) return showFormError(t("adminLocations.err.nameRequired"), missing);
+
+    // Only an edit (not a new place) can have in-flight requests already
+    // pointing at it — ask typo-vs-moved first, and only when it does.
+    const editingLoc = editingId ? locationList.find(function (l) { return l.id === editingId; }) : null;
+    const count = inFlightTotal(editingLoc);
+    if (count > 0) {
+      return showConfirmModal({
+        title: t("adminLocations.movedModal.title"),
+        confirmText: t("adminLocations.movedModal.confirmBtn"),
+        build: function (container) { return buildMovedFields(container, count); },
+        onConfirm: function (chosen) { return saveLocation(Object.assign({}, payload, { notifyMoved: !!(chosen && chosen.moved) })); }
+      });
+    }
+
+    return saveLocation(payload);
+  });
+
+  byId("location-table-body").addEventListener("click", async function (e) {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+
+    if (btn.hasAttribute("data-edit")) {
+      const loc = locationList.find(function (l) { return l.id === Number(btn.getAttribute("data-edit")); });
+      return openForm(loc);
+    }
+    if (btn.hasAttribute("data-restore")) return setActive(Number(btn.getAttribute("data-restore")), true);
+
+    if (btn.hasAttribute("data-move")) {
+      const result = await postJson("/api/admin/locations/" + btn.getAttribute("data-id") + "/move", { direction: btn.getAttribute("data-move") });
+      if (result.ok) { locationList = result.data; renderTable(Number(btn.getAttribute("data-id"))); }
+      return;
+    }
+
+    if (btn.hasAttribute("data-archive")) {
+      const id = Number(btn.getAttribute("data-archive"));
+      const loc = locationList.find(function (l) { return l.id === id; });
+      const count = inFlightTotal(loc);
+
+      if (count === 0) {
+        return showConfirmModal({
+          title: t("adminLocations.archiveConfirmTitle"),
+          message: t("adminLocations.archiveConfirmMessage").replace("{name}", formatLocation(loc)),
+          confirmText: t("adminLocations.archiveBtn"),
+          danger: true,
+          onConfirm: function () { return setActive(id, false); }
+        });
+      }
+
+      // Still has in-flight requests: archiving requires picking a
+      // replacement that accepts whichever purpose(s) they're waiting on —
+      // those requests move onto it and their requesters get notified.
+      const candidates = locationList.filter(function (l) {
+        return l.id !== id && l.isActive
+          && (loc.inFlight.dropoff === 0 || l.acceptsDropoff)
+          && (loc.inFlight.pickup === 0 || l.acceptsPickup);
+      });
+      if (candidates.length === 0) {
+        return showBanner("error", t("adminLocations.archiveReplaceModal.noOptions"));
+      }
+
+      return showConfirmModal({
+        title: t("adminLocations.archiveReplaceModal.title"),
+        confirmText: t("adminLocations.archiveReplaceModal.confirmBtn"),
+        danger: true,
+        build: function (container) {
+          const p = document.createElement("p");
+          p.className = "hint";
+          p.textContent = t("adminLocations.archiveReplaceModal.message").replace("{name}", formatLocation(loc)).replace("{n}", count);
+          container.appendChild(p);
+
+          const wrap = document.createElement("div");
+          wrap.className = "field";
+          const label = document.createElement("label");
+          label.textContent = t("adminLocations.archiveReplaceModal.selectLabel");
+          const select = document.createElement("select");
+          candidates.forEach(function (c) {
+            const opt = document.createElement("option");
+            opt.value = String(c.id);
+            opt.textContent = formatLocation(c, getLang());
+            select.appendChild(opt);
+          });
+          wrap.appendChild(label);
+          wrap.appendChild(select);
+          container.appendChild(wrap);
+
+          return function () { return { replacementId: Number(select.value) }; };
+        },
+        onConfirm: function (chosen) { return setActive(id, false, chosen.replacementId); }
+      });
+    }
+
+    if (btn.hasAttribute("data-delete")) {
+      const id = Number(btn.getAttribute("data-delete"));
+      const loc = locationList.find(function (l) { return l.id === id; });
+      showConfirmModal({
+        title: t("adminLocations.deleteConfirmTitle"),
+        message: t("adminLocations.deleteConfirmMessage").replace("{name}", formatLocation(loc)),
+        confirmText: t("adminLocations.deleteBtn"),
+        danger: true,
+        onConfirm: function () { return deleteLocation(id); }
+      });
+    }
+  });
+
+  document.addEventListener("odprs:langchange", function () {
+    fillHoursSelects();
+    renderHoursPreview();
+    renderTable();
+  });
+
+  fillHoursSelects();
+  syncUsageBoxes();
+  loadLocations().then(function () { renderTable(); });
+</script>
+</body>
+</html>

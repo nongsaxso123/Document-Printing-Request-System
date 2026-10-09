@@ -204,10 +204,40 @@ function randomBusinessDayInRange(start, end) {
   return d;
 }
 
+// Populated once in main() from the real agency_categories/agency_units
+// tables (src/agencies.js) before any record is generated, so every
+// generated request gets real ids — not just the strings AGENCY_DATA above
+// mirrors — the same as a real submission through resolveAgency() would.
+// Keyed exactly like the migration's own backfill: category by its Thai
+// name, unit by "<category>||<name_th> (<name_en>)" (the same concatenation
+// AGENCY_DATA already uses, so a lookup miss only happens for the
+// "หน่วยงานอื่นๆ" free-text category, which has no real unit rows at all —
+// same as a real free-text submission, its agencyUnitId is correctly null).
+let CATEGORY_ID_BY_NAME = {};
+let UNIT_ID_BY_NAME = {};
+
+async function loadAgencyIds() {
+  const categories = await prisma.agencyCategory.findMany();
+  const units = await prisma.agencyUnit.findMany();
+  const categoryNameById = {};
+  categories.forEach((c) => {
+    CATEGORY_ID_BY_NAME[c.nameTh] = c.id;
+    categoryNameById[c.id] = c.nameTh;
+  });
+  units.forEach((u) => {
+    const categoryName = categoryNameById[u.categoryId];
+    UNIT_ID_BY_NAME[`${categoryName}||${u.nameTh} (${u.nameEn})`] = u.id;
+  });
+}
+
 function pickAgency() {
   const category = weightedPick(CATEGORY_WEIGHTS);
   const unit = pick(AGENCY_DATA[category]);
-  return { category, unit };
+  return {
+    category, unit,
+    categoryId: CATEGORY_ID_BY_NAME[category] || null,
+    unitId: UNIT_ID_BY_NAME[`${category}||${unit}`] || null
+  };
 }
 
 function pickDocumentType(category) {
@@ -291,7 +321,7 @@ function fullYearTarget() {
 // ---------- record generation ----------
 
 function generateRecord(submissionDate, now) {
-  const { category, unit } = pickAgency();
+  const { category, unit, categoryId, unitId } = pickAgency();
   const documentType = pickDocumentType(category);
   const paperSource = pickPaperSource(documentType);
   const originalPages = pickPages();
@@ -311,7 +341,7 @@ function generateRecord(submissionDate, now) {
 
   const record = {
     requesterEmail, requesterName, requesterTel,
-    agencyCategory: category, agencyUnit: unit,
+    agencyCategory: category, agencyUnit: unit, agencyCategoryId: categoryId, agencyUnitId: unitId,
     paperSize, colorMode, printSide, finishingMethods,
     documentType, paperSource,
     copyLabelEnabled: false, copyLabelMode: null, copyLabelPrefix: null, copyLabelStart: null, copyLabelManual: [],
@@ -369,6 +399,8 @@ async function main() {
   const now = new Date();
   const currentYear = now.getFullYear();
   const years = [currentYear - 2, currentYear - 1, currentYear];
+
+  await loadAgencyIds();
 
   console.log("Deleting existing requests/counters...");
   await prisma.request.deleteMany({});

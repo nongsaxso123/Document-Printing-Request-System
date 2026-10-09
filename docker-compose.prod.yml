@@ -1,0 +1,76 @@
+# Production stack for the real server (Ubuntu + Docker). Dev keeps using
+# docker-compose.yml; this file is only ever run through deploy/deploy.sh:
+#
+#   docker compose -f docker-compose.prod.yml --env-file server/.env up -d --build
+#
+# Differences from dev: no nodemon / bind-mounted source (the image holds the
+# code), Postgres not exposed outside Docker and with a real password,
+# migrations applied on every start, Caddy on 80/443 with automatic HTTPS,
+# memory caps sized for a 2GB machine, and log rotation so logs can't fill
+# the disk. Every value comes from server/.env (see .env.example).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odprs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in server/.env}
+      POSTGRES_DB: odprs
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odprs -d odprs"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 512m
+    logging: *logging
+
+  app:
+    build: ./server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Bangkok
+      DATABASE_URL: postgresql://odprs:${POSTGRES_PASSWORD}@db:5432/odprs?schema=public
+      BACKUP_DIR: /data/backups
+    volumes:
+      - backups:/data/backups
+    command: sh -c "npx prisma migrate deploy && node src/app.js"
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 1g
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in server/.env}
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # HTTPS certificates — keep, or Caddy re-requests them on every restart
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+    mem_limit: 128m
+    logging: *logging
+
+volumes:
+  pgdata:
+  backups:
+  caddy_data:
+  caddy_config:

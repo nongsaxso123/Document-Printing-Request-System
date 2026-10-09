@@ -1,4 +1,4 @@
-<%- include("../partials/head", { title: "ODPRS — จุดส่งมอบเอกสาร" }) %>
+<%- include("../partials/head", { title: "จุดส่งมอบเอกสาร | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
 <%- include("../partials/header", { user, crumbKey: "crumb.counterHandover", crumbFallback: 'จุดส่งมอบเอกสาร / <strong>ยืนยันตัวตนผู้รับ</strong>' }) %>
 
@@ -7,78 +7,89 @@
     <p class="page-subtitle" data-i18n="handover.subtitle">ตรวจสอบ Claim Code และบันทึกข้อมูลผู้รับก่อนยืนยันส่งมอบ</p>
 
     <div class="card">
-      <div class="card-header"><span data-i18n="handover.searchTitle">ค้นหาด้วย Claim Code</span></div>
+      <div class="card-header">
+        <span class="step-title"><span class="step-num">1</span><span data-i18n="handover.searchTitle">ค้นหาด้วย Claim Code</span></span>
+      </div>
       <div class="card-body">
-        <div class="form-grid">
-          <div class="field">
-            <label data-i18n="handover.claimCodeLabel">Claim Code (6 หลัก)</label>
-            <input type="text" id="claim-code-input" inputmode="numeric" maxlength="6" placeholder="000000">
-          </div>
-        </div>
-        <div class="form-actions" style="justify-content:flex-start; margin-top:14px;">
-          <button class="btn btn-primary" id="search-btn" data-i18n="handover.searchBtn">ค้นหา</button>
+        <label class="claim-search-label" for="claim-code-input" data-i18n="handover.claimCodeLabel">Claim Code (6 หลัก)</label>
+        <div class="claim-search">
+          <input type="text" id="claim-code-input" class="claim-search-input" inputmode="numeric" maxlength="6" placeholder="000000" autofocus>
+          <button class="btn btn-primary" id="search-btn">
+            <span class="icon" data-icon="search"><%- icon('search') %></span>
+            <span data-i18n="handover.searchBtn">ค้นหา</span>
+          </button>
         </div>
       </div>
     </div>
 
     <div class="notice notice-warning" id="handover-error" style="display:none;">
-      <span class="icon" data-icon="alert-triangle"></span>
+      <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
       <div id="handover-error-text"></div>
     </div>
 
     <div class="card" id="handover-result" style="display:none;">
-      <div class="card-header"><span data-i18n="handover.matchTitle">พบคำขอที่ตรงกัน — บันทึกข้อมูลผู้รับก่อนส่งมอบ</span></div>
+      <div class="card-header">
+        <span class="step-title"><span class="step-num">2</span><span data-i18n="handover.matchTitle">พบคำขอที่ตรงกัน</span></span>
+      </div>
       <div class="card-body">
         <dl class="summary-list">
-          <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd id="h-name">—</dd>
+          <dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd><span id="h-name">—</span><span class="identity-email" id="h-name-email"></span></dd>
           <dt>RUN NUMBER</dt><dd id="h-runno">—</dd>
           <dt data-i18n="summary.itemList">รายการเอกสาร</dt><dd id="h-items">—</dd>
+          <dt data-i18n="handover.pickupLocation">สถานที่รับเอกสาร</dt><dd id="h-pickup">—</dd>
+          <dt data-i18n="handover.availableFrom">รับได้ตั้งแต่</dt><dd id="h-available">—</dd>
         </dl>
 
-        <span class="hint" data-i18n="handover.receiverInfo.hint">ข้อมูลนี้เป็นบันทึกความรับผิดชอบว่าใครเป็นผู้รับเอกสาร ไม่ใช่การตรวจสอบยืนยันตัวตน — ไม่ต้องตรวจบัตรประชาชน</span>
+        <div class="loc-section">
+          <div class="loc-section-title">
+            <span class="icon" data-icon="user-check"><%- icon('user-check') %></span>
+            <span data-i18n="handover.receiverSectionTitle">ข้อมูลผู้รับ</span>
+          </div>
+          <span class="hint" data-i18n="handover.receiverInfo.hint">ข้อมูลนี้เป็นบันทึกว่าใครมารับเอกสาร ไม่ต้องตรวจบัตรประชาชน</span>
 
-        <div class="form-actions" style="justify-content:flex-start; margin-top:10px;">
-          <button type="button" class="btn btn-secondary" id="same-as-requester-btn" data-i18n="handover.sameAsRequesterBtn">ผู้รับคือผู้ขอเอง (กรอกให้อัตโนมัติ)</button>
+          <div class="form-actions" style="justify-content:flex-start; margin-top:12px;">
+            <button type="button" class="btn btn-secondary" id="same-as-requester-btn" data-i18n="handover.sameAsRequesterBtn">ผู้รับคือผู้ขอเอง (กรอกให้อัตโนมัติ)</button>
+          </div>
+
+          <!-- A real <form>+submit (not just a button click) so the browser's
+               own autofill history actually offers previously-typed Receiver
+               values back on later visits. -->
+          <form id="receiver-form" autocomplete="on">
+            <div class="form-grid" style="margin-top:12px;">
+              <div class="field" id="receiver-name-field">
+                <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
+                <input type="text" id="receiver-name" name="receiverName" autocomplete="name">
+                <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
+              </div>
+              <div class="field" id="receiver-work-phone-field">
+                <label data-i18n="handover.receiverWorkPhone">เบอร์โทรศัพท์ที่ทำงาน *</label>
+                <input type="text" id="receiver-work-phone" name="receiverWorkPhone" autocomplete="tel" inputmode="numeric" maxlength="10" data-max-digits="10">
+                <span class="field-error" data-i18n="handover.receiverWorkPhone.required">กรุณากรอกเบอร์โทรศัพท์ที่ทำงาน</span>
+              </div>
+              <div class="field" id="receiver-workplace-field">
+                <label data-i18n="handover.receiverWorkplace">ที่ทำงาน *</label>
+                <input type="text" id="receiver-workplace" name="receiverWorkplace" autocomplete="organization">
+                <span class="field-error" data-i18n="handover.receiverWorkplace.required">กรุณากรอกที่ทำงานของผู้รับ</span>
+              </div>
+              <div class="field" id="receiver-position-field">
+                <label data-i18n="handover.receiverPosition">ตำแหน่ง (หน้าที่ในที่ทำงาน) *</label>
+                <input type="text" id="receiver-position" name="receiverPosition" autocomplete="organization-title">
+                <span class="field-error" data-i18n="handover.receiverPosition.required">กรุณากรอกตำแหน่งผู้รับ</span>
+              </div>
+            </div>
+
+            <div class="loc-actions">
+              <button type="submit" class="btn btn-primary" id="confirm-handover-btn" data-i18n="handover.confirmBtn">ยืนยันส่งมอบ</button>
+            </div>
+          </form>
         </div>
-
-        <!-- A real <form>+submit (not just a button click) so the browser's
-             own autofill history actually offers previously-typed Receiver
-             values back on later visits. -->
-        <form id="receiver-form" autocomplete="on">
-          <div class="form-grid" style="margin-top:12px;">
-            <div class="field" id="receiver-name-field">
-              <label data-i18n="handover.receiverName">ชื่อผู้รับ *</label>
-              <input type="text" id="receiver-name" name="receiverName" autocomplete="name">
-              <span class="field-error" data-i18n="handover.receiverName.required">กรุณากรอกชื่อผู้รับ</span>
-            </div>
-            <div class="field" id="receiver-work-phone-field">
-              <label data-i18n="handover.receiverWorkPhone">เบอร์โทรศัพท์ที่ทำงาน *</label>
-              <input type="text" id="receiver-work-phone" name="receiverWorkPhone" autocomplete="tel">
-              <span class="field-error" data-i18n="handover.receiverWorkPhone.required">กรุณากรอกเบอร์โทรศัพท์ที่ทำงาน</span>
-            </div>
-            <div class="field" id="receiver-workplace-field">
-              <label data-i18n="handover.receiverWorkplace">ที่ทำงาน *</label>
-              <input type="text" id="receiver-workplace" name="receiverWorkplace" autocomplete="organization">
-              <span class="field-error" data-i18n="handover.receiverWorkplace.required">กรุณากรอกที่ทำงานของผู้รับ</span>
-            </div>
-            <div class="field" id="receiver-position-field">
-              <label data-i18n="handover.receiverPosition">ตำแหน่ง (หน้าที่ในที่ทำงาน) *</label>
-              <input type="text" id="receiver-position" name="receiverPosition" autocomplete="organization-title">
-              <span class="field-error" data-i18n="handover.receiverPosition.required">กรุณากรอกตำแหน่งผู้รับ</span>
-            </div>
-          </div>
-
-          <div class="form-actions" style="justify-content:flex-start;">
-            <button type="submit" class="btn btn-primary" id="confirm-handover-btn" data-i18n="handover.confirmBtn">ยืนยันส่งมอบ</button>
-          </div>
-        </form>
       </div>
     </div>
 
     <div class="notice notice-success" id="handover-success" style="display:none;">
-      <span class="icon" data-icon="check-circle"></span>
+      <span class="icon" data-icon="check-circle"><%- icon('check-circle') %></span>
       <div>
-        <div data-i18n="handover.successNotice">ส่งมอบเอกสารสำเร็จ — บันทึกผู้ขอ+เจ้าหน้าที่+ผู้รับ+เวลาไว้ในระบบแล้ว</div>
+        <div data-i18n="handover.successNotice">ส่งมอบเอกสารสำเร็จ บันทึกข้อมูลผู้ขอ เจ้าหน้าที่ ผู้รับ และเวลาไว้ในระบบแล้ว</div>
         <div style="margin-top:10px;">
           <button class="btn btn-secondary" id="search-again-btn" data-i18n="handover.searchAgain">ค้นหารายการถัดไป</button>
         </div>
@@ -118,8 +129,15 @@
 
   function renderMatch() {
     document.getElementById("h-name").textContent = currentMatch.requesterName;
+    document.getElementById("h-name-email").textContent = currentMatch.requesterEmail ? "(" + currentMatch.requesterEmail + ")" : "";
     document.getElementById("h-runno").textContent = currentMatch.runNumber;
     document.getElementById("h-items").textContent = currentMatch.itemList;
+    document.getElementById("h-pickup").textContent = currentMatch.pickupLocation
+      ? formatLocation(currentMatch.pickupLocation, getLang())
+      : "—";
+    document.getElementById("h-available").textContent = currentMatch.pickupAvailableFrom
+      ? formatDateTime(new Date(currentMatch.pickupAvailableFrom), getLang())
+      : "—";
   }
 
   async function doSearch() {
@@ -148,9 +166,11 @@
 
   // Same-as-Requester: the common case (per file.md's Receiver definition)
   // is the Requester collecting their own documents, so autofill from data
-  // the system already has instead of re-typing it. Position isn't part of
-  // the request itself, so it's left for the Officer to type/confirm.
-  document.getElementById("same-as-requester-btn").addEventListener("click", function () {
+  // the system already has instead of re-typing it. Position isn't stored
+  // on the Request itself, only on a Profile (if the Requester ever saved
+  // one) — best-effort lookup by email; still left editable either way so
+  // the Officer can confirm or correct it.
+  document.getElementById("same-as-requester-btn").addEventListener("click", async function () {
     if (!currentMatch) return;
     document.getElementById("receiver-name").value = currentMatch.requesterName || "";
     document.getElementById("receiver-work-phone").value = currentMatch.tel || "";
@@ -158,13 +178,28 @@
     nameField.classList.remove("invalid");
     workPhoneField.classList.remove("invalid");
     workplaceField.classList.remove("invalid");
+
+    if (currentMatch.requesterEmail) {
+      try {
+        const res = await fetch("/api/profile/by-email/" + encodeURIComponent(currentMatch.requesterEmail));
+        const data = await res.json();
+        if (data && data.position) {
+          document.getElementById("receiver-position").value = data.position;
+          positionField.classList.remove("invalid");
+        }
+      } catch (err) { /* no saved profile / lookup hiccup — position just stays blank for manual entry */ }
+    }
+
     document.getElementById("receiver-position").focus();
   });
 
   // A real form submit (not just a button click) so the browser offers to
   // remember these values and autocompletes them on later handovers.
+  const confirmHandoverBtn = document.getElementById("confirm-handover-btn");
+
   document.getElementById("receiver-form").addEventListener("submit", async function (e) {
     e.preventDefault();
+    if (confirmHandoverBtn.disabled) return;
 
     const name = document.getElementById("receiver-name").value.trim();
     const position = document.getElementById("receiver-position").value.trim();
@@ -177,14 +212,31 @@
     workPhoneField.classList.toggle("invalid", !workPhone);
     if (!name || !position || !workplace || !workPhone || !currentMatch) return;
 
-    await fetch("/api/requests/" + encodeURIComponent(currentMatch.referenceNo) + "/handover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ receiverName: name, receiverPosition: position, receiverWorkplace: workplace, receiverWorkPhone: workPhone })
-    });
+    confirmHandoverBtn.disabled = true;
+    showProcessing();
+    const ref = currentMatch.referenceNo;
+    try {
+      // Used to ignore the response and always show "handed over" — a
+      // request someone else had already handed over looked successful.
+      const res = await fetch("/api/requests/" + encodeURIComponent(ref) + "/handover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ receiverName: name, receiverPosition: position, receiverWorkplace: workplace, receiverWorkPhone: workPhone })
+      });
+      if (!res.ok) {
+        showActionResult(false, t(res.status === 409 ? "handover.result.notReady" : "result.generic").replace("{ref}", ref));
+        return;
+      }
 
-    resultCard.style.display = "none";
-    successNotice.style.display = "";
+      resultCard.style.display = "none";
+      successNotice.style.display = "";
+      showActionResult(true, t("handover.result.done").replace("{ref}", ref).replace("{name}", name));
+    } catch (err) {
+      showActionResult(false, t("result.network"));
+    } finally {
+      hideProcessing();
+      confirmHandoverBtn.disabled = false;
+    }
   });
 
   document.getElementById("search-again-btn").addEventListener("click", resetView);

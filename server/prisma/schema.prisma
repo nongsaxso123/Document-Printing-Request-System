@@ -17,6 +17,10 @@ enum RequestStatus {
   PRINTING_IN_PROGRESS
   READY_FOR_PICKUP
   COMPLETED
+  // Requester-initiated, only reachable from AWAITING_ORIGINAL_DOCUMENT —
+  // lets them withdraw a request they want to correct instead of racing an
+  // in-place edit against the Officer's own approve/reject at the counter.
+  CANCELLED
 
   @@map("request_status")
 }
@@ -38,8 +42,8 @@ model Officer {
 // app-assigned (see Counter model below), never DB auto-increment, so both
 // the primary key and the run number are plain strings.
 model Request {
-  requestReferenceNo String    @id @map("request_reference_no")
-  runNumber          String?   @unique @map("run_number")
+  requestReferenceNo String  @id @map("request_reference_no")
+  runNumber          String? @unique @map("run_number")
 
   requesterEmail String @map("requester_email")
   requesterName  String @map("requester_name")
@@ -49,17 +53,27 @@ model Request {
   // Form UI (prototype/requester/new-request.html) picks a category first,
   // then a specific unit within it — both need to be stored and shown
   // separately (see request-detail.html's d-agency-category/d-agency-unit).
-  agencyCategory String @map("agency_category")
-  agencyUnit     String @map("agency_unit")
+  // The strings are the historical record (what was true at submission,
+  // same role as dropoffLocationSnapshot); the ids are nullable pointers to
+  // src/agencies.js's admin-editable tables, added later — null on requests
+  // that predate them, or whose stored string didn't match any category/unit
+  // at backfill time (a renamed/retyped value, or a category-less "Other"
+  // free-text unit, which never has an id).
+  agencyCategory    String          @map("agency_category")
+  agencyUnit        String          @map("agency_unit")
+  agencyCategoryId  Int?            @map("agency_category_id")
+  agencyUnitId      Int?            @map("agency_unit_id")
+  agencyCategoryRef AgencyCategory? @relation(fields: [agencyCategoryId], references: [id])
+  agencyUnitRef     AgencyUnit?     @relation(fields: [agencyUnitId], references: [id])
 
-  paperSize        String  @map("paper_size")
+  paperSize        String   @map("paper_size")
   // v0.4: Color Mode and Print Side replace the old single printOption
   // combined value, to support the Total Sheets to Print calculation
   // (FR-17). Nullable — application-level validation in requests.js
   // enforces these as required for new submissions, so ADD COLUMN never
   // needs a data-loss-forcing default against existing demo rows.
-  colorMode        String? @map("color_mode")
-  printSide        String? @map("print_side")
+  colorMode        String?  @map("color_mode")
+  printSide        String?  @map("print_side")
   // v0.6: Finishing and Binding merged into one multi-select field (v0.5
   // had made it a single mutually-exclusive choice, on the assumption that
   // a print job only ever gets one finishing technique — the Registrar
@@ -78,8 +92,8 @@ model Request {
   finishingMethods String[] @default([]) @map("finishing_methods")
   // v0.4: classifies the request and drives the Paper Source rule (FR-03,
   // FR-17). A request may not mix Exam and General Document items.
-  documentType     String? @map("document_type")
-  paperSource      String? @map("paper_source")
+  documentType     String?  @map("document_type")
+  paperSource      String?  @map("paper_source")
   // v0.4 (FR-18) — optional per-copy running number ("Copy Label"),
   // entirely independent of Request_Reference_No / RUN_NUMBER. Ending
   // number is derived (start + copies - 1), not stored separately.
@@ -92,18 +106,18 @@ model Request {
   copyLabelPrefix  String?  @map("copy_label_prefix")
   copyLabelStart   Int?     @map("copy_label_start")
   copyLabelManual  String[] @default([]) @map("copy_label_manual")
-  itemList         String  @map("item_list") @db.Text
-  originalPages    Int     @map("original_pages")
-  numberOfCopies   Int     @map("number_of_copies")
+  itemList         String   @map("item_list") @db.Text
+  originalPages    Int      @map("original_pages")
+  numberOfCopies   Int      @map("number_of_copies")
 
-  submissionDate                DateTime  @default(now()) @map("submission_date")
-  originalDocDeadline            DateTime  @map("original_doc_deadline")
-  originalDocReceivedTimestamp   DateTime? @map("original_doc_received_timestamp")
-  appointmentDateProposed         DateTime  @map("appointment_date_proposed") @db.Date
-  appointmentDateConfirmed        DateTime? @map("appointment_date_confirmed") @db.Date
+  submissionDate               DateTime  @default(now()) @map("submission_date")
+  originalDocDeadline          DateTime  @map("original_doc_deadline")
+  originalDocReceivedTimestamp DateTime? @map("original_doc_received_timestamp")
+  appointmentDateProposed      DateTime  @map("appointment_date_proposed") @db.Date
+  appointmentDateConfirmed     DateTime? @map("appointment_date_confirmed") @db.Date
 
-  requestFormFile String? @map("request_form_file")
-  claimCode       String? @map("claim_code")
+  requestFormFile String?       @map("request_form_file")
+  claimCode       String?       @map("claim_code")
   status          RequestStatus @default(AWAITING_ORIGINAL_DOCUMENT)
 
   // Appendix A has a single "Officer_ID", but request-detail.html /
@@ -121,14 +135,33 @@ model Request {
 
   rejectionReason String? @map("rejection_reason") @db.Text
 
+  // Where the Requester was told to bring the original document. The id
+  // keeps following the Location row (so a rename shows up live on the
+  // request page); the snapshot is what was true when they submitted.
+  // Both null on requests that predate the Location table.
+  dropoffLocationId       Int?      @map("dropoff_location_id")
+  dropoffLocationSnapshot Json?     @map("dropoff_location_snapshot")
+  dropoffLocation         Location? @relation("RequestDropoff", fields: [dropoffLocationId], references: [id])
+
+  // Where the Officer said the finished copies can be collected, chosen when
+  // marking the request ready (same id + snapshot pairing as above). Null
+  // until then.
+  pickupLocationId       Int?      @map("pickup_location_id")
+  pickupLocationSnapshot Json?     @map("pickup_location_snapshot")
+  pickupLocation         Location? @relation("RequestPickup", fields: [pickupLocationId], references: [id])
+  // "Collect from this time onward" — chosen by the Officer when marking the
+  // request ready, always inside business hours (see resolvePickupTime in
+  // requests.js). Null on requests marked ready before this existed.
+  pickupAvailableFrom    DateTime? @map("pickup_available_from")
+
   // Accountability record only, not identity verification — no physical ID
   // is inspected at handover (see file.md FR-14 / Appendix A). Workplace is
   // free text (not the Requester's own agency dropdown) since the Receiver
   // may be an outside third party, e.g. a TA.
-  receiverName       String? @map("receiver_name")
-  receiverPosition   String? @map("receiver_position")
-  receiverWorkplace  String? @map("receiver_workplace")
-  receiverWorkPhone  String? @map("receiver_work_phone")
+  receiverName      String? @map("receiver_name")
+  receiverPosition  String? @map("receiver_position")
+  receiverWorkplace String? @map("receiver_workplace")
+  receiverWorkPhone String? @map("receiver_work_phone")
 
   completedTimestamp DateTime? @map("completed_timestamp")
 
@@ -145,9 +178,9 @@ model Request {
 // (staff service / system ease / speed / print quality / overall) — easy to
 // extend with more columns later since each is independent, not an FK.
 model Evaluation {
-  id                 Int      @id @default(autoincrement())
-  requestReferenceNo String   @unique @map("request_reference_no")
-  requesterEmail     String   @map("requester_email")
+  id                 Int    @id @default(autoincrement())
+  requestReferenceNo String @unique @map("request_reference_no")
+  requesterEmail     String @map("requester_email")
 
   ratingStaffService Int @map("rating_staff_service")
   ratingSystemEase   Int @map("rating_system_ease")
@@ -174,4 +207,232 @@ model Counter {
 
   @@id([counterType, year])
   @@map("counters")
+}
+
+// In-app notification feed (bell icon) — FR-07 only specced outbound email
+// to the Requester on status change; this table is what backs the in-app
+// side of that, plus the (not in file.md) Officer-facing "new request
+// submitted" notification. recipientEmail is a plain string, not an FK to
+// Officer/Request — same reasoning as Request's reviewedByOfficerEmail
+// above: Admin can also trigger/receive these without an officers-table
+// row, and a notification should survive even if its source request were
+// ever removed.
+model Notification {
+  id                 Int      @id @default(autoincrement())
+  recipientEmail     String   @map("recipient_email")
+  requestReferenceNo String?  @map("request_reference_no")
+  type               String
+  title              String
+  body               String   @db.Text
+  // Data captured at the moment this notification fired (ids, dates,
+  // location snapshots — never a Date object, always JSON-safe), so the
+  // catalog in src/messages.js can re-render both languages on every read
+  // instead of only the one language baked into title/body above. Null on
+  // rows created before this column existed — those keep showing the
+  // Thai-only title/body they were created with.
+  params             Json?
+  link               String?
+  isRead             Boolean  @default(false) @map("is_read")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([recipientEmail, isRead])
+  @@map("notifications")
+}
+
+// Singleton row (id always 1) holding admin-toggleable system-wide
+// switches from the "จัดการระบบ" admin page — see src/settings.js.
+// Modeled as fixed columns rather than a generic key/value table since
+// there are only ever two flags today; add columns here directly if more
+// are needed later.
+model SystemSetting {
+  id                               Int      @id @default(1)
+  officerEmailNotificationsEnabled Boolean  @default(true) @map("officer_email_notifications_enabled")
+  // Blocks the Requester role app-wide (see the maintenance-mode gate in
+  // src/app.js) while leaving Officer/Admin access untouched — meant for
+  // exam periods or other stretches the Registrar Division wants closed to
+  // new/browsing Requester traffic without taking Officers offline too.
+  maintenanceModeEnabled           Boolean  @default(false) @map("maintenance_mode_enabled")
+  maintenanceMessage               String?  @map("maintenance_message") @db.Text
+  // Auto-translated from maintenanceMessage (Thai) via the free/unofficial
+  // Google Translate web endpoint (src/translate.js) whenever the admin
+  // saves a new message — best-effort, can be null if translation failed.
+  maintenanceMessageEn             String?  @map("maintenance_message_en") @db.Text
+  // Optional closing window for maintenance mode. Requesters are blocked
+  // only while maintenanceModeEnabled is on AND now falls inside
+  // [startsAt, endsAt) — a null start means "from now", a null end means
+  // "until an Admin switches it off". Once endsAt passes the system reopens
+  // on its own; see settings.isMaintenanceActive().
+  maintenanceStartsAt              DateTime? @map("maintenance_starts_at")
+  maintenanceEndsAt                DateTime? @map("maintenance_ends_at")
+  // Office contact phone + drop-off/pickup places used to live here as
+  // free-text Thai-only fields; they moved to the Location table below
+  // (admin-editable, bilingual, multiple places).
+  updatedByAdminEmail              String?  @map("updated_by_admin_email")
+  updatedAt                        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// A physical place where the Registrar Division takes in original documents
+// (drop-off) and/or hands out finished copies (pickup). Admin-editable
+// (views/admin/locations.ejs, src/locations.js) since counters move and new
+// ones open. Both languages are required by the admin form; the client and
+// email code fall back to the other language when one is empty, which only
+// happens for rows migrated from the old Thai-only settings fields.
+//
+// Rows are archived (isActive = false), never deleted, so requests that
+// already reference one keep resolving to a name.
+model Location {
+  id             Int     @id @default(autoincrement())
+  nameTh         String  @map("name_th")
+  nameEn         String  @default("") @map("name_en")
+  // Building / floor / room — shown after the name, e.g. "อาคาร E4 ชั้น 1".
+  detailTh       String? @map("detail_th")
+  detailEn       String? @map("detail_en")
+  hoursTh        String? @map("hours_th")
+  hoursEn        String? @map("hours_en")
+  // Structured form of the same opening hours (1=Mon..7=Sun, "HH:MM"), so
+  // deadline/pickup-window math (src/businessDays.js, src/requests.js) can
+  // read this place's real hours instead of everyone sharing one hardcoded
+  // window. Null when hoursTh/hoursEn were hand-typed before the picker
+  // existed and don't fit its day/30-minute-slot shape (see hoursKeep in
+  // locations.js) — callers fall back to the site-wide default window on
+  // null, same as a location with no hours configured at all.
+  hoursFromDay   Int?    @map("hours_from_day")
+  hoursToDay     Int?    @map("hours_to_day")
+  hoursOpenTime  String? @map("hours_open_time")
+  hoursCloseTime String? @map("hours_close_time")
+  phone          String?
+  mapUrl         String? @map("map_url")
+
+  acceptsDropoff   Boolean @default(true) @map("accepts_dropoff")
+  acceptsPickup    Boolean @default(true) @map("accepts_pickup")
+  // At most one default per purpose (kept consistent by locations.js): the
+  // pre-selected choice on the request form / the "ready" step.
+  isDefaultDropoff Boolean @default(false) @map("is_default_dropoff")
+  isDefaultPickup  Boolean @default(false) @map("is_default_pickup")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  updatedByAdminEmail String?  @map("updated_by_admin_email")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  dropoffRequests Request[] @relation("RequestDropoff")
+  pickupRequests  Request[] @relation("RequestPickup")
+
+  @@map("locations")
+}
+
+// Two-level admin-editable agency directory (E track) — replaces the
+// hardcoded AGENCY_DATA/AGENCY_CATEGORY_EN objects in
+// public/assets/js/app.js. A category groups units (e.g. "สำนักวิชา" /
+// School groups each individual school); Request.agencyCategory/agencyUnit
+// and Profile.workplaceCategory/workplaceUnit keep their plain-string
+// columns as the historical record and add nullable ids alongside (see the
+// comments on those fields) — same id+snapshot shape as Location.
+model AgencyCategory {
+  id             Int     @id @default(autoincrement())
+  nameTh         String  @map("name_th")
+  nameEn         String  @map("name_en")
+  // Replaces the old hardcoded "หน่วยงานอื่นๆ" (Other) string match: true on
+  // a category means it never lists units at all — the Requester types the
+  // unit name directly instead of picking one (src/agencies.js
+  // resolveAgency). Exactly one such category exists today, but nothing
+  // requires that to stay true.
+  allowsFreeText Boolean @default(false) @map("allows_free_text")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  updatedByAdminEmail String?  @map("updated_by_admin_email")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  units    AgencyUnit[]
+  requests Request[]
+  profiles Profile[]
+
+  @@map("agency_categories")
+}
+
+model AgencyUnit {
+  id         Int            @id @default(autoincrement())
+  categoryId Int            @map("category_id")
+  category   AgencyCategory @relation(fields: [categoryId], references: [id])
+  nameTh     String         @map("name_th")
+  nameEn     String         @map("name_en")
+
+  sortOrder Int     @default(0) @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  updatedByAdminEmail String?  @map("updated_by_admin_email")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  requests Request[]
+  profiles Profile[]
+
+  @@index([categoryId])
+  @@map("agency_units")
+}
+
+// "Who changed what, when" for admin-editable reference data — Location
+// today (src/locations.js), the same table for Agencies later. Write-only
+// from the app's side (src/audit.js); read by the admin page at
+// /admin/audit-log. before/after hold a plain snapshot of the fields that
+// matter for that entity type, not the full DB row (e.g. skips
+// updatedAt/updatedByAdminEmail, which this table already tracks itself).
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  actorEmail  String   @map("actor_email")
+  // "<entity>.<verb>", e.g. "location.update", "location.archive".
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    Int?     @map("entity_id")
+  // Human-readable label captured at write time so a row still reads
+  // sensibly even after the entity itself was renamed or deleted.
+  entityLabel String?  @map("entity_label")
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+// Self-service "My Profile" info (src/profile.js, views/profile.ejs) —
+// available to every role (Requester/Officer/Admin), keyed by email like
+// Officer/Notification above. Distinct from Officer (role assignment) and
+// from Request's own per-submission requesterName/receiverName fields —
+// this is the user's own standing identity info that the app auto-fills
+// wherever it previously only had the Google account's bare display name:
+// the Requester's own name/phone on new-request.ejs, and the Officer name
+// recorded on approve/reject/handover (see profile.resolveDisplayName).
+model Profile {
+  email                String          @id
+  prefix               String?
+  name                 String?
+  phone                String?
+  // Same category -> unit split as Request.agencyCategory/agencyUnit
+  // (requests.js/new-request.ejs), and the same free-text escape hatch
+  // (AgencyCategory.allowsFreeText) — picked via the same src/agencies.js
+  // tables so the two pages feel consistent, not because the data is
+  // shared/linked. workplaceCategoryId/workplaceUnitId are the live
+  // pointers new-request.ejs's autofill uses (skipping an archived unit —
+  // see requester.js newRequestDefaults); the plain strings are what's
+  // shown on the Profile page itself and stay put if the referenced row is
+  // later renamed or archived.
+  workplaceCategory    String?         @map("workplace_category")
+  workplaceUnit        String?         @map("workplace_unit")
+  workplaceCategoryId  Int?            @map("workplace_category_id")
+  workplaceUnitId      Int?            @map("workplace_unit_id")
+  workplaceCategoryRef AgencyCategory? @relation(fields: [workplaceCategoryId], references: [id])
+  workplaceUnitRef     AgencyUnit?     @relation(fields: [workplaceUnitId], references: [id])
+  position             String?
+  updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at")
+
+  @@map("profiles")
 }
