@@ -29,9 +29,16 @@ async function write(tx, { actorEmail, action, entityType, entityId, entityLabel
   });
 }
 
+// entityType may be a comma-separated list ("agency_category,agency_unit").
+function typeWhere(entityType) {
+  const types = String(entityType || "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (!types.length) return undefined;
+  return types.length === 1 ? types[0] : { in: types };
+}
+
 function buildWhere({ entityType, action, actorEmail, dateFrom, dateTo }) {
   const where = {};
-  if (entityType) where.entityType = entityType;
+  if (entityType) where.entityType = typeWhere(entityType);
   if (action) where.action = action;
   if (actorEmail) where.actorEmail = actorEmail;
   if (dateFrom || dateTo) {
@@ -80,7 +87,7 @@ async function list({ entityType, action, actorEmail, dateFrom, dateTo, page, pa
 // audit actions (see ACTION_KEYS in audit-log.ejs).
 async function listActors({ entityType } = {}) {
   const rows = await prisma.auditLog.findMany({
-    where: entityType ? { entityType } : undefined,
+    where: entityType ? { entityType: typeWhere(entityType) } : undefined,
     select: { actorEmail: true },
     distinct: ["actorEmail"],
     orderBy: { actorEmail: "asc" }

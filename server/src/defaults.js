@@ -147,7 +147,9 @@ const DEFAULT_LOCATION = {
 const DEFAULT_SETTINGS = {
   id: SETTINGS_ID,
   officerEmailNotificationsEnabled: true,
-  maintenanceModeEnabled: false
+  maintenanceModeEnabled: false,
+  contactPhone: "(+66) 0 5391 6433, (+66) 0 5391 6546, (+66) 0 5391 6547",
+  contactEmail: "edu.reg@mfu.ac.th"
 };
 
 // Works with either the Prisma client or a transaction client. Returns the

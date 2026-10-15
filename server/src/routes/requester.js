@@ -5,10 +5,18 @@ const locations = require("../locations");
 const agencies = require("../agencies");
 const { requireRole } = require("../auth");
 const pdf = require("../pdf");
+const { createLimiter } = require("../rateLimit");
 
 const router = express.Router();
 router.use(requireRole("Requester", "Admin"));
 router.use(express.urlencoded({ extended: false }));
+
+// Counted per account (not per IP) so several people behind one campus
+// NAT/VPN address never share a bucket. Generous enough for a real busy
+// day, but stops a script or a stuck double-submit from flooding the queue.
+const byAccount = (req) => req.user && req.user.email;
+const submitLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 15, key: byAccount });
+const editLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 30, key: byAccount });
 
 // Blocks new-request submission while a completed request of theirs still
 // lacks its post-completion satisfaction evaluation — the Requester can
@@ -107,7 +115,7 @@ function requestInputFromBody(req) {
   };
 }
 
-router.post("/new-request", requireNoPendingEvaluation, async (req, res, next) => {
+router.post("/new-request", submitLimiter, requireNoPendingEvaluation, async (req, res, next) => {
   try {
     const result = await requests.create(requestInputFromBody(req));
 
@@ -160,7 +168,7 @@ router.get("/request-submitted/:ref/edit", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post("/request-submitted/:ref/edit", async (req, res, next) => {
+router.post("/request-submitted/:ref/edit", editLimiter, async (req, res, next) => {
   try {
     const submittedUrl = "/requester/request-submitted/" + encodeURIComponent(req.params.ref);
     const result = await requests.update(req.params.ref, requestInputFromBody(req));

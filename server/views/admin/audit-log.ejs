@@ -10,6 +10,12 @@
       <div class="card-body">
         <div class="filter-row">
           <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.category">หมวด</span></div>
+            <div class="filter-controls">
+              <select id="type-filter" class="toolbar-select"></select>
+            </div>
+          </div>
+          <div class="filter-group">
             <div class="filter-head"><span class="filter-label" data-i18n="filter.actor">ผู้แก้ไข</span></div>
             <div class="filter-controls">
               <select id="actor-filter" class="toolbar-select">
@@ -21,9 +27,7 @@
           <div class="filter-group">
             <div class="filter-head"><span class="filter-label" data-i18n="filter.action">การดำเนินการ</span></div>
             <div class="filter-controls">
-              <select id="action-filter" class="toolbar-select">
-                <option value="" data-i18n="auditLog.filterAction.all">การดำเนินการทั้งหมด</option>
-              </select>
+              <select id="action-filter" class="toolbar-select"></select>
             </div>
           </div>
 
@@ -76,35 +80,99 @@
     </div>
   </main>
 
+<%- include("../partials/foot") %>
 <script>
-  const ACTION_KEYS = {
-    "location.create": "auditLog.action.locationCreate",
-    "location.update": "auditLog.action.locationUpdate",
-    "location.archive": "auditLog.action.locationArchive",
-    "location.restore": "auditLog.action.locationRestore",
-    "location.delete": "auditLog.action.locationDelete"
+  // Categories shown in the "หมวด" filter -> the entityType values behind them.
+  const CATEGORIES = [
+    { id: "officer", types: "officer", label: "auditLog.type.officer" },
+    { id: "settings", types: "settings", label: "auditLog.type.settings" },
+    { id: "location", types: "location", label: "auditLog.type.location" },
+    { id: "agency", types: "agency_category,agency_unit", label: "auditLog.type.agency" },
+    { id: "system", types: "system", label: "auditLog.type.system" }
+  ];
+  const TYPE_LABEL = {
+    officer: "auditLog.type.officer", settings: "auditLog.type.settings",
+    location: "auditLog.type.location", agency_category: "auditLog.type.agencyCategory", agency_unit: "auditLog.type.agency",
+    system: "auditLog.type.system"
   };
 
-  // label() reuses the admin/locations.ejs form's own translated field
-  // labels (with a TH/EN suffix for the two language columns) instead of a
-  // parallel set of "field name" translations — one word list to keep in
-  // sync with the form, not two.
+  // action -> [category, i18n key]
+  const ACTIONS = {
+    "officer.add": ["officer", "auditLog.action.officerAdd"],
+    "officer.remove": ["officer", "auditLog.action.officerRemove"],
+    "officer.grantAdmin": ["officer", "auditLog.action.officerGrantAdmin"],
+    "officer.revokeAdmin": ["officer", "auditLog.action.officerRevokeAdmin"],
+    "settings.update": ["settings", "auditLog.action.settingsUpdate"],
+    "location.create": ["location", "auditLog.action.locationCreate"],
+    "location.update": ["location", "auditLog.action.locationUpdate"],
+    "location.archive": ["location", "auditLog.action.locationArchive"],
+    "location.restore": ["location", "auditLog.action.locationRestore"],
+    "location.delete": ["location", "auditLog.action.locationDelete"],
+    "agency_category.create": ["agency", "auditLog.action.agencyCategoryCreate"],
+    "agency_category.update": ["agency", "auditLog.action.agencyCategoryUpdate"],
+    "agency_category.archive": ["agency", "auditLog.action.agencyCategoryArchive"],
+    "agency_category.restore": ["agency", "auditLog.action.agencyCategoryRestore"],
+    "agency_category.delete": ["agency", "auditLog.action.agencyCategoryDelete"],
+    "agency_unit.create": ["agency", "auditLog.action.agencyUnitCreate"],
+    "agency_unit.update": ["agency", "auditLog.action.agencyUnitUpdate"],
+    "agency_unit.archive": ["agency", "auditLog.action.agencyUnitArchive"],
+    "agency_unit.restore": ["agency", "auditLog.action.agencyUnitRestore"],
+    "agency_unit.delete": ["agency", "auditLog.action.agencyUnitDelete"],
+    "backupSnapshot": ["system", "auditLog.action.backupSnapshot"],
+    "backupUpload": ["system", "auditLog.action.backupUpload"],
+    "backupRestore": ["system", "auditLog.action.backupRestore"],
+    "backupClear": ["system", "auditLog.action.backupClear"],
+    "backupDelete": ["system", "auditLog.action.backupDelete"],
+    "backupExport": ["system", "auditLog.action.backupExport"],
+    "backupRollback": ["system", "auditLog.action.backupRollback"],
+    "manualUpload": ["system", "auditLog.action.manualUpload"],
+    "manualDelete": ["system", "auditLog.action.manualDelete"]
+  };
+
+  // Field names per entity type, for the "what changed" column. Locations
+  // reuse the admin/locations.ejs form's own translated labels.
+  const both = function (key) { return { th: function () { return t(key) + " (TH)"; }, en: function () { return t(key) + " (EN)"; } }; };
+  const loc = { name: both("adminLocations.form.rowName"), detail: both("adminLocations.form.rowDetail"), hours: both("adminLocations.form.hours") };
   const FIELD_LABELS = {
-    nameTh: function () { return t("adminLocations.form.rowName") + " (TH)"; },
-    nameEn: function () { return t("adminLocations.form.rowName") + " (EN)"; },
-    detailTh: function () { return t("adminLocations.form.rowDetail") + " (TH)"; },
-    detailEn: function () { return t("adminLocations.form.rowDetail") + " (EN)"; },
-    hoursTh: function () { return t("adminLocations.form.hours") + " (TH)"; },
-    hoursEn: function () { return t("adminLocations.form.hours") + " (EN)"; },
-    phone: function () { return t("adminLocations.form.phone"); },
-    mapUrl: function () { return t("adminLocations.form.mapUrl"); },
-    acceptsDropoff: function () { return t("adminLocations.form.acceptsDropoff"); },
-    acceptsPickup: function () { return t("adminLocations.form.acceptsPickup"); },
-    isDefaultDropoff: function () { return t("adminLocations.badge.dropoff") + " · " + t("adminLocations.badge.default"); },
-    isDefaultPickup: function () { return t("adminLocations.badge.pickup") + " · " + t("adminLocations.badge.default"); },
-    isActive: function () { return t("auditLog.field.isActive"); }
+    location: {
+      nameTh: loc.name.th, nameEn: loc.name.en, detailTh: loc.detail.th, detailEn: loc.detail.en, hoursTh: loc.hours.th, hoursEn: loc.hours.en,
+      phone: function () { return t("adminLocations.form.phone"); },
+      mapUrl: function () { return t("adminLocations.form.mapUrl"); },
+      acceptsDropoff: function () { return t("adminLocations.form.acceptsDropoff"); },
+      acceptsPickup: function () { return t("adminLocations.form.acceptsPickup"); },
+      isDefaultDropoff: function () { return t("adminLocations.badge.dropoff") + " · " + t("adminLocations.badge.default"); },
+      isDefaultPickup: function () { return t("adminLocations.badge.pickup") + " · " + t("adminLocations.badge.default"); },
+      isActive: function () { return t("auditLog.field.isActive"); }
+    },
+    agency: {
+      nameTh: function () { return t("auditLog.field.name") + " (TH)"; },
+      nameEn: function () { return t("auditLog.field.name") + " (EN)"; },
+      allowsFreeText: function () { return t("auditLog.field.allowsFreeText"); },
+      categoryId: function () { return t("auditLog.field.categoryId"); },
+      isActive: function () { return t("auditLog.field.isActive"); }
+    },
+    officer: {
+      name: function () { return t("admin.th.name"); },
+      email: function () { return t("admin.th.email"); },
+      isAdmin: function () { return t("auditLog.field.isAdmin"); }
+    },
+    settings: {
+      officerEmailNotificationsEnabled: function () { return t("auditLog.field.officerEmail"); },
+      maintenanceModeEnabled: function () { return t("auditLog.field.maintenanceMode"); },
+      maintenanceStartsAt: function () { return t("auditLog.field.maintenanceStart"); },
+      maintenanceEndsAt: function () { return t("auditLog.field.maintenanceEnd"); },
+      maintenanceMessage: function () { return t("auditLog.field.maintenanceMessage") + " (TH)"; },
+      maintenanceMessageEn: function () { return t("auditLog.field.maintenanceMessage") + " (EN)"; },
+      contactPhone: function () { return t("auditLog.field.contactPhone"); },
+      contactEmail: function () { return t("auditLog.field.contactEmail"); }
+    },
+    system: {}
   };
+  function fieldGroup(entityType) {
+    return entityType === "agency_category" || entityType === "agency_unit" ? "agency" : entityType;
+  }
 
+  const typeFilter = document.getElementById("type-filter");
   const actionFilter = document.getElementById("action-filter");
   const actorFilter = document.getElementById("actor-filter");
   const fromDateInput = document.getElementById("from-date");
@@ -112,19 +180,31 @@
   const pageSizeSelect = document.getElementById("page-size-select");
   const prevPageBtn = document.getElementById("prev-page-btn");
   const nextPageBtn = document.getElementById("next-page-btn");
+
   let currentPage = 1;
   let requestSeq = 0; // guards against an older, slower fetch overwriting a newer one's result
   let auditList = [];
 
-  Object.keys(ACTION_KEYS).forEach(function (action) {
-    const opt = document.createElement("option");
-    opt.value = action;
-    opt.setAttribute("data-i18n", ACTION_KEYS[action]);
-    actionFilter.appendChild(opt);
-  });
+  function fillTypeOptions() {
+    const keep = typeFilter.value;
+    typeFilter.innerHTML = '<option value="">' + escHtml(t("auditLog.filterType.all")) + "</option>" +
+      CATEGORIES.map(function (c) { return '<option value="' + c.id + '">' + escHtml(t(c.label)) + "</option>"; }).join("");
+    typeFilter.value = keep;
+  }
+
+  // The action list follows the chosen category, so it never offers an
+  // action that can't appear under it.
+  function fillActionOptions() {
+    const keep = actionFilter.value;
+    const cat = typeFilter.value;
+    const actions = Object.keys(ACTIONS).filter(function (a) { return !cat || ACTIONS[a][0] === cat; });
+    actionFilter.innerHTML = '<option value="">' + escHtml(t("auditLog.filterAction.all")) + "</option>" +
+      actions.map(function (a) { return '<option value="' + a + '">' + escHtml(t(ACTIONS[a][1])) + "</option>"; }).join("");
+    actionFilter.value = actions.indexOf(keep) >= 0 ? keep : "";
+  }
 
   async function loadActors() {
-    const res = await fetch("/api/admin/audit-log/actors?entityType=location");
+    const res = await fetch("/api/admin/audit-log/actors");
     const actors = res.ok ? await res.json() : [];
     actors.forEach(function (email) {
       const opt = document.createElement("option");
@@ -140,28 +220,32 @@
     });
   }
 
-  // Booleans render as a check/dash (language-neutral); everything else as
-  // its own text, "—" for empty/null.
+  // Booleans render as a check/dash (language-neutral), ISO timestamps as a
+  // local date-time, everything else as its own text, "—" for empty/null.
   function displayValue(v) {
     if (v === true) return "✓";
     if (v === false) return "—";
     if (v == null || v === "") return "—";
+    if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return formatDateTime(new Date(v), getLang());
     return String(v);
   }
 
-  function diffHtml(before, after) {
+  function diffHtml(row) {
+    const before = row.before, after = row.after;
+    const labels = FIELD_LABELS[fieldGroup(row.entityType)] || {};
     if (!before && !after) return "—";
+    if (!Object.keys(labels).length) return "—";
     if (!before) return '<span class="hint">' + escHtml(t("auditLog.createdNote")) + "</span>";
     if (!after) return '<span class="hint">' + escHtml(t("auditLog.deletedNote")) + "</span>";
 
-    const keys = Object.keys(FIELD_LABELS).filter(function (k) {
+    const keys = Object.keys(labels).filter(function (k) {
       return Object.prototype.hasOwnProperty.call(before, k) || Object.prototype.hasOwnProperty.call(after, k);
     });
     const changed = keys.filter(function (k) { return before[k] !== after[k]; });
     if (changed.length === 0) return "—";
 
     return changed.map(function (k) {
-      return "<div><strong>" + escHtml(FIELD_LABELS[k]()) + ":</strong> " +
+      return "<div><strong>" + escHtml(labels[k]()) + ":</strong> " +
         escHtml(displayValue(before[k])) + " → " + escHtml(displayValue(after[k])) + "</div>";
     }).join("");
   }
@@ -176,12 +260,14 @@
     }
 
     tbody.innerHTML = auditList.map(function (row) {
+      const action = ACTIONS[row.action] ? t(ACTIONS[row.action][1]) : row.action;
+      const type = TYPE_LABEL[row.entityType] ? t(TYPE_LABEL[row.entityType]) : row.entityType;
       return "<tr>" +
         '<td style="white-space:nowrap;">' + escHtml(formatDateTime(new Date(row.createdAt), lang)) + "</td>" +
         "<td>" + escHtml(row.actorEmail) + "</td>" +
-        "<td>" + escHtml(t(ACTION_KEYS[row.action] || row.action)) + "</td>" +
-        "<td>" + escHtml(row.entityLabel || "—") + "</td>" +
-        "<td>" + diffHtml(row.before, row.after) + "</td>" +
+        "<td>" + escHtml(action) + "</td>" +
+        '<td><span class="audit-type">' + escHtml(type) + "</span>" + escHtml(row.entityLabel && row.entityLabel !== "—" ? row.entityLabel : "") + "</td>" +
+        "<td>" + diffHtml(row) + "</td>" +
         "</tr>";
     }).join("");
   }
@@ -191,9 +277,10 @@
   // just re-fetch the current filter set at a different page.
   async function loadAuditLog() {
     const pageSize = Number(pageSizeSelect.value);
+    const cat = CATEGORIES.find(function (c) { return c.id === typeFilter.value; });
 
     const params = new URLSearchParams();
-    params.set("entityType", "location");
+    if (cat) params.set("entityType", cat.types);
     if (actionFilter.value) params.set("action", actionFilter.value);
     if (actorFilter.value) params.set("actorEmail", actorFilter.value);
     if (fromDateInput.value) params.set("dateFrom", fromDateInput.value);
@@ -231,6 +318,8 @@
   }
 
   function clearFilters() {
+    typeFilter.value = "";
+    fillActionOptions();
     actionFilter.value = "";
     actorFilter.value = "";
     fromDateInput.value = "";
@@ -238,6 +327,7 @@
     onFilterChange();
   }
 
+  typeFilter.addEventListener("change", function () { fillActionOptions(); onFilterChange(); });
   actionFilter.addEventListener("change", onFilterChange);
   actorFilter.addEventListener("change", onFilterChange);
   fromDateInput.addEventListener("change", onFilterChange);
@@ -247,9 +337,11 @@
   prevPageBtn.addEventListener("click", function () { currentPage--; loadAuditLog(); });
   nextPageBtn.addEventListener("click", function () { currentPage++; loadAuditLog(); });
 
-  document.addEventListener("odprs:langchange", renderRows);
+  document.addEventListener("odprs:langchange", function () { fillTypeOptions(); fillActionOptions(); renderRows(); });
+  fillTypeOptions();
+  fillActionOptions();
   loadActors();
   loadAuditLog();
 </script>
-
-<%- include("../partials/foot") %>
+</body>
+</html>

@@ -34,6 +34,13 @@ model Officer {
   name         String   @map("officer_name")
   assignedBy   String   @map("assigned_by")
   assignedDate DateTime @default(now()) @map("assigned_date") @db.Date
+  // Admin role granted from /admin/officers (on top of being an Officer).
+  // ADMIN_EMAILS in .env still works as the server-level fallback.
+  isAdmin      Boolean  @default(false) @map("is_admin")
+  // Who granted that Admin role, and when — separate from assignedBy /
+  // assignedDate, which record who added this person as an Officer.
+  adminGrantedBy String?   @map("admin_granted_by")
+  adminGrantedAt DateTime? @map("admin_granted_at")
 
   @@map("officers")
 }
@@ -267,6 +274,9 @@ model SystemSetting {
   // Office contact phone + drop-off/pickup places used to live here as
   // free-text Thai-only fields; they moved to the Location table below
   // (admin-editable, bilingual, multiple places).
+  // Registrar Division contact shown on the login page (free text).
+  contactPhone                     String?  @map("contact_phone")
+  contactEmail                     String?  @map("contact_email")
   updatedByAdminEmail              String?  @map("updated_by_admin_email")
   updatedAt                        DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -435,4 +445,20 @@ model Profile {
   updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at")
 
   @@map("profiles")
+}
+
+// User manuals the admin uploads at /admin/manuals and anyone can open from
+// the login page (GET /manual/:audience/:lang). Kept in Postgres like every
+// other piece of data, so backups (src/backup.js) carry them too.
+// id is "<audience>-<lang>", e.g. "requester-th" / "requester-en".
+model UserManual {
+  id         String   @id
+  fileName   String   @map("file_name")
+  mimeType   String   @map("mime_type")
+  size       Int
+  data       Bytes
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+  uploadedBy String   @map("uploaded_by")
+
+  @@map("user_manuals")
 }

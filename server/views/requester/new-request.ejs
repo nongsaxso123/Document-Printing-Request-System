@@ -881,8 +881,8 @@
   function renderDateHint() {
     const lang = getLang();
     dateHint.textContent = lang === "en"
-      ? `Must be a business day on or after ${formatDate(minDate, lang)} (at least 3 business days after submission).`
-      : `ต้องเป็นวันทำการตั้งแต่ ${formatDate(minDate, lang)} เป็นต้นไป (อย่างน้อย 3 วันทำการหลังส่งคำขอ)`;
+      ? `Must be a business day on or after ${formatDate(minDate, lang)} (at least 3 business days after submission). The officer confirms the actual pickup date when receiving your originals.`
+      : `ต้องเป็นวันทำการตั้งแต่ ${formatDate(minDate, lang)} เป็นต้นไป (อย่างน้อย 3 วันทำการหลังส่งคำขอ) เจ้าหน้าที่จะยืนยันวันรับจริงอีกครั้งเมื่อรับเอกสารต้นฉบับ`;
   }
   renderDateHint();
   document.addEventListener("odprs:langchange", renderDateHint);

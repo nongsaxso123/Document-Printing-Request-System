@@ -24,6 +24,8 @@ const requesterRoutes = require("./routes/requester");
 const adminRoutes = require("./routes/admin");
 const apiRoutes = require("./routes/api");
 const kioskRoutes = require("./routes/kiosk");
+const { createLimiter } = require("./rateLimit");
+const manuals = require("./manuals");
 
 const PORT = process.env.PORT || 3000;
 
@@ -41,6 +43,7 @@ if (process.env.ALLOW_LAMDUAN_FOR_TESTING === "true") {
 auth.configure(passport);
 
 const app = express();
+app.disable("x-powered-by"); // don't advertise "Express" in every response header
 app.disable("etag"); // dev/demo instance — always serve fresh content on reload, never a cached 304
 // In production (docker-compose.prod.yml) every request arrives through
 // Caddy, so without this req.ip would be Caddy's address for everyone (one
@@ -67,6 +70,11 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// Read by the sidebar so its open/closed section memory resets on each login.
+app.use(function (req, res, next) {
+  res.locals.navScope = req.session && req.session.loginAt ? String(req.session.loginAt) : "";
+  next();
+});
 
 // A session otherwise lives until the browser itself closes (no maxAge is
 // set on the cookie — see the session() config above), which is fine for a
@@ -85,6 +93,20 @@ app.use(function (req, res, next) {
     });
   }
   next();
+});
+
+// The role is looked up again on every request (one primary-key query)
+// instead of trusting the copy frozen into the session at login, so an
+// Officer removed or an Admin role revoked at /admin/officers loses access
+// on their very next click, not whenever they next sign in.
+app.use(async function (req, res, next) {
+  if (!req.user) return next();
+  try {
+    req.user.role = await auth.resolveRole(req.user.email);
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 // req.user.name starts as the Google account's display name, captured once
@@ -124,15 +146,39 @@ app.use(async function (req, res, next) {
   }
 });
 
-app.get("/", function (req, res) {
+app.get("/", async function (req, res, next) {
   if (req.user) {
     if (req.user.role === "Requester") return res.redirect("/requester/my-requests");
-    return res.redirect("/officer/queue"); // Officer and Admin
+    if (req.user.role === "Admin") return res.redirect("/admin/officers");
+    return res.redirect("/officer/queue");
   }
 
-  res.render("login", {
-    deniedDomain: req.query.error === "domain-not-allowed" ? auth.ALLOWED_EMAIL_DOMAIN : null
-  });
+  try {
+    res.render("login", {
+      deniedDomain: req.query.error === "domain-not-allowed" ? auth.ALLOWED_EMAIL_DOMAIN : null,
+      // The "user manual" link only shows once the admin has uploaded one.
+      hasRequesterManual: (await manuals.listInfo()).some((m) => m.id.startsWith("requester-")),
+      // Registrar Division contact, editable at /admin/settings.
+      contact: await settings.get()
+    });
+  } catch (err) { next(err); }
+});
+
+// Public on purpose — linked from the login page, before anyone signs in.
+// Falls back to the other language when the requested one isn't uploaded.
+app.get("/manual/:audience/:lang", async function (req, res, next) {
+  try {
+    const file = await manuals.getForDownload(req.params.audience, req.params.lang);
+    if (!file) return res.status(404).send("Not found");
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Length": String(file.size),
+      // inline: open in the browser's PDF viewer; filename*: keeps Thai names intact on save
+      "Content-Disposition": "inline; filename*=UTF-8''" + encodeURIComponent(file.fileName),
+      "Cache-Control": "no-cache"
+    });
+    res.end(Buffer.from(file.data));
+  } catch (err) { next(err); }
 });
 
 // returnTo lets a page other than "/" send someone here and get them back
@@ -142,13 +188,19 @@ app.get("/", function (req, res) {
 // start with a single "/" (not "//", which browsers treat as a
 // protocol-relative URL to another host) so this can't become an open
 // redirect.
-app.get("/auth/google", function (req, res, next) {
+// Login is Google's job (no password ever reaches this app, so there is
+// nothing to brute-force here), but each attempt still costs a session row
+// and a round trip to Google. Per IP, and loose on purpose: a whole lab
+// behind one campus NAT address may sign in at the start of a class.
+const loginLimiter = createLimiter({ windowMs: 5 * 60 * 1000, max: 60 });
+
+app.get("/auth/google", loginLimiter, function (req, res, next) {
   const returnTo = req.query.returnTo;
   req.session.returnTo = typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
   passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
 });
 
-app.get("/auth/google/callback",
+app.get("/auth/google/callback", loginLimiter,
   function (req, res, next) {
     passport.authenticate("google", function (err, user, info) {
       if (err) return next(err);

@@ -307,7 +307,10 @@ function officerToJSON(o) {
     name: o.name,
     email: o.email,
     assignedBy: o.assignedBy,
-    assignedDate: o.assignedDate.toISOString().slice(0, 10)
+    assignedDate: o.assignedDate.toISOString().slice(0, 10),
+    isAdmin: !!o.isAdmin,
+    adminGrantedBy: o.adminGrantedBy || null,
+    adminGrantedAt: o.adminGrantedAt ? o.adminGrantedAt.toISOString() : null
   };
 }
 
@@ -320,10 +323,11 @@ router.get("/admin/officers", auth.requireAdmin, async (req, res, next) => {
 
 router.post("/admin/officers", auth.requireAdmin, async (req, res, next) => {
   try {
-    const { name, email } = req.body;
+    const { name, email, isAdmin } = req.body;
     if (!name || !email) return res.status(400).json({ error: "name-and-email-required" });
-    const officer = await auth.officers.add(email, name, req.user.email);
-    res.json(officerToJSON(officer));
+    const result = await auth.officers.add(email, name, req.user.email, { isAdmin: !!isAdmin });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(officerToJSON(result.officer));
   } catch (err) { next(err); }
 });
 
@@ -332,6 +336,21 @@ router.get("/admin/settings", auth.requireAdmin, async (req, res, next) => {
     res.json(await settings.get());
   } catch (err) { next(err); }
 });
+
+// The fields the audit log compares for a settings change.
+function settingsSnapshot(s) {
+  const iso = (d) => (d ? new Date(d).toISOString() : null);
+  return {
+    officerEmailNotificationsEnabled: !!s.officerEmailNotificationsEnabled,
+    maintenanceModeEnabled: !!s.maintenanceModeEnabled,
+    maintenanceStartsAt: iso(s.maintenanceStartsAt),
+    maintenanceEndsAt: iso(s.maintenanceEndsAt),
+    maintenanceMessage: s.maintenanceMessage || null,
+    maintenanceMessageEn: s.maintenanceMessageEn || null,
+    contactPhone: s.contactPhone || null,
+    contactEmail: s.contactEmail || null
+  };
+}
 
 // Blank/missing -> null (open-ended); anything else must parse as a date.
 function parseOptionalDate(value) {
@@ -351,18 +370,29 @@ router.post("/admin/settings/system", auth.requireAdmin, async (req, res, next) 
     if (maintenanceStartsAt && maintenanceEndsAt && maintenanceEndsAt <= maintenanceStartsAt) {
       return res.status(400).json({ error: "maintenance-end-before-start" });
     }
+    const contactEmail = req.body.contactEmail ? String(req.body.contactEmail).trim() : "";
+    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+      return res.status(400).json({ error: "contact-email-invalid" });
+    }
     if (maintenanceModeEnabled && maintenanceEndsAt && maintenanceEndsAt <= new Date()) {
       return res.status(400).json({ error: "maintenance-end-in-past" });
     }
 
+    const before = await settings.get();
     const updated = await settings.update({
       officerEmailNotificationsEnabled: !!req.body.officerEmailNotificationsEnabled,
       maintenanceModeEnabled,
       maintenanceStartsAt,
       maintenanceEndsAt,
       maintenanceMessage: req.body.maintenanceMessage ? String(req.body.maintenanceMessage).trim() : null,
-      maintenanceMessageEn: req.body.maintenanceMessageEn ? String(req.body.maintenanceMessageEn).trim() : null
+      maintenanceMessageEn: req.body.maintenanceMessageEn ? String(req.body.maintenanceMessageEn).trim() : null,
+      contactPhone: req.body.contactPhone,
+      contactEmail: req.body.contactEmail
     }, req.user.email);
+    await audit.write(null, {
+      actorEmail: req.user.email, action: "settings.update", entityType: "settings", entityLabel: "—",
+      before: settingsSnapshot(before), after: settingsSnapshot(updated)
+    });
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -599,8 +629,18 @@ router.get("/admin/audit-log/actors", auth.requireAdmin, async (req, res, next) 
 
 router.post("/admin/officers/:email/remove", auth.requireAdmin, async (req, res, next) => {
   try {
-    await auth.officers.remove(req.params.email);
+    const result = await auth.officers.remove(req.params.email, req.user.email);
+    if (result.error) return res.status(400).json({ error: result.error });
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// Grant / revoke the in-app Admin role on an existing Officer.
+router.post("/admin/officers/:email/admin", auth.requireAdmin, async (req, res, next) => {
+  try {
+    const result = await auth.officers.setAdmin(req.params.email, !!(req.body && req.body.isAdmin), req.user.email);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json(officerToJSON(result.officer));
   } catch (err) { next(err); }
 });
 

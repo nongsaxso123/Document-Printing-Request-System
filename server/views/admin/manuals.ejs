@@ -1,0 +1,114 @@
+<%- include("../partials/head", { title: "คู่มือการใช้งาน | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminManuals", crumbFallback: "คู่มือการใช้งาน / <strong>ภาพรวม</strong>" }) %>
+
+  <main class="app-main">
+    <h1 class="page-title" data-i18n="manuals.title">คู่มือการใช้งาน</h1>
+    <p class="page-subtitle" data-i18n="manuals.subtitle">อัปโหลดคู่มือการใช้งานสำหรับผู้ขอ (ไฟล์ PDF) ผู้ใช้เปิดอ่านได้จากหน้าเข้าสู่ระบบ ตามภาษาที่เลือก</p>
+
+    <div class="card admin-card">
+      <div class="card-header"><span data-i18n="manuals.requester">คู่มือสำหรับผู้ขอ</span></div>
+      <div class="card-body">
+        <p class="mn-rule" id="mn-rule"></p>
+        <div class="mn-grid" id="mn-grid"></div>
+        <p class="mn-hint" data-i18n="manuals.emptyHint">ถ้ามีเพียงภาษาเดียว ผู้ใช้ทั้งสองภาษาจะเห็นไฟล์นั้น</p>
+      </div>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  // "<" is escaped so a file name can never close this script tag early.
+  const MANUALS = <%- JSON.stringify(manuals.map(function (m) { return { id: m.id, fileName: m.fileName, size: m.size, uploadedAt: m.uploadedAt, uploadedBy: m.uploadedBy }; })).replace(/</g, "\\u003c") %>;
+  const MAX_MB = <%= maxMb %>;
+  const AUDIENCE = "requester";
+  const LANGS = ["th", "en"];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+  }
+  function fmtSize(bytes) {
+    return bytes >= 1024 * 1024 ? (bytes / 1024 / 1024).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB";
+  }
+  function langName(lang) { return t("manuals.lang." + lang); }
+
+  function render() {
+    const lang = getLang();
+    document.getElementById("mn-rule").textContent = t("manuals.rule").replace("{mb}", MAX_MB);
+    document.getElementById("mn-grid").innerHTML = LANGS.map(function (l) {
+      const m = MANUALS.find(function (x) { return x.id === AUDIENCE + "-" + l; });
+      const status = m
+        ? '<div class="mn-file"><span class="icon">' + ICONS["clipboard"] + '</span><div>' +
+            '<div class="mn-file-name">' + esc(m.fileName) + ' <span class="mn-file-size">(' + fmtSize(m.size) + ')</span></div>' +
+            '<div class="mn-file-meta">' + esc(t("manuals.uploadedBy").replace("{email}", m.uploadedBy).replace("{date}", formatDateTime(new Date(m.uploadedAt), lang))) + '</div>' +
+          '</div></div>'
+        : '<div class="mn-file is-empty">' + esc(t("manuals.empty")) + '</div>';
+      const actions =
+        (m ? '<a class="btn btn-secondary" href="/manual/' + AUDIENCE + '/' + l + '" target="_blank" rel="noopener"><span class="icon">' + ICONS["eye"] + '</span>' + esc(t("manuals.viewBtn")) + '</a>' : '') +
+        '<label class="btn btn-primary mn-upload"><input type="file" accept="application/pdf,.pdf" data-lang="' + l + '" hidden>' +
+          '<span class="icon">' + ICONS["file-plus"] + '</span><span>' + esc(t(m ? "manuals.replaceBtn" : "manuals.uploadBtn")) + '</span></label>' +
+        (m ? '<button type="button" class="btn btn-danger" data-delete="' + l + '" data-name="' + esc(m.fileName) + '">' + esc(t("manuals.deleteBtn")) + '</button>' : '');
+      return '<section class="mn-slot">' +
+          '<h3 class="mn-slot-title">' + esc(langName(l)) + '</h3>' + status +
+          '<div class="mn-actions">' + actions + '</div>' +
+        '</section>';
+    }).join("");
+
+    document.querySelectorAll(".mn-upload input").forEach(function (input) {
+      input.addEventListener("change", function () {
+        if (this.files.length) upload(this.getAttribute("data-lang"), this.files[0], this);
+      });
+    });
+    document.querySelectorAll("button[data-delete]").forEach(function (btn) {
+      btn.addEventListener("click", function () { confirmDelete(this.getAttribute("data-delete"), this.getAttribute("data-name")); });
+    });
+  }
+
+  async function upload(l, file, input) {
+    input.value = "";
+    if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return showActionResult(false, t("manuals.error.notPdf"));
+    if (file.size > MAX_MB * 1024 * 1024) return showActionResult(false, t("manuals.error.tooLarge").replace("{mb}", MAX_MB));
+    const label = input.parentElement.querySelector("span:last-child");
+    label.textContent = t("manuals.uploading");
+    input.parentElement.classList.add("is-busy");
+    try {
+      const res = await fetch("/admin/manuals/" + AUDIENCE + "/" + l, {
+        method: "POST",
+        headers: { "Content-Type": "application/pdf", "X-File-Name": encodeURIComponent(file.name) },
+        body: file
+      });
+      const body = await res.json().catch(function () { return {}; });
+      if (res.ok) {
+        return showActionResult(true, t("manuals.result.uploaded").replace("{lang}", langName(l)), { onClose: function () { location.reload(); } });
+      }
+      const key = body.error === "notPdf" ? "manuals.error.notPdf" : res.status === 413 || body.error === "tooLarge" ? "manuals.error.tooLarge" : "result.generic";
+      showActionResult(false, t(key).replace("{mb}", MAX_MB));
+    } catch (err) {
+      showActionResult(false, t("result.network"));
+    }
+    render();
+  }
+
+  function confirmDelete(l, name) {
+    showConfirmModal({
+      title: t("manuals.deleteTitle"),
+      message: t("manuals.deleteMessage").replace("{lang}", langName(l)).replace("{name}", name),
+      confirmText: t("manuals.deleteBtn"),
+      danger: true,
+      onConfirm: async function () {
+        try {
+          const res = await fetch("/admin/manuals/" + AUDIENCE + "/" + l, { method: "DELETE" });
+          showActionResult(res.ok, res.ok ? t("manuals.result.deleted").replace("{lang}", langName(l)) : t("result.generic"),
+            res.ok ? { onClose: function () { location.reload(); } } : undefined);
+        } catch (err) {
+          showActionResult(false, t("result.network"));
+        }
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", render);
+  document.addEventListener("odprs:langchange", render);
+</script>
+</body>
+</html>

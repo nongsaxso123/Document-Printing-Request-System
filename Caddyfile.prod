@@ -3,5 +3,23 @@
 # Let's Encrypt certificate on its own (needs ports 80 + 443 reachable).
 {$DOMAIN} {
 	encode gzip
+
+	# Security headers on every response.
+	header {
+		# Browser: only ever reach this site over HTTPS (1 year).
+		Strict-Transport-Security "max-age=31536000"
+		# Don't guess file types — a file served as text stays text.
+		X-Content-Type-Options "nosniff"
+		# No other site may show our pages inside a frame (clickjacking).
+		X-Frame-Options "SAMEORIGIN"
+		Content-Security-Policy "frame-ancestors 'self'"
+		# Links to other sites get only our domain, never the full URL.
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Pages never need camera, microphone, location, etc.
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		# Don't advertise which server software we run.
+		-Server
+	}
+
 	reverse_proxy app:3000
 }

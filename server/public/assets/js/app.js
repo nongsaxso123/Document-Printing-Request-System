@@ -495,7 +495,8 @@ function renderPrintForm(record) {
    ===================================================================== */
 
 const TRANSLATIONS = {
-  "brand.sub": { th: "ฝ่ายทะเบียน · มฟล.", en: "Registrar Division · MFU" },
+  "brand.tagline": { th: "ระบบขอพิมพ์เอกสารออนไลน์", en: "Online Document Printing" },
+  "brand.sub": { th: "ฝ่ายทะเบียน มฟล.", en: "Registrar Division, MFU" },
 
   "login.title": { th: "ระบบขอพิมพ์เอกสารออนไลน์", en: "Online Document Printing Request System" },
   "login.subtitle": { th: "ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง", en: "Registrar Division, Mae Fah Luang University" },
@@ -504,6 +505,38 @@ const TRANSLATIONS = {
   "login.deniedNotice": { th: "เข้าสู่ระบบไม่สำเร็จ — บัญชีนี้ต้องใช้อีเมลที่ลงท้ายด้วย {domain} เท่านั้น", en: "Login failed — this account must use an email ending in {domain}." },
   "login.staffOnly": { th: "สำหรับเจ้าหน้าที่เท่านั้น", en: "Officers only" },
   "login.kioskBtn": { th: "เปิดหน้าจอจุดรับเอกสาร", en: "Open Pickup Station" },
+  "login.manual": { th: "คู่มือการใช้งาน", en: "User manual" },
+  "login.contactBtn": { th: "ติดต่อเรา", en: "Contact us" },
+  "login.contactTitle": { th: "ติดต่อฝ่ายทะเบียน", en: "Contact the Registrar Division" },
+  "login.contactPhone": { th: "โทรศัพท์", en: "Phone" },
+  "login.contactEmail": { th: "อีเมล", en: "Email" },
+  "settings.contact.title": { th: "ข้อมูลติดต่อฝ่ายทะเบียน", en: "Registrar Division Contact" },
+  "settings.contact.hint": { th: "แสดงใต้กล่องเข้าสู่ระบบ เว้นว่างทั้งสองช่องถ้าไม่ต้องการแสดง", en: "Shown under the login box. Leave both blank to hide it." },
+  "settings.contact.phone": { th: "เบอร์โทรศัพท์", en: "Phone" },
+  "settings.contact.email": { th: "อีเมล", en: "Email" },
+  "settings.contact.emailError": { th: "รูปแบบอีเมลไม่ถูกต้อง", en: "Invalid email address" },
+  "auditLog.field.contactPhone": { th: "เบอร์ติดต่อ (หน้าเข้าสู่ระบบ)", en: "Contact phone (login page)" },
+  "auditLog.field.contactEmail": { th: "อีเมลติดต่อ (หน้าเข้าสู่ระบบ)", en: "Contact email (login page)" },
+  "manuals.title": { th: "คู่มือการใช้งาน", en: "User Manuals" },
+  "manuals.subtitle": { th: "อัปโหลดคู่มือการใช้งานสำหรับผู้ขอ (ไฟล์ PDF) ผู้ใช้เปิดอ่านได้จากหน้าเข้าสู่ระบบ ตามภาษาที่เลือก", en: "Upload the requester user manual (PDF). Users can open it from the login page in the language they choose." },
+  "manuals.requester": { th: "คู่มือสำหรับผู้ขอ", en: "Requester manual" },
+  "manuals.lang.th": { th: "ภาษาไทย", en: "Thai" },
+  "manuals.lang.en": { th: "ภาษาอังกฤษ", en: "English" },
+  "manuals.empty": { th: "ยังไม่ได้อัปโหลด", en: "Not uploaded yet" },
+  "manuals.emptyHint": { th: "ถ้ามีเพียงภาษาเดียว ผู้ใช้ทั้งสองภาษาจะเห็นไฟล์นั้น", en: "If only one language is uploaded, users of both languages see that file." },
+  "manuals.uploadedBy": { th: "อัปโหลดโดย {email} เมื่อ {date}", en: "Uploaded by {email} on {date}" },
+  "manuals.viewBtn": { th: "เปิดดู", en: "View" },
+  "manuals.uploadBtn": { th: "อัปโหลดไฟล์", en: "Upload file" },
+  "manuals.replaceBtn": { th: "อัปโหลดไฟล์ใหม่แทน", en: "Replace file" },
+  "manuals.deleteBtn": { th: "ลบ", en: "Delete" },
+  "manuals.uploading": { th: "กำลังอัปโหลด…", en: "Uploading…" },
+  "manuals.rule": { th: "รับเฉพาะไฟล์ PDF ขนาดไม่เกิน {mb} MB อัปโหลดใหม่จะแทนที่ไฟล์เดิมทันที", en: "PDF only, up to {mb} MB. A new upload replaces the current file immediately." },
+  "manuals.result.uploaded": { th: "อัปโหลดคู่มือ ({lang}) เรียบร้อยแล้ว", en: "Manual ({lang}) uploaded." },
+  "manuals.result.deleted": { th: "ลบคู่มือ ({lang}) เรียบร้อยแล้ว", en: "Manual ({lang}) deleted." },
+  "manuals.error.notPdf": { th: "ไฟล์นี้ไม่ใช่ PDF กรุณาเลือกไฟล์ .pdf", en: "This is not a PDF file. Please choose a .pdf file." },
+  "manuals.error.tooLarge": { th: "ไฟล์ใหญ่เกิน {mb} MB", en: "The file is larger than {mb} MB." },
+  "manuals.deleteTitle": { th: "ยืนยันการลบคู่มือ", en: "Delete this manual?" },
+  "manuals.deleteMessage": { th: "ลบคู่มือ {lang} “{name}” ผู้ใช้จะเปิดไฟล์นี้จากหน้าเข้าสู่ระบบไม่ได้อีก", en: "Delete the {lang} manual “{name}”? Users will no longer be able to open it from the login page." },
   "user.name": { th: "ดร. สมชาย ใจดี", en: "Dr. Somchai Jaidee" },
   "user.role.requester": { th: "ผู้ขอ", en: "Requester" },
   "user.name.officer": { th: "คุณสรวิศ ธนะขว้าง", en: "Sorrawit Thanakhwang" },
@@ -527,6 +560,9 @@ const TRANSLATIONS = {
   "nav.adminAgencies": { th: "หน่วยงาน", en: "Agencies" },
   "nav.adminAuditLog": { th: "ประวัติการแก้ไข", en: "Change History" },
   "nav.adminBackup": { th: "สำรองและกู้คืนข้อมูล", en: "Backup & Restore" },
+  "nav.adminManuals": { th: "คู่มือการใช้งาน", en: "User Manuals" },
+  "nav.group.system": { th: "บัญชีและระบบ", en: "Accounts & System" },
+  "nav.group.reference": { th: "ข้อมูลพื้นฐาน", en: "Reference Data" },
   "nav.menu": { th: "เมนู", en: "Menu" },
   "nav.collapse": { th: "ย่อเมนู", en: "Collapse menu" },
   "nav.expand": { th: "ขยายเมนู", en: "Expand menu" },
@@ -726,9 +762,9 @@ const TRANSLATIONS = {
   "processing.default": { th: "ระบบกำลังประมวลผล กรุณารอสักครู่...", en: "Processing, please wait..." },
 
   "submitted.title": { th: "ส่งคำขอสำเร็จ", en: "Request Submitted" },
-  "submitted.subtitle": { th: "กรุณานำใบคำขอด้านล่างไปแสดงต่อเจ้าหน้าที่พร้อมกับเอกสารต้นฉบับ", en: "Please show the Request Form below to the officer along with the physical original documents." },
+  "submitted.subtitle": { th: "นำเอกสารต้นฉบับไปส่ง พร้อมแสดงเลขอ้างอิงหรือใบคำขอด้านล่างต่อเจ้าหน้าที่ (ไม่จำเป็นต้องพิมพ์ใบคำขอ)", en: "Bring the original documents and show the officer your reference number or the request form below (printing it is optional)." },
   "submitted.deadline.label": { th: "นำเอกสารต้นฉบับมาส่งภายใน", en: "Deliver the original documents by" },
-  "submitted.deadline.body": { th: "เลยกำหนดแล้วคำขอจะยังค้างที่ \"รอส่งเอกสารต้นฉบับ\" ติดต่อเจ้าหน้าที่ได้หากมีปัญหา", en: "Past the deadline, the request stays at \"Awaiting Original Document\". Contact an Officer if you have any trouble." },
+  "submitted.deadline.body": { th: "วันรับเอกสารที่คุณเลือกเป็นวันที่ขอไว้ เจ้าหน้าที่จะยืนยันวันรับจริงอีกครั้งเมื่อรับเอกสารต้นฉบับ และแจ้งให้ทราบทางอีเมล เลยกำหนดส่งแล้วคำขอจะยังค้างที่ \"รอส่งเอกสารต้นฉบับ\" ติดต่อเจ้าหน้าที่ได้หากมีปัญหา", en: "The pickup date you chose is a request: the officer confirms the actual date when receiving your originals and emails it to you. Past the deadline, the request stays at \"Awaiting Original Document\". Contact an Officer if you have any trouble." },
   "submitted.officeLocation": { th: "สถานที่:", en: "Location:" },
   "submitted.officePhone": { th: "โทร:", en: "Phone:" },
   "submitted.deadline.received.label": { th: "รับเอกสารต้นฉบับแล้วเมื่อ", en: "Original documents received on" },
@@ -948,7 +984,7 @@ const TRANSLATIONS = {
   "crumb.admin": { th: "จัดการบัญชีเจ้าหน้าที่ / <strong>ภาพรวม</strong>", en: "Officer Accounts / <strong>Overview</strong>" },
 
   "admin.title": { th: "จัดการบัญชีเจ้าหน้าที่", en: "Officer Account Management" },
-  "admin.subtitle": { th: "อีเมลที่อยู่ในรายชื่อนี้ได้สิทธิ์เจ้าหน้าที่ (Officer) ส่วนอีเมลอื่นเป็นผู้ขอ (Requester) โดยอัตโนมัติ", en: "Listed emails get Officer access; all other emails are Requesters automatically." },
+  "admin.subtitle": { th: "อีเมลที่อยู่ในรายชื่อนี้ได้สิทธิ์เจ้าหน้าที่ (Officer) และตั้งให้บางคนเป็นผู้ดูแลระบบได้ ส่วนอีเมลอื่นเป็นผู้ขอ (Requester) โดยอัตโนมัติ", en: "Emails on this list are officers, and some can also be made admins. Every other email is a requester automatically." },
   "admin.addTitle": { th: "เพิ่มเจ้าหน้าที่ใหม่", en: "Add New Officer" },
   "admin.nameLabel": { th: "ชื่อ-นามสกุล *", en: "Full Name *" },
   "admin.nameError": { th: "กรุณากรอกชื่อ-นามสกุล", en: "Please enter a name." },
@@ -959,13 +995,15 @@ const TRANSLATIONS = {
   "admin.tableTitle": { th: "รายชื่อเจ้าหน้าที่ปัจจุบัน", en: "Current Officer Accounts" },
   "admin.th.name": { th: "ชื่อ-นามสกุล", en: "Name" },
   "admin.th.email": { th: "อีเมล", en: "Email" },
-  "admin.th.assignedBy": { th: "มอบสิทธิ์โดย", en: "Assigned By" },
-  "admin.th.assignedDate": { th: "วันที่มอบสิทธิ์", en: "Assigned Date" },
+  "admin.th.assignedBy": { th: "เพิ่มโดย", en: "Added By" },
+  "admin.th.assignedDate": { th: "วันที่เพิ่ม", en: "Date Added" },
+  "admin.grantedBy": { th: "โดย {email}", en: "by {email}" },
+  "admin.grantedAt": { th: "ให้สิทธิ์เมื่อ {date}", en: "Granted on {date}" },
   "admin.th.action": { th: "การดำเนินการ", en: "Action" },
   "admin.revokeBtn": { th: "เพิกถอนสิทธิ์", en: "Revoke" },
   "admin.confirmRevokeBtn": { th: "ยืนยันเพิกถอน", en: "Confirm Revoke" },
   "admin.revokeModalTitle": { th: "ยืนยันการเพิกถอนสิทธิ์", en: "Confirm Revoke" },
-  "admin.revokeModalMessage": { th: "ต้องการเพิกถอนสิทธิ์เจ้าหน้าที่ของ {name} ({email}) ใช่หรือไม่? บัญชีนี้จะไม่สามารถเข้าใช้งานฝั่งเจ้าหน้าที่ได้อีกในครั้งถัดไปที่ล็อกอิน", en: "Revoke the Officer role for {name} ({email})? They will lose Officer access starting next login." },
+  "admin.revokeModalMessage": { th: "ต้องการเพิกถอนสิทธิ์เจ้าหน้าที่ของ {name} ({email}) ใช่หรือไม่? บัญชีนี้จะใช้งานฝั่งเจ้าหน้าที่ไม่ได้ทันที", en: "Remove officer access for {name} ({email})? They lose officer access immediately." },
   "admin.addModalTitle": { th: "ยืนยันการเพิ่มเจ้าหน้าที่", en: "Confirm New Officer" },
   "admin.addModalMessage": { th: "เพิ่ม {name} ({email}) เป็นเจ้าหน้าที่ใช่หรือไม่?", en: "Add {name} ({email}) as an Officer?" },
   "modal.cancel": { th: "ยกเลิก", en: "Cancel" },
@@ -999,6 +1037,7 @@ const TRANSLATIONS = {
   "crumb.adminAuditLog": { th: "ประวัติการแก้ไข / <strong>ภาพรวม</strong>", en: "Change History / <strong>Overview</strong>" },
   "crumb.adminAgencies": { th: "หน่วยงาน / <strong>ภาพรวม</strong>", en: "Agencies / <strong>Overview</strong>" },
   "crumb.adminBackup": { th: "สำรองและกู้คืนข้อมูล / <strong>ภาพรวม</strong>", en: "Backup & Restore / <strong>Overview</strong>" },
+  "crumb.adminManuals": { th: "คู่มือการใช้งาน / <strong>ภาพรวม</strong>", en: "User Manuals / <strong>Overview</strong>" },
   "backup.title": { th: "สำรองและกู้คืนข้อมูล", en: "Backup & Restore" },
   "backup.subtitle": { th: "เก็บข้อมูลทั้งหมดในระบบเป็นไฟล์ และเลือกไฟล์ที่ต้องการนำกลับมาใช้ได้ทุกเมื่อ", en: "Keep all system data as files, and bring any of them back whenever you need to." },
   "backup.current.title": { th: "ข้อมูลในระบบตอนนี้", en: "Data in the system now" },
@@ -1073,6 +1112,8 @@ const TRANSLATIONS = {
   "auditLog.action.backupRollback": { th: "ย้อนกลับข้อมูล", en: "Rolled back" },
   "auditLog.action.backupClear": { th: "ล้างข้อมูลทั้งหมด", en: "Cleared all data" },
   "auditLog.action.backupDelete": { th: "ลบไฟล์สำรอง", en: "Deleted a backup file" },
+  "auditLog.action.manualUpload": { th: "อัปโหลดคู่มือการใช้งาน", en: "Uploaded a user manual" },
+  "auditLog.action.manualDelete": { th: "ลบคู่มือการใช้งาน", en: "Deleted a user manual" },
   "backup.table.Request": { th: "คำขอพิมพ์เอกสาร", en: "Print requests" },
   "backup.table.Evaluation": { th: "ผลประเมินความพึงพอใจ", en: "Evaluations" },
   "backup.table.Profile": { th: "โปรไฟล์ผู้ขอ", en: "Requester profiles" },
@@ -1083,6 +1124,7 @@ const TRANSLATIONS = {
   "backup.table.Notification": { th: "การแจ้งเตือน", en: "Notifications" },
   "backup.table.AuditLog": { th: "ประวัติการแก้ไข", en: "Change history" },
   "backup.table.Counter": { th: "ตัวนับเลขคำขอ", en: "Number counters" },
+  "backup.table.UserManual": { th: "คู่มือการใช้งาน", en: "User manuals" },
   "backup.table.SystemSetting": { th: "การตั้งค่าระบบ", en: "System settings" },
   "backup.error.generic": { th: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", en: "Something went wrong. Please try again." },
   "backup.error.empty": { th: "ไฟล์ว่างเปล่า", en: "The file is empty." },
@@ -1190,7 +1232,7 @@ const TRANSLATIONS = {
   "adminLocations.err.replacementPurposeMismatch": { th: "สถานที่ทดแทนต้องรองรับประเภทเดียวกับที่มีคำขอค้างอยู่", en: "The replacement location must accept the same purpose(s) as the pending requests." },
 
   "auditLog.title": { th: "ประวัติการแก้ไข", en: "Change History" },
-  "auditLog.subtitle": { th: "บันทึกว่าใครแก้ไขข้อมูลอ้างอิง (เช่น สถานที่รับ-ส่งเอกสาร) เมื่อไหร่ เรียงจากล่าสุด", en: "Who changed reference data (e.g. locations) and when, most recent first." },
+  "auditLog.subtitle": { th: "บันทึกทุกการเปลี่ยนแปลงที่ผู้ดูแลระบบทำ เช่น สิทธิ์เจ้าหน้าที่ การตั้งค่าระบบ สถานที่ หน่วยงาน และการสำรองข้อมูล เรียงจากล่าสุด", en: "Every change made by admins: officer access, system settings, locations, units and backups, newest first." },
   "auditLog.tableTitle": { th: "รายการล่าสุด", en: "Recent changes" },
   "auditLog.th.time": { th: "เวลา", en: "Time" },
   "auditLog.th.actor": { th: "ผู้แก้ไข", en: "Changed by" },
@@ -1255,6 +1297,55 @@ const TRANSLATIONS = {
   "adminAgencies.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
   "auditLog.filterActor.all": { th: "ผู้แก้ไขทั้งหมด", en: "All editors" },
   "auditLog.filterAction.all": { th: "การดำเนินการทั้งหมด", en: "All actions" },
+  "filter.category": { th: "หมวด", en: "Category" },
+  "auditLog.filterType.all": { th: "ทุกหมวด", en: "All categories" },
+  "auditLog.type.officer": { th: "บัญชีเจ้าหน้าที่", en: "Officer accounts" },
+  "auditLog.type.settings": { th: "ตั้งค่าระบบ", en: "System settings" },
+  "auditLog.type.location": { th: "สถานที่รับ-ส่งเอกสาร", en: "Locations" },
+  "auditLog.type.agency": { th: "หน่วยงาน", en: "Units" },
+  "auditLog.type.agencyCategory": { th: "ประเภทหน่วยงาน", en: "Unit categories" },
+  "auditLog.type.system": { th: "สำรองข้อมูลและคู่มือ", en: "Backup & manuals" },
+  "auditLog.action.officerAdd": { th: "เพิ่มเจ้าหน้าที่", en: "Added officer" },
+  "auditLog.action.officerRemove": { th: "เพิกถอนสิทธิ์เจ้าหน้าที่", en: "Removed officer" },
+  "auditLog.action.officerGrantAdmin": { th: "ให้สิทธิ์ผู้ดูแลระบบ", en: "Granted admin role" },
+  "auditLog.action.officerRevokeAdmin": { th: "ยกเลิกสิทธิ์ผู้ดูแลระบบ", en: "Revoked admin role" },
+  "auditLog.action.settingsUpdate": { th: "แก้ไขการตั้งค่าระบบ", en: "Changed system settings" },
+  "auditLog.action.agencyCategoryCreate": { th: "เพิ่มประเภทหน่วยงาน", en: "Added unit category" },
+  "auditLog.action.agencyCategoryUpdate": { th: "แก้ไขประเภทหน่วยงาน", en: "Edited unit category" },
+  "auditLog.action.agencyCategoryArchive": { th: "เก็บถาวรประเภทหน่วยงาน", en: "Archived unit category" },
+  "auditLog.action.agencyCategoryRestore": { th: "นำประเภทหน่วยงานกลับมาใช้", en: "Restored unit category" },
+  "auditLog.action.agencyCategoryDelete": { th: "ลบประเภทหน่วยงาน", en: "Deleted unit category" },
+  "auditLog.action.agencyUnitCreate": { th: "เพิ่มหน่วยงาน", en: "Added unit" },
+  "auditLog.action.agencyUnitUpdate": { th: "แก้ไขหน่วยงาน", en: "Edited unit" },
+  "auditLog.action.agencyUnitArchive": { th: "เก็บถาวรหน่วยงาน", en: "Archived unit" },
+  "auditLog.action.agencyUnitRestore": { th: "นำหน่วยงานกลับมาใช้", en: "Restored unit" },
+  "auditLog.action.agencyUnitDelete": { th: "ลบหน่วยงาน", en: "Deleted unit" },
+  "auditLog.field.name": { th: "ชื่อ", en: "Name" },
+  "auditLog.field.allowsFreeText": { th: "ให้พิมพ์ชื่อหน่วยงานเองได้", en: "Allows typed-in unit" },
+  "auditLog.field.categoryId": { th: "ประเภทหน่วยงาน (รหัส)", en: "Category (id)" },
+  "auditLog.field.isAdmin": { th: "สิทธิ์ผู้ดูแลระบบ", en: "Admin role" },
+  "auditLog.field.officerEmail": { th: "ส่งอีเมลแจ้งเจ้าหน้าที่", en: "Email officers" },
+  "auditLog.field.maintenanceMode": { th: "ปิดปรับปรุงระบบ", en: "Maintenance mode" },
+  "auditLog.field.maintenanceStart": { th: "เริ่มปิดปรับปรุง", en: "Maintenance starts" },
+  "auditLog.field.maintenanceEnd": { th: "สิ้นสุดปิดปรับปรุง", en: "Maintenance ends" },
+  "auditLog.field.maintenanceMessage": { th: "ข้อความแจ้งผู้ใช้", en: "Notice to users" },
+  "admin.th.role": { th: "บทบาท", en: "Role" },
+  "admin.alsoAdmin": { th: "ให้สิทธิ์ผู้ดูแลระบบด้วย", en: "Also make this person an admin" },
+  "admin.selfNote": { th: "บัญชีของคุณ", en: "Your account" },
+  "admin.grantAdminBtn": { th: "ตั้งเป็นผู้ดูแลระบบ", en: "Make admin" },
+  "admin.revokeAdminBtn": { th: "ยกเลิกสิทธิ์ผู้ดูแลระบบ", en: "Remove admin role" },
+  "admin.grantAdminTitle": { th: "ยืนยันการให้สิทธิ์ผู้ดูแลระบบ", en: "Make this person an admin?" },
+  "admin.grantAdminMessage": { th: "ให้ {name} ({email}) เป็นผู้ดูแลระบบ จะเข้าถึงเมนูผู้ดูแลระบบได้ทั้งหมด รวมถึงการสำรองและกู้คืนข้อมูล", en: "Make {name} ({email}) an admin? They will get every admin menu, including backup & restore." },
+  "admin.grantAdminDone": { th: "{name} ({email}) เป็นผู้ดูแลระบบแล้ว", en: "{name} ({email}) is now an admin." },
+  "admin.revokeAdminTitle": { th: "ยืนยันการยกเลิกสิทธิ์ผู้ดูแลระบบ", en: "Remove admin role?" },
+  "admin.revokeAdminMessage": { th: "ยกเลิกสิทธิ์ผู้ดูแลระบบของ {name} ({email}) บัญชีนี้จะยังเป็นเจ้าหน้าที่อยู่", en: "Remove the admin role from {name} ({email})? They stay an officer." },
+  "admin.revokeAdminDone": { th: "ยกเลิกสิทธิ์ผู้ดูแลระบบของ {name} ({email}) แล้ว", en: "Removed the admin role from {name} ({email})." },
+  "admin.result.addedAdmin": { th: "เพิ่ม {name} ({email}) เป็นเจ้าหน้าที่และผู้ดูแลระบบแล้ว", en: "Added {name} ({email}) as an officer and admin." },
+  "admin.error.self": { th: "ไม่สามารถเปลี่ยนสิทธิ์หรือเพิกถอนบัญชีของตัวเองได้ ให้ผู้ดูแลระบบคนอื่นเป็นผู้ดำเนินการ", en: "You can't change or remove your own account. Ask another admin." },
+  "admin.error.last-admin": { th: "ทำไม่ได้ เพราะจะไม่เหลือผู้ดูแลระบบในระบบเลย กรุณาตั้งผู้ดูแลระบบคนอื่นก่อน", en: "Not allowed: there would be no admin left. Make someone else an admin first." },
+  "admin.error.not-found": { th: "ไม่พบบัญชีนี้แล้ว กรุณารีเฟรชหน้า", en: "This account no longer exists. Please refresh." },
+  "admin.envAdmins.title": { th: "ผู้ดูแลระบบที่กำหนดจากเซิร์ฟเวอร์", en: "Admins set on the server" },
+  "admin.envAdmins.desc": { th: "บัญชีเหล่านี้เป็นผู้ดูแลระบบเสมอ (ตั้งค่าใน ADMIN_EMAILS ของไฟล์ .env) แก้ไขจากหน้านี้ไม่ได้ ใช้เป็นบัญชีสำรองกรณีฉุกเฉิน", en: "These accounts are always admins (ADMIN_EMAILS in the server .env file) and can't be changed here. They are the emergency fallback." },
   "settings.maint.title": { th: "ปิดระบบชั่วคราว", en: "Maintenance Mode" },
   "settings.maint.toggle": { th: "ปิดระบบสำหรับผู้ขอ", en: "Close the system to Requesters" },
   "settings.maint.toggle.hint": { th: "เจ้าหน้าที่และผู้ดูแลระบบยังใช้งานได้ตามปกติ", en: "Officers and Admins are unaffected." },
@@ -1542,6 +1633,9 @@ const ICONS = {
 
   // History / Audit Log
   "archive": `<svg ${SVG_ATTRS}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+  "mail": `<svg ${SVG_ATTRS}><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 6 12 13 2 6"/></svg>`,
+  "database": `<svg ${SVG_ATTRS}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+  "book-open": `<svg ${SVG_ATTRS}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
 
   // Dashboard
   "bar-chart": `<svg ${SVG_ATTRS}><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>`,
@@ -1768,13 +1862,28 @@ document.addEventListener("DOMContentLoaded", initNotifBell);
    ===================================================================== */
 
 function initNavSections() {
+  // Preferences are scoped to the current login (data-nav-scope = the
+  // session's login time), so each new login starts from the defaults —
+  // e.g. an Admin always lands with only the admin section open — while
+  // expanding/collapsing still sticks for the rest of that login.
+  const sidebar = document.getElementById("app-sidebar");
+  const scope = (sidebar && sidebar.getAttribute("data-nav-scope")) || "default";
+  const prefix = "odprs.navCollapsed.";
+  try {
+    Object.keys(localStorage).forEach(function (k) {
+      if (k.indexOf(prefix) === 0 && k.indexOf(prefix + scope + ".") !== 0) localStorage.removeItem(k);
+    });
+  } catch (e) { /* storage unavailable: defaults only */ }
+
   document.querySelectorAll(".nav-section").forEach(function (section) {
-    const key = "odprs.navCollapsed." + section.getAttribute("data-nav-section");
+    const key = prefix + scope + "." + section.getAttribute("data-nav-section");
     const label = section.querySelector(".nav-section-label");
     const items = section.querySelector(".nav-section-items");
     const hasActive = !!section.querySelector(".nav-item.active");
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch (e) { /* ignore */ }
 
-    const collapsed = !hasActive && localStorage.getItem(key) === "1";
+    const collapsed = !hasActive && (saved === null ? section.hasAttribute("data-default-collapsed") : saved === "1");
     section.classList.toggle("collapsed", collapsed);
     items.hidden = collapsed;
 
@@ -1782,7 +1891,7 @@ function initNavSections() {
       const nowCollapsed = !section.classList.contains("collapsed");
       section.classList.toggle("collapsed", nowCollapsed);
       items.hidden = nowCollapsed;
-      localStorage.setItem(key, nowCollapsed ? "1" : "0");
+      try { localStorage.setItem(key, nowCollapsed ? "1" : "0"); } catch (e) { /* ignore */ }
     });
   });
 }

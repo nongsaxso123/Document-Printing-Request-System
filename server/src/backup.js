@@ -49,6 +49,7 @@ const MODEL_ORDER = [
   "Officer",
   "Counter",
   "SystemSetting",
+  "UserManual",
   "Profile",
   "Request",
   "Evaluation",
@@ -73,6 +74,8 @@ function modelMeta() {
       table: m.dbName || name,
       fieldNames: scalar.map((f) => f.name),
       jsonFields: scalar.filter((f) => f.type === "Json").map((f) => f.name),
+      // Binary columns (UserManual.data) go into the JSON file as base64.
+      bytesFields: scalar.filter((f) => f.type === "Bytes").map((f) => f.name),
       // Autoincrement ids need their Postgres sequence moved past the
       // restored rows, or the next insert would collide with id 1.
       serialId: scalar.some((f) => f.isId && f.default && f.default.name === "autoincrement"),
@@ -122,7 +125,7 @@ async function createBackup({ createdBy, prisma = defaultPrisma } = {}) {
   const counts = {};
   for (const m of modelMeta()) {
     const rows = await prisma[delegateName(m.name)].findMany({ orderBy: m.orderBy.length ? m.orderBy : undefined });
-    data[m.name] = rows;
+    data[m.name] = m.bytesFields.length ? rows.map((r) => bytesToBase64(r, m.bytesFields)) : rows;
     counts[m.name] = rows.length;
   }
   // Round-trip through JSON once so the checksum covers exactly what gets
@@ -181,9 +184,16 @@ async function parseBackup(buffer, { prisma = defaultPrisma } = {}) {
   return parsed;
 }
 
-function toCreateRow(row, jsonFields) {
-  if (!jsonFields.length) return row;
+function bytesToBase64(row, bytesFields) {
   const out = Object.assign({}, row);
+  bytesFields.forEach((f) => { if (out[f] != null) out[f] = Buffer.from(out[f]).toString("base64"); });
+  return out;
+}
+
+function toCreateRow(row, jsonFields, bytesFields = []) {
+  if (!jsonFields.length && !bytesFields.length) return row;
+  const out = Object.assign({}, row);
+  bytesFields.forEach((f) => { if (typeof out[f] === "string") out[f] = Buffer.from(out[f], "base64"); });
   // Prisma won't take a bare null for a Json column — it has to be told
   // explicitly whether that means SQL NULL (what an empty field was).
   jsonFields.forEach((f) => { if (out[f] === null || out[f] === undefined) out[f] = Prisma.DbNull; });
@@ -215,7 +225,7 @@ async function restoreBackup(parsed, { prisma = defaultPrisma } = {}) {
       for (const m of models) {
         const rows = parsed.data[m.name] || [];
         for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
-          const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => toCreateRow(older ? pickFields(r, m.fieldNames) : r, m.jsonFields));
+          const chunk = rows.slice(i, i + INSERT_CHUNK).map((r) => toCreateRow(older ? pickFields(r, m.fieldNames) : r, m.jsonFields, m.bytesFields));
           await tx[delegateName(m.name)].createMany({ data: chunk });
         }
         if (m.serialId) {

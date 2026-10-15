@@ -17,7 +17,9 @@ const DEFAULTS = {
   maintenanceMessage: null,
   maintenanceMessageEn: null,
   maintenanceStartsAt: null,
-  maintenanceEndsAt: null
+  maintenanceEndsAt: null,
+  contactPhone: null,
+  contactEmail: null
 };
 
 async function get() {
@@ -40,13 +42,15 @@ function isMaintenanceActive(current, now = new Date()) {
   return true;
 }
 
-async function update({ officerEmailNotificationsEnabled, maintenanceModeEnabled, maintenanceMessage, maintenanceMessageEn, maintenanceStartsAt, maintenanceEndsAt }, adminEmail) {
+async function update({ officerEmailNotificationsEnabled, maintenanceModeEnabled, maintenanceMessage, maintenanceMessageEn, maintenanceStartsAt, maintenanceEndsAt, contactPhone, contactEmail }, adminEmail) {
   const data = { updatedByAdminEmail: adminEmail };
 
   if (officerEmailNotificationsEnabled !== undefined) data.officerEmailNotificationsEnabled = officerEmailNotificationsEnabled;
   if (maintenanceModeEnabled !== undefined) data.maintenanceModeEnabled = maintenanceModeEnabled;
   if (maintenanceStartsAt !== undefined) data.maintenanceStartsAt = maintenanceStartsAt;
   if (maintenanceEndsAt !== undefined) data.maintenanceEndsAt = maintenanceEndsAt;
+  if (contactPhone !== undefined) data.contactPhone = contactPhone ? String(contactPhone).trim().slice(0, 300) || null : null;
+  if (contactEmail !== undefined) data.contactEmail = contactEmail ? String(contactEmail).trim().slice(0, 200) || null : null;
 
   if (maintenanceMessage !== undefined) {
     const trimmedMessage = maintenanceMessage ? String(maintenanceMessage).trim() : null;

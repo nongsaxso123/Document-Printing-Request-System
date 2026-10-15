@@ -22,6 +22,10 @@
               <span class="field-error" id="email-error" data-i18n="admin.emailError.invalid">ต้องเป็นอีเมลที่ลงท้ายด้วย @mfu.ac.th เท่านั้น</span>
             </div>
           </div>
+          <label class="of-admin-check">
+            <input type="checkbox" id="new-officer-admin">
+            <span data-i18n="admin.alsoAdmin">ให้สิทธิ์ผู้ดูแลระบบด้วย</span>
+          </label>
           <div class="form-actions" style="justify-content:flex-start; margin-top:14px;">
             <button type="submit" class="btn btn-primary" data-i18n="admin.addBtn">เพิ่มเจ้าหน้าที่</button>
           </div>
@@ -37,6 +41,7 @@
             <tr>
               <th data-i18n="admin.th.name">ชื่อ-นามสกุล</th>
               <th data-i18n="admin.th.email">อีเมล</th>
+              <th data-i18n="admin.th.role">บทบาท</th>
               <th data-i18n="admin.th.assignedBy">มอบสิทธิ์โดย</th>
               <th data-i18n="admin.th.assignedDate">วันที่มอบสิทธิ์</th>
               <th data-i18n="admin.th.action">การดำเนินการ</th>
@@ -46,6 +51,17 @@
         </table>
       </div>
     </div>
+
+    <% if (envAdmins.length) { %>
+    <div class="notice notice-info of-env-note">
+      <span class="icon" data-icon="info"><%- icon('info') %></span>
+      <div>
+        <strong data-i18n="admin.envAdmins.title">ผู้ดูแลระบบที่กำหนดจากเซิร์ฟเวอร์</strong>
+        <div data-i18n="admin.envAdmins.desc">บัญชีเหล่านี้เป็นผู้ดูแลระบบเสมอ (ตั้งค่าใน ADMIN_EMAILS ของไฟล์ .env) แก้ไขจากหน้านี้ไม่ได้ ใช้เป็นบัญชีสำรองกรณีฉุกเฉิน</div>
+        <div class="of-env-list"><%= envAdmins.join(", ") %></div>
+      </div>
+    </div>
+    <% } %>
   </main>
 
 <%- include("../partials/foot") %>
@@ -63,22 +79,54 @@
     officers = await res.json();
   }
 
+  const SELF_EMAIL = <%- JSON.stringify(String(user.email || "").toLowerCase()) %>;
+  const adminCheck = document.getElementById("new-officer-admin");
+
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+  }
+
+  // Server error codes -> messages (self-change and last-admin guards).
+  function errorMessage(code) {
+    const key = "admin.error." + code;
+    return t(key) === key ? t("result.generic") : t(key);
+  }
+
   function renderTable() {
     const lang = getLang();
     const tbody = document.getElementById("officer-table-body");
 
     if (officers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("admin.empty") + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + t("admin.empty") + '</td></tr>';
       return;
     }
 
     tbody.innerHTML = officers.map(function (a) {
+      const isSelf = a.email.toLowerCase() === SELF_EMAIL;
+      // Who granted the admin role is shown here, not in "Added by" —
+      // that column is who added this person as an officer.
+      const grant = a.isAdmin && a.adminGrantedBy
+        ? '<div class="of-grant">' +
+            (a.adminGrantedAt ? '<div>' + esc(t("admin.grantedAt").replace("{date}", formatDate(new Date(a.adminGrantedAt), lang))) + '</div>' : "") +
+            '<div>' + esc(t("admin.grantedBy").replace("{email}", a.adminGrantedBy)) + '</div></div>'
+        : "";
+      const role = a.isAdmin
+        ? '<span class="of-role is-admin">' + esc(t("user.role.admin")) + '</span>' + grant
+        : '<span class="of-role">' + esc(t("user.role.officer")) + '</span>';
+      const actions = isSelf
+        ? '<span class="of-self">' + esc(t("admin.selfNote")) + '</span>'
+        : '<div class="of-actions">' +
+            '<button type="button" class="btn btn-secondary of-btn" data-role-email="' + esc(a.email) + '" data-name="' + esc(a.name) + '" data-make-admin="' + (a.isAdmin ? "0" : "1") + '">' +
+              esc(t(a.isAdmin ? "admin.revokeAdminBtn" : "admin.grantAdminBtn")) + '</button>' +
+            '<button type="button" class="btn btn-danger of-btn" data-email="' + esc(a.email) + '" data-name="' + esc(a.name) + '">' + esc(t("admin.revokeBtn")) + '</button>' +
+          '</div>';
       return '<tr>' +
-        '<td>' + a.name + '</td>' +
-        '<td>' + a.email + '</td>' +
-        '<td>' + a.assignedBy + '</td>' +
-        '<td>' + formatDate(new Date(a.assignedDate + "T00:00:00"), lang) + '</td>' +
-        '<td><button type="button" class="btn btn-danger" style="padding:6px 12px; font-size:13px;" data-email="' + a.email + '" data-name="' + a.name + '">' + t("admin.revokeBtn") + '</button></td>' +
+        '<td>' + esc(a.name) + '</td>' +
+        '<td>' + esc(a.email) + '</td>' +
+        '<td>' + role + '</td>' +
+        '<td>' + esc(a.assignedBy) + '</td>' +
+        '<td>' + esc(formatDate(new Date(a.assignedDate + "T00:00:00"), lang)) + '</td>' +
+        '<td>' + actions + '</td>' +
         '</tr>';
     }).join("");
 
@@ -94,9 +142,40 @@
           onConfirm: async function () {
             try {
               const res = await fetch("/api/admin/officers/" + encodeURIComponent(email) + "/remove", { method: "POST" });
+              const body = await res.json().catch(function () { return {}; });
               await loadOfficers();
               renderTable();
-              showActionResult(res.ok, t(res.ok ? "admin.result.removed" : "result.generic").replace("{name}", name).replace("{email}", email));
+              showActionResult(res.ok, res.ok ? t("admin.result.removed").replace("{name}", name).replace("{email}", email) : errorMessage(body.error));
+            } catch (err) {
+              showActionResult(false, t("result.network"));
+            }
+          }
+        });
+      });
+    });
+
+    tbody.querySelectorAll("button[data-role-email]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const email = this.getAttribute("data-role-email");
+        const name = this.getAttribute("data-name");
+        const makeAdmin = this.getAttribute("data-make-admin") === "1";
+        const prefix = makeAdmin ? "admin.grantAdmin" : "admin.revokeAdmin";
+        showConfirmModal({
+          title: t(prefix + "Title"),
+          message: t(prefix + "Message").replace("{name}", name).replace("{email}", email),
+          confirmText: t(prefix + "Btn"),
+          danger: !makeAdmin,
+          onConfirm: async function () {
+            try {
+              const res = await fetch("/api/admin/officers/" + encodeURIComponent(email) + "/admin", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isAdmin: makeAdmin })
+              });
+              const body = await res.json().catch(function () { return {}; });
+              await loadOfficers();
+              renderTable();
+              showActionResult(res.ok, res.ok ? t(prefix + "Done").replace("{name}", name).replace("{email}", email) : errorMessage(body.error));
             } catch (err) {
               showActionResult(false, t("result.network"));
             }
@@ -130,23 +209,26 @@
           res = await fetch("/api/admin/officers", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: name, email: email })
+            body: JSON.stringify({ name: name, email: email, isAdmin: adminCheck.checked })
           });
         } catch (err) {
           showActionResult(false, t("result.network"));
           return;
         }
         if (!res.ok) {
-          showActionResult(false, t("result.generic"));
+          const body = await res.json().catch(function () { return {}; });
+          showActionResult(false, body.error === "duplicate" ? t("admin.emailError.duplicate") : t("result.generic"));
           return;
         }
+        const madeAdmin = adminCheck.checked;
+        adminCheck.checked = false;
         nameInput.value = "";
         emailInput.value = "";
         nameField.classList.remove("invalid");
         emailField.classList.remove("invalid");
         await loadOfficers();
         renderTable();
-        showActionResult(true, t("admin.result.added").replace("{name}", name).replace("{email}", email));
+        showActionResult(true, t(madeAdmin ? "admin.result.addedAdmin" : "admin.result.added").replace("{name}", name).replace("{email}", email));
       }
     });
   });

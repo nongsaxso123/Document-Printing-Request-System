@@ -9,8 +9,11 @@ const BUSINESS_HOUR_END = 15;
 
 // BR-02/BR-03 — a business day is Monday-Friday; Saturday/Sunday are
 // government non-working days and never count, regardless of how many
-// copies or how urgent the request is. (Thai public holidays that fall on
-// a weekday are a known gap — not tracked yet, see file.md Appendix B.)
+// copies or how urgent the request is. Weekday public holidays are
+// deliberately not tracked (decided 2026-10-15): the Officer confirms or
+// moves the real pickup date when approving, an overdue drop-off can still
+// be received, and long closures/exam periods use maintenance mode — a
+// holiday list would just need someone to re-enter it every year.
 function isBusinessDay(date) {
   const day = date.getDay();
   return day !== 0 && day !== 6;

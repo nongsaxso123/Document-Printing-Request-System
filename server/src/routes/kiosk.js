@@ -26,29 +26,18 @@
 const express = require("express");
 const requests = require("../requests");
 const { requireRole } = require("../auth");
+const { createLimiter } = require("../rateLimit");
 
 const router = express.Router();
 router.use(express.json());
 
-// Simple in-memory fixed-window limiter — good enough for one kiosk
-// endpoint on a small internal app; not meant to replace a real rate
-// limiter if this app ever sits behind a public/internet-facing domain.
-const WINDOW_MS = 60 * 1000;
-const MAX_PER_WINDOW = 20;
-const hits = new Map(); // ip -> { count, windowStart }
-
-function claimLookupLimiter(req, res, next) {
-  const ip = req.ip || "unknown";
-  const now = Date.now();
-  const entry = hits.get(ip);
-  if (!entry || now - entry.windowStart >= WINDOW_MS) {
-    hits.set(ip, { count: 1, windowStart: now });
-    return next();
-  }
-  entry.count += 1;
-  if (entry.count > MAX_PER_WINDOW) return res.status(429).json({ error: "too-many-requests" });
-  next();
-}
+// 20 Claim Code lookups per minute per IP — slows down guessing 6-digit
+// codes without getting in the way of a real queue at the counter.
+const claimLookupLimiter = createLimiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  onLimit: (req, res) => res.status(429).json({ error: "too-many-requests" })
+});
 
 function clean(value) {
   const s = value == null ? "" : String(value).trim();

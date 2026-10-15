@@ -226,6 +226,58 @@
   .staff-kiosk .icon { width: 17px; height: 17px; color: #b08a3e; }
   .staff-kiosk:hover { border-color: var(--login-gold); color: var(--color-primary); box-shadow: 0 4px 12px rgba(176, 138, 62, 0.18); }
 
+  /* Card + the quiet "user manual" link under it, outside the card. */
+  .login-stack { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; }
+  /* Quiet pill links under the card — same language as the EN/TH toggle. */
+  .login-links { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; animation: loginRise .7s .25s ease both; }
+  .login-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 16px;
+    border: 1px solid var(--login-gold-soft); border-radius: 999px;
+    background: rgba(255, 250, 242, 0.06);
+    color: var(--login-ink);
+    font: inherit; font-size: 13px; text-decoration: none; cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .login-pill .icon { width: 15px; height: 15px; color: var(--login-gold); }
+  .login-pill:hover { background: var(--login-gold-faint); border-color: var(--login-gold); }
+
+  /* "Contact us" — native <dialog> styled like the login card (Esc / ✕ / backdrop closes). */
+  .login-contact-dialog {
+    position: fixed; overflow: visible;
+    width: min(360px, calc(100vw - 32px));
+    padding: 34px 28px 22px;
+    border: 1px solid rgba(226, 194, 133, 0.6);
+    border-radius: 18px;
+    background: #fffaf2;
+    color: var(--color-text);
+    box-shadow: 0 0 0 6px rgba(255, 250, 242, 0.08), 0 24px 60px rgba(20, 4, 6, 0.4);
+  }
+  .login-contact-dialog::before {
+    content: ""; position: absolute; top: -9px; left: 50%;
+    width: 16px; height: 16px; transform: translateX(-50%) rotate(45deg);
+    background: var(--login-gold); border: 3px solid #fffaf2;
+    box-shadow: 0 0 0 1px rgba(226, 194, 133, 0.6);
+  }
+  .login-contact-dialog::backdrop { background: rgba(40, 8, 12, 0.5); backdrop-filter: blur(2px); }
+  .login-contact-dialog[open] { animation: loginRise .25s ease both; }
+  .lcd-close { position: absolute; top: 12px; right: 14px; background: none; border: 0; font-size: 14px; line-height: 1; color: var(--color-muted); cursor: pointer; padding: 6px; border-radius: 50%; }
+  .lcd-close:hover { color: var(--color-primary); background: var(--color-primary-tint); }
+  .lcd-title { margin: 0; text-align: center; font-size: 18px; font-weight: 600; color: var(--color-primary); }
+  .lcd-rule { display: flex; align-items: center; gap: 8px; width: 120px; margin: 12px auto 16px; }
+  .lcd-rule::before, .lcd-rule::after { content: ""; flex: 1; height: 1px; }
+  .lcd-rule::before { background: linear-gradient(90deg, transparent, var(--login-gold)); }
+  .lcd-rule::after { background: linear-gradient(90deg, var(--login-gold), transparent); }
+  .lcd-rule span { width: 6px; height: 6px; background: var(--login-gold); transform: rotate(45deg); }
+  .lcd-row { display: flex; gap: 14px; align-items: flex-start; padding: 12px 4px; }
+  .lcd-row + .lcd-row { border-top: 1px solid var(--color-border); }
+  .lcd-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(226, 194, 133, 0.22); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .lcd-icon .icon { width: 17px; height: 17px; color: #9a6f24; }
+  .lcd-row > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .lcd-label { font-size: 12px; color: var(--color-muted); letter-spacing: .2px; margin-bottom: 1px; }
+  .lcd-row a { color: var(--color-text); font-size: 14.5px; font-weight: 500; text-decoration: none; overflow-wrap: anywhere; }
+  .lcd-row a:hover { color: var(--color-primary); text-decoration: underline; text-underline-offset: 3px; }
+
   /* ---------- Phone / narrow ---------- */
   @media (max-width: 860px) {
     .login-page { grid-template-columns: 1fr; }
@@ -264,6 +316,7 @@
       <span data-lang="en">EN</span><span data-lang="th" class="active">TH</span>
     </div>
 
+    <div class="login-stack">
     <div class="login-card">
       <% if (deniedDomain) { %>
       <div class="notice notice-error" style="text-align:left; margin-bottom:20px;">
@@ -287,10 +340,84 @@
         <span data-i18n="login.kioskBtn">เปิดหน้าจอจุดรับเอกสาร</span>
       </a>
     </div>
+
+    <%
+      const hasContact = !!(contact.contactPhone || contact.contactEmail);
+      // "(+66) 0 5391 6433, ..." -> one entry per number, each with a tel: link
+      const phones = (contact.contactPhone || "").split(/[,;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+      const telHref = function (num) {
+        let d = num.replace(/[^\d+]/g, "");
+        if (d.indexOf("+660") === 0) d = "+66" + d.slice(4);
+        return "tel:" + d;
+      };
+    %>
+    <% if (hasRequesterManual || hasContact) { %>
+    <div class="login-links">
+      <% if (hasRequesterManual) { %>
+      <a class="login-pill" id="login-manual" href="/manual/requester/th" target="_blank" rel="noopener">
+        <span class="icon" data-icon="book-open"><%- icon('book-open') %></span>
+        <span data-i18n="login.manual">คู่มือการใช้งาน</span>
+      </a>
+      <% } %>
+      <% if (hasContact) { %>
+      <button type="button" class="login-pill" id="login-contact-btn">
+        <span class="icon" data-icon="phone"><%- icon('phone') %></span>
+        <span data-i18n="login.contactBtn">ติดต่อเรา</span>
+      </button>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (hasContact) { %>
+    <dialog class="login-contact-dialog" id="login-contact-dialog" aria-labelledby="login-contact-title">
+      <button type="button" class="lcd-close" id="login-contact-close" aria-label="Close">✕</button>
+      <h2 class="lcd-title" id="login-contact-title" data-i18n="login.contactTitle">ติดต่อฝ่ายทะเบียน</h2>
+      <div class="lcd-rule" aria-hidden="true"><span></span></div>
+      <% if (phones.length) { %>
+      <div class="lcd-row">
+        <span class="lcd-icon"><span class="icon" data-icon="phone"><%- icon('phone') %></span></span>
+        <div>
+          <div class="lcd-label" data-i18n="login.contactPhone">โทรศัพท์</div>
+          <% phones.forEach(function (num) { %><a href="<%= telHref(num) %>"><%= num %></a><% }) %>
+        </div>
+      </div>
+      <% } %>
+      <% if (contact.contactEmail) { %>
+      <div class="lcd-row">
+        <span class="lcd-icon"><span class="icon" data-icon="mail"><%- icon('mail') %></span></span>
+        <div>
+          <div class="lcd-label" data-i18n="login.contactEmail">อีเมล</div>
+          <a href="mailto:<%= contact.contactEmail %>"><%= contact.contactEmail %></a>
+        </div>
+      </div>
+      <% } %>
+    </dialog>
+    <% } %>
+
+    </div>
   </main>
 </div>
 
 <script src="/assets/js/app.js"></script>
+<script>
+  // The manual opens in whichever language the page is showing.
+  function syncManualLink() {
+    const link = document.getElementById("login-manual");
+    if (link) link.href = "/manual/requester/" + (getLang() === "en" ? "en" : "th");
+  }
+  document.addEventListener("odprs:langchange", syncManualLink);
+
+  // "Contact us" dialog: open from the link; ✕, Esc or a click on the backdrop closes it.
+  (function () {
+    const btn = document.getElementById("login-contact-btn");
+    const dlg = document.getElementById("login-contact-dialog");
+    if (!btn || !dlg || typeof dlg.showModal !== "function") return;
+    btn.addEventListener("click", function () { dlg.showModal(); });
+    document.getElementById("login-contact-close").addEventListener("click", function () { dlg.close(); });
+    dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+  })();
+  document.addEventListener("DOMContentLoaded", syncManualLink);
+</script>
 <% if (deniedDomain) { %>
 <script>
   function renderDeniedNotice() {

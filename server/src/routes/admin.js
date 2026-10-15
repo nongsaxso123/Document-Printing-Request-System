@@ -5,12 +5,13 @@ const fs = require("fs");
 const backup = require("../backup");
 const audit = require("../audit");
 const prisma = require("../prisma");
+const manuals = require("../manuals");
 
 const router = express.Router();
 router.use(auth.requireAdmin);
 
 router.get("/officers", (req, res) => {
-  res.render("admin/officers", { user: req.user, active: "admin" });
+  res.render("admin/officers", { user: req.user, active: "admin", envAdmins: auth.officers.envAdmins() });
 });
 
 router.get("/settings", async (req, res, next) => {
@@ -210,6 +211,33 @@ router.get("/backup/files/:id/download", (req, res) => {
   if (!file) return res.status(404).send("Not found");
   const downloadName = (file.label ? file.label.replace(/[\\/:*?"<>|]/g, "_") + ".json.gz" : file.fileName);
   res.download(backup.filePath(file), downloadName);
+});
+
+// ---- User manuals (PDF) shown on the login page — see src/manuals.js ----
+router.get("/manuals", async (req, res, next) => {
+  try {
+    res.render("admin/manuals", { user: req.user, active: "adminManuals", manuals: await manuals.listInfo(), maxMb: manuals.MAX_BYTES / 1024 / 1024 });
+  } catch (err) { next(err); }
+});
+
+// Body is the raw PDF; the original file name comes in X-File-Name
+// (URI-encoded, since header values can't carry Thai characters as-is).
+router.post("/manuals/:audience/:lang", express.raw({ type: "application/pdf", limit: manuals.MAX_BYTES }), async (req, res, next) => {
+  try {
+    let fileName = "";
+    try { fileName = decodeURIComponent(String(req.get("X-File-Name") || "")); } catch (e) { /* keep default name */ }
+    const result = await manuals.save(req.params.audience, req.params.lang, { buffer: req.body, fileName, actorEmail: req.user.email });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+router.delete("/manuals/:audience/:lang", async (req, res, next) => {
+  try {
+    const result = await manuals.remove(req.params.audience, req.params.lang, { actorEmail: req.user.email });
+    if (result.error) return res.status(result.error === "notFound" ? 404 : 400).json({ error: result.error });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 // The old combined contact-info page was replaced by /admin/locations.

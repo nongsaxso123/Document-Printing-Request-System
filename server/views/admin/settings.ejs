@@ -72,6 +72,24 @@
         </div>
       </div>
 
+      <div class="card admin-card">
+        <div class="card-header"><span data-i18n="settings.contact.title">ข้อมูลติดต่อฝ่ายทะเบียน</span></div>
+        <div class="card-body">
+          <p class="set-row-desc" style="margin:0 0 12px;" data-i18n="settings.contact.hint">แสดงใต้กล่องเข้าสู่ระบบ เว้นว่างทั้งสองช่องถ้าไม่ต้องการแสดง</p>
+          <div class="form-grid">
+            <div class="field">
+              <label data-i18n="settings.contact.phone">เบอร์โทรศัพท์</label>
+              <input type="text" id="contact-phone" maxlength="300" value="<%= settings.contactPhone || "" %>" placeholder="(+66) 0 5391 6433, (+66) 0 5391 6546">
+            </div>
+            <div class="field" id="contact-email-field">
+              <label data-i18n="settings.contact.email">อีเมล</label>
+              <input type="text" id="contact-email" maxlength="200" value="<%= settings.contactEmail || "" %>" placeholder="edu.reg@mfu.ac.th">
+              <span class="field-error" data-i18n="settings.contact.emailError">รูปแบบอีเมลไม่ถูกต้อง</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="form-actions set-actions">
         <button type="submit" class="btn btn-primary" id="save-btn" data-i18n="settings.saveBtn">บันทึกการตั้งค่า</button>
         <svg id="save-status-icon" class="save-status-icon" viewBox="0 0 36 36" width="22" height="22" hidden style="display:none;" aria-hidden="true">
@@ -250,7 +268,9 @@
           maintenanceStartsAt: maintenanceStart.get() ? maintenanceStart.get().toISOString() : null,
           maintenanceEndsAt: maintenanceEnd.get() ? maintenanceEnd.get().toISOString() : null,
           maintenanceMessage: maintenanceMessage.value,
-          maintenanceMessageEn: maintenanceMessageEn.value
+          maintenanceMessageEn: maintenanceMessageEn.value,
+          contactPhone: document.getElementById("contact-phone").value,
+          contactEmail: document.getElementById("contact-email").value
         })
       });
       updated = await res.json();
@@ -268,11 +288,17 @@
         "maintenance-end-in-past": "settings.maint.err.endInPast",
         "maintenance-date-invalid": "settings.maint.err.dateInvalid"
       };
+      if (updated && updated.error === "contact-email-invalid") {
+        document.getElementById("contact-email-field").classList.add("invalid");
+        showActionResult(false, t("settings.contact.emailError"));
+        return;
+      }
       const errorKey = errorKeys[updated && updated.error];
       if (errorKey) showEndError(errorKey);
       showActionResult(false, t(errorKey || "result.generic"));
       return;
     }
+    document.getElementById("contact-email-field").classList.remove("invalid");
     maintenanceWasOn = maintenanceToggle.checked;
     setScheduleInputs(updated.maintenanceStartsAt, updated.maintenanceEndsAt);
     renderMaintenanceStatus();

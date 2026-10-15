@@ -31,7 +31,7 @@
         <% } %>
         <div class="who">
           <span><%= user.name %></span>
-          <small><span data-i18n="user.role.<%= user.role.toLowerCase() %>"><%= user.role %></span> · <%= user.email %></small>
+          <small><span class="role" data-i18n="user.role.<%= user.role.toLowerCase() %>"><%= user.role %></span><span><%= user.email %></span></small>
         </div>
       </a>
       <a class="logout-link" href="/logout" title="Log out" data-i18n-title="user.logout">
