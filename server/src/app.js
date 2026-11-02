@@ -45,11 +45,14 @@ auth.configure(passport);
 const app = express();
 app.disable("x-powered-by"); // don't advertise "Express" in every response header
 app.disable("etag"); // dev/demo instance — always serve fresh content on reload, never a cached 304
-// In production (docker-compose.prod.yml) every request arrives through
-// Caddy, so without this req.ip would be Caddy's address for everyone (one
-// shared kiosk rate-limit bucket) and req.secure would never be true behind
-// HTTPS. Left off in dev, where the app is hit directly on :3000.
-if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
+// In production every request passes two proxies: the MFU reverse proxy
+// (HTTPS) and then Caddy. Without this, req.ip would be a proxy's address
+// for everyone (one shared rate-limit bucket) and req.secure would never be
+// true. 2 = trust Caddy plus the hop before it. That is safe even if someone
+// bypasses the MFU proxy: Caddy only keeps X-Forwarded-For from
+// TRUSTED_PROXIES and overwrites it for everyone else. Left off in dev,
+// where the app is hit directly on :3000.
+if (process.env.NODE_ENV === "production") app.set("trust proxy", 2);
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../views"));
 app.locals.icon = icon; // every EJS view can call icon('name') — see src/icons.js
@@ -65,7 +68,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   // "auto": Secure-flagged cookie whenever the request came in over HTTPS
-  // (via Caddy + trust proxy above), plain cookie on http://localhost dev.
+  // (MFU proxy says so via X-Forwarded-Proto, passed on by Caddy + trust
+  // proxy above), plain cookie on http://localhost dev.
   cookie: { secure: "auto", httpOnly: true, sameSite: "lax" }
 }));
 app.use(passport.initialize());

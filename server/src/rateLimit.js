@@ -8,7 +8,7 @@
  * docker-compose.prod.yml), so every request sees the same counters. A
  * restart clears them, which only ever makes the limit more lenient.
  * req.ip is the real client address in production because app.js sets
- * "trust proxy" behind Caddy.
+ * "trust proxy" behind the MFU proxy + Caddy.
  */
 
 function createLimiter({ windowMs, max, key, onLimit }) {

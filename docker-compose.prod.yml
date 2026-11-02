@@ -57,13 +57,16 @@ services:
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in server/.env}
+      # IP(s) of the MFU reverse proxy, space-separated. See Caddyfile.prod.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-private_ranges}
     volumes:
       - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data # HTTPS certificates — keep, or Caddy re-requests them on every restart
+      - caddy_data:/data
       - caddy_config:/config
     ports:
+      # Only plain HTTP: the MFU reverse proxy terminates HTTPS and forwards
+      # here. Add "443:443" back only if IT forwards over HTTPS.
       - "80:80"
-      - "443:443"
     depends_on:
       - app
     mem_limit: 128m

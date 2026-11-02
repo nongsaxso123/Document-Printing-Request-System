@@ -1,12 +1,33 @@
-# Production Caddyfile (docker-compose.prod.yml). DOMAIN comes from
-# server/.env, e.g. DOMAIN=odprs.mfu.ac.th — Caddy then fetches and renews a
-# Let's Encrypt certificate on its own (needs ports 80 + 443 reachable).
-{$DOMAIN} {
+# Production Caddyfile (docker-compose.prod.yml).
+#
+# The university reverse proxy sits in front of this server. It holds the
+# HTTPS certificate for odpr.mfu.ac.th, terminates HTTPS, and forwards to us
+# over plain HTTP on port 80:
+#
+#   browser --HTTPS 443--> MFU reverse proxy --HTTP 80--> Caddy --> app:3000
+#
+# So Caddy listens on :80 only and never requests a certificate itself.
+# If IT ends up forwarding over HTTPS instead, switch ":80" back to
+# "{$DOMAIN}", add "tls internal" (or the cert IT gives you), and map 443 in
+# docker-compose.prod.yml.
+
+{
+	servers {
+		# Only these addresses may tell us "the real client is X"
+		# (X-Forwarded-For / X-Forwarded-Proto). Set TRUSTED_PROXIES in
+		# server/.env to the MFU proxy's IP once IT gives it. Until then it
+		# defaults to private_ranges (any 10.x / 172.16-31.x / 192.168.x).
+		trusted_proxies static {$TRUSTED_PROXIES}
+	}
+}
+
+:80 {
 	encode gzip
 
 	# Security headers on every response.
 	header {
-		# Browser: only ever reach this site over HTTPS (1 year).
+		# Browser: only ever reach this site over HTTPS (1 year). Users reach
+		# us over HTTPS via the MFU proxy, so the browser accepts it.
 		Strict-Transport-Security "max-age=31536000"
 		# Don't guess file types — a file served as text stays text.
 		X-Content-Type-Options "nosniff"
