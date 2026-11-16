@@ -26,6 +26,13 @@
   </main>
 
 <%- include("../partials/foot") %>
+<%# Calendar markup cloned into the "mark ready" dialog (buildReadyFields). %>
+<template id="ready-date-template">
+  <%- include("../partials/date-picker", { id: "ready-date", name: "readyDate" }) %>
+</template>
+<template id="ready-time-template">
+  <%- include("../partials/time-wheel", { id: "ready-time" }) %>
+</template>
 <script>
   // Filtered server-side (small, naturally-bounded list) instead of
   // fetching every request in the system just to pick out the printing ones.
@@ -40,129 +47,143 @@
     return res.ok ? res.json() : [];
   }
 
-  // Next 14 business days that still have a slot for the given hour window
-  // (decimal hours, e.g. { start: 9, end: 16.5 } — see hourWindowOf in
-  // app.js); today only from now on. Pulled out of buildReadyFields so it
-  // can be re-run whenever the selected pickup place changes, since
-  // different places can have different hours.
-  function computeSlotDays(hourStart, hourEnd) {
-    const now = new Date();
-    const startMinutes = Math.round(hourStart * 60);
-    const endMinutes = Math.round(hourEnd * 60);
-    const slotMinutes = [];
-    for (let m = startMinutes; m < endMinutes; m += 30) slotMinutes.push(m);
+  const PICKUP_MAX_DAYS = 366; // same limit as resolvePickupTime() on the server
+  const TIME_STEP = 15;        // minutes between the minute choices
 
-    const days = [];
-    for (let offset = 0; offset < 30 && days.length < 14; offset++) {
-      const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
-      if (!isBusinessDay(day)) continue;
-      const isToday = offset === 0;
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      const open = !isToday || nowMinutes < endMinutes;
-      const times = slotMinutes.filter(function (m) { return !isToday || m > nowMinutes; });
-      if (!open || (times.length === 0 && !(isToday && nowMinutes >= startMinutes))) continue;
-      days.push({ date: day, isToday: isToday, times: times, canNow: isToday && nowMinutes >= startMinutes });
-    }
-    return days;
-  }
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function hhmm(totalMinutes) { return pad2(Math.floor(totalMinutes / 60)) + ":" + pad2(totalMinutes % 60); }
 
-  // Body of the "mark ready" confirmation: which pickup place, and from when
-  // the Requester may collect. Times are limited to business days inside
-  // that place's real hours (hourWindowOf in app.js — the server re-checks
-  // the same window against the same place); falls back to the site-wide
-  // BUSINESS_HOUR_START/END for a place with no structured hours. The date/
-  // time lists regenerate whenever the place dropdown changes. Returns the
-  // getter showConfirmModal calls on confirm.
-  function buildReadyFields(container, pickupOptions, defaultPickup, lang) {
-    function fieldWith(labelText, control) {
+  // Body of the "mark ready" dialog:
+  //   top    the job at a glance (RUN NUMBER, requester, items, pages)
+  //   left   calendar: any day from today, the officer decides
+  //   right  pickup place, then "available now" or a time (clock wheel, 15 min)
+  // The requester is still told the place's own opening hours (see
+  // messages.ready on the server), so a weekend or late time is the
+  // officer's call, not a rule. Returns the getter showConfirmModal calls.
+  function buildReadyFields(container, pickupOptions, defaultPickup, lang, record) {
+    // Own wrapper for the layout: the dialog's .modal-extra is shared by
+    // every popup, so it must not carry this page's classes.
+    const layout = document.createElement("div");
+    layout.className = "ready-layout";
+    container.appendChild(layout);
+
+    // ---- job summary: who/what on the left, how much on the right ----
+    const total = Number(record.originalPages) * Number(record.copies);
+    const numFmt = function (n) { return Number(n).toLocaleString(lang === "en" ? "en-US" : "th-TH"); };
+    const summary = document.createElement("div");
+    summary.className = "ready-job";
+    summary.innerHTML =
+      '<div class="ready-job-main">' +
+        '<div class="ready-job-head"><span class="ready-job-run">' + escapeHtml(record.runNumber || "") + '</span>' +
+          '<span class="ready-job-name">' + escapeHtml(record.requesterName || "") + '</span></div>' +
+        '<div class="ready-job-item">' + escapeHtml(record.itemList || "") + '</div>' +
+      '</div>' +
+      '<div class="ready-job-pages">' +
+        '<span class="ready-job-total">' + escapeHtml(numFmt(total)) + '</span>' +
+        '<span class="ready-job-unit">' + escapeHtml(t("printingJobs.pagesUnit")) + '</span>' +
+        '<span class="ready-job-break">' + escapeHtml(t("printingJobs.pagesBreakdownShort").replace("{pages}", record.originalPages).replace("{copies}", record.copies)) + '</span>' +
+      '</div>';
+    layout.appendChild(summary);
+
+    function fieldWith(labelText, control, cls) {
       const wrap = document.createElement("div");
-      wrap.className = "field";
+      wrap.className = "field " + cls;
       const label = document.createElement("label");
       label.textContent = labelText;
       wrap.appendChild(label);
       wrap.appendChild(control);
-      container.appendChild(wrap);
+      layout.appendChild(wrap);
       return wrap;
     }
 
+    // ---- place ----
     let placeSelect = null;
     if (pickupOptions.length > 0) {
       placeSelect = document.createElement("select");
-      pickupOptions.forEach(function (p) {
-        const opt = document.createElement("option");
-        opt.value = String(p.id);
-        opt.textContent = formatLocation(p, lang);
-        placeSelect.appendChild(opt);
-      });
+      pickupOptions.forEach(function (p) { placeSelect.add(new Option(formatLocation(p, lang), String(p.id))); });
       if (defaultPickup) placeSelect.value = String(defaultPickup.id);
-      fieldWith(t("printingJobs.pickupLabel"), placeSelect);
+      fieldWith(t("printingJobs.pickupLabel"), placeSelect, "ready-place-field");
+    }
+    function currentHours() {
+      const place = placeSelect ? pickupOptions.find(function (p) { return String(p.id) === placeSelect.value; }) : null;
+      const w = hourWindowOf(place);
+      return { start: w ? w.start : BUSINESS_HOUR_START, end: w ? w.end : BUSINESS_HOUR_END };
     }
 
-    const dateSelect = document.createElement("select");
-    const timeSelect = document.createElement("select");
-    const hint = document.createElement("span");
-    hint.className = "hint";
-    let days = [];
+    // ---- date: calendar, any day from today ----
+    const dateTpl = document.getElementById("ready-date-template").content.cloneNode(true);
+    const picker = createDatePicker(dateTpl.querySelector(".date-picker"), {
+      minDate: new Date(),
+      inline: true,
+      isSelectable: function (date) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        return (date - today) / 86400000 <= PICKUP_MAX_DAYS;
+      },
+      onChange: syncTime
+    });
+    picker.setDate(new Date());
+    fieldWith(t("printingJobs.pickupDateLabel"), dateTpl, "ready-date-field");
 
-    function fillTimes() {
-      const d = days[Number(dateSelect.value)];
-      timeSelect.innerHTML = "";
-      if (!d) return;
-      if (d.canNow) {
-        const nowOpt = document.createElement("option");
-        nowOpt.value = "now";
-        nowOpt.textContent = t("printingJobs.availableNow");
-        timeSelect.appendChild(nowOpt);
+    // ---- time: "now" or a set time ----
+    const timeBox = document.createElement("div");
+    timeBox.className = "ready-time";
+    timeBox.innerHTML =
+      '<div class="radio-group ready-time-mode">' +
+        '<label class="radio-option" id="ready-now-opt"><input type="radio" name="ready-mode" value="now"> <span>' + escapeHtml(t("printingJobs.availableNow")) + '</span></label>' +
+        '<label class="radio-option"><input type="radio" name="ready-mode" value="at"> <span>' + escapeHtml(t("printingJobs.setTime")) + '</span></label>' +
+      '</div>';
+    // Clock wheel shown in place (inline), 3 rows tall, 15-minute steps.
+    const timeTpl = document.getElementById("ready-time-template").content.cloneNode(true);
+    const clock = timeTpl.querySelector(".time-wheel");
+    timeBox.appendChild(timeTpl);
+    const hint = document.createElement("p");
+    hint.className = "ready-hint";
+    timeBox.appendChild(hint);
+    fieldWith(t("printingJobs.pickupTimeLabel"), timeBox, "ready-time-field");
+
+    const wheel = createTimeWheel(clock, { value: hhmm(Math.round(currentHours().start * 60)), minuteStep: TIME_STEP, inline: true });
+    function setClock(totalMinutes) {
+      const m = Math.round(totalMinutes / TIME_STEP) * TIME_STEP;
+      wheel.set(hhmm(m % (24 * 60)));
+    }
+    const nowRadio = timeBox.querySelector('input[value="now"]');
+    const atRadio = timeBox.querySelector('input[value="at"]');
+    // The dialog appears right after this builder returns; scroll the
+    // wheels to their value once they are actually on screen.
+    setTimeout(function () { wheel.refresh(); }, 0);
+
+    function isTodayPicked() {
+      const d = picker.getDate();
+      const n = new Date();
+      return d && d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+    }
+    // "Available now" only makes sense for today; another day needs a time,
+    // which starts at the place's opening time.
+    function syncTime() {
+      const today = isTodayPicked();
+      document.getElementById("ready-now-opt").hidden = !today;
+      if (!today && nowRadio.checked) {
+        atRadio.checked = true;
+        setClock(Math.round(currentHours().start * 60));
       }
-      d.times.forEach(function (m) {
-        const hh = String(Math.floor(m / 60)).padStart(2, "0");
-        const mm = String(m % 60).padStart(2, "0");
-        const opt = document.createElement("option");
-        opt.value = String(m);
-        opt.textContent = hh + ":" + mm + (lang === "en" ? "" : " น.");
-        timeSelect.appendChild(opt);
-      });
+      if (!nowRadio.checked && !atRadio.checked) (today ? nowRadio : atRadio).checked = true;
+      wheel.setDisabled(nowRadio.checked);
+      const h = currentHours();
+      hint.textContent = t("printingJobs.hoursHint").replace("{hours}", formatClockHour(h.start) + "–" + formatClockHour(h.end));
     }
-
-    function fillDays() {
-      const selectedPlace = placeSelect ? pickupOptions.find(function (p) { return String(p.id) === placeSelect.value; }) : null;
-      const window = hourWindowOf(selectedPlace);
-      days = computeSlotDays(window ? window.start : BUSINESS_HOUR_START, window ? window.end : BUSINESS_HOUR_END);
-
-      dateSelect.innerHTML = "";
-      days.forEach(function (d, i) {
-        const opt = document.createElement("option");
-        opt.value = String(i);
-        opt.textContent = formatDate(d.date, lang) + (d.isToday ? " (" + t("printingJobs.availableToday") + ")" : "");
-        dateSelect.appendChild(opt);
-      });
-      fillTimes();
-
-      // The hint states the actual window being offered above, so it can
-      // never drift from what the date/time lists just showed — same
-      // hours, same source (this place's own hourWindowOf, or the
-      // site-wide default when it has none).
-      const hoursText = formatClockHour(window ? window.start : BUSINESS_HOUR_START) + "–" + formatClockHour(window ? window.end : BUSINESS_HOUR_END);
-      hint.textContent = t("printingJobs.availableHint").replace("{hours}", hoursText);
-    }
-
-    dateSelect.addEventListener("change", fillTimes);
-    if (placeSelect) placeSelect.addEventListener("change", fillDays);
-    fillDays();
-
-    const row = document.createElement("div");
-    row.className = "ready-when";
-    row.appendChild(dateSelect);
-    row.appendChild(timeSelect);
-    const whenField = fieldWith(t("printingJobs.availableFromLabel"), row);
-    whenField.appendChild(hint);
+    timeBox.addEventListener("change", syncTime);
+    if (placeSelect) placeSelect.addEventListener("change", syncTime);
+    applyIcons();
+    syncTime();
 
     return function getValue() {
-      let availableFrom; // undefined = as soon as possible (server decides)
-      const d = days[Number(dateSelect.value)];
-      if (d && timeSelect.value && timeSelect.value !== "now") {
-        const m = Number(timeSelect.value);
-        availableFrom = new Date(d.date.getFullYear(), d.date.getMonth(), d.date.getDate(), Math.floor(m / 60), m % 60).toISOString();
+      let availableFrom; // undefined = available now (server decides)
+      const d = picker.getDate();
+      if (d && atRadio.checked) {
+        const parts = wheel.get().split(":").map(Number);
+        const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), parts[0], parts[1]);
+        // A time already past today simply means "now".
+        if (at > new Date()) availableFrom = at.toISOString();
       }
       return { pickupLocationId: placeSelect ? placeSelect.value : undefined, pickupAvailableFrom: availableFrom };
     };
@@ -187,16 +208,16 @@
       const totalLabel = t("printingJobs.totalPagesUnit").replace("{total}", total.toLocaleString(lang === "en" ? "en-US" : "th-TH"));
       const breakdownLabel = t("printingJobs.pagesBreakdown").replace("{pages}", r.originalPages).replace("{copies}", r.copies);
 
-      return '<tr data-ref="' + r.referenceNo + '">' +
-        '<td>' + r.runNumber + '</td>' +
-        '<td>' + r.requesterName + '</td>' +
-        '<td>' + r.itemList + '</td>' +
+      return '<tr data-ref="' + escapeHtml(r.referenceNo) + '">' +
+        '<td>' + escapeHtml(r.runNumber) + '</td>' +
+        '<td>' + escapeHtml(r.requesterName) + '</td>' +
+        '<td>' + escapeHtml(r.itemList) + '</td>' +
         '<td>' +
-          '<div style="font-weight:700;">' + totalLabel + '</div>' +
-          '<div class="hint">' + breakdownLabel + '</div>' +
+          '<div style="font-weight:700;">' + escapeHtml(totalLabel) + '</div>' +
+          '<div class="hint">' + escapeHtml(breakdownLabel) + '</div>' +
         '</td>' +
         '<td>' + formatDate(new Date(r.completionDateConfirmed + "T00:00:00"), lang) + '</td>' +
-        '<td><button class="btn btn-secondary" data-ref="' + r.referenceNo + '">' + t("printingJobs.markReady") + '</button></td>' +
+        '<td><button class="btn btn-secondary" data-ref="' + escapeHtml(r.referenceNo) + '">' + t("printingJobs.markReady") + '</button></td>' +
         '</tr>';
     }).join("");
 
@@ -220,20 +241,11 @@
         const pickupOptions = await loadPickupOptions();
         const defaultPickup = pickupOptions.find(function (p) { return p.isDefault; }) || pickupOptions[0];
 
-        const total = Number(record.originalPages) * Number(record.copies);
-        const message = t("printingJobs.confirmReady.message")
-          .replace("{runno}", record.runNumber)
-          .replace("{requester}", record.requesterName)
-          .replace("{item}", record.itemList)
-          .replace("{total}", total.toLocaleString(lang === "en" ? "en-US" : "th-TH"))
-          .replace("{pages}", record.originalPages)
-          .replace("{copies}", record.copies);
-
         showConfirmModal({
           title: t("printingJobs.confirmReady.title"),
-          message: message,
+          message: "",
           confirmText: t("printingJobs.confirmReady.confirmBtn"),
-          build: function (container) { return buildReadyFields(container, pickupOptions, defaultPickup, lang); },
+          build: function (container) { return buildReadyFields(container, pickupOptions, defaultPickup, lang, record); },
           onConfirm: async function (chosen) {
             showProcessing();
             try {

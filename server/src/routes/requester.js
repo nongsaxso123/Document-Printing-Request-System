@@ -1,8 +1,9 @@
 const express = require("express");
 const requests = require("../requests");
+const evaluationForm = require("../evaluationForm");
 const profile = require("../profile");
 const locations = require("../locations");
-const agencies = require("../agencies");
+const unitDirectory = require("../units");
 const { requireRole } = require("../auth");
 const pdf = require("../pdf");
 const { createLimiter } = require("../rateLimit");
@@ -30,7 +31,7 @@ async function requireNoPendingEvaluation(req, res, next) {
   } catch (err) { next(err); }
 }
 
-// Pre-fill the requester's own name/phone/agency from their saved Profile
+// Pre-fill the requester's own name/phone/unit from their saved Profile
 // (see profile.js) — falls back to the Google account name when no profile
 // name is set yet, same as before Profile existed.
 // Active places where original documents can be dropped off, plus which one
@@ -47,34 +48,34 @@ async function dropoffLocationOptions(selectedId) {
   };
 }
 
-// The agency category the profile has saved, plus whichever of unit-id /
+// The unit type the profile has saved, plus whichever of unit-id /
 // free-typed-text applies — skipping the unit entirely if it's since been
 // archived (the plan's "profile autofill must skip archived units": a
 // category select with no matching unit selected is fine, silently
 // prefilling an unavailable option would not be).
-function agencyDefaultsFromProfile(userProfile, agencyCategories) {
+function unitDefaultsFromProfile(userProfile, unitTypes) {
   if (!userProfile || !userProfile.workplaceCategoryId) {
-    return { defaultAgencyCategoryId: null, defaultAgencyUnitId: null, defaultAgencyUnitText: "" };
+    return { defaultUnitTypeId: null, defaultUnitId: null, defaultUnitText: "" };
   }
-  const category = agencyCategories.find((c) => c.id === userProfile.workplaceCategoryId);
-  if (!category) return { defaultAgencyCategoryId: null, defaultAgencyUnitId: null, defaultAgencyUnitText: "" };
+  const category = unitTypes.find((c) => c.id === userProfile.workplaceCategoryId);
+  if (!category) return { defaultUnitTypeId: null, defaultUnitId: null, defaultUnitText: "" };
 
   if (category.allowsFreeText) {
-    return { defaultAgencyCategoryId: category.id, defaultAgencyUnitId: null, defaultAgencyUnitText: userProfile.workplaceUnit || "" };
+    return { defaultUnitTypeId: category.id, defaultUnitId: null, defaultUnitText: userProfile.workplaceUnit || "" };
   }
   const unit = category.units.find((u) => u.id === userProfile.workplaceUnitId);
-  return { defaultAgencyCategoryId: category.id, defaultAgencyUnitId: unit ? unit.id : null, defaultAgencyUnitText: "" };
+  return { defaultUnitTypeId: category.id, defaultUnitId: unit ? unit.id : null, defaultUnitText: "" };
 }
 
 async function newRequestDefaults(req) {
   const userProfile = await profile.get(req.user.email);
-  const agencyCategories = await agencies.listActiveWithUnits();
+  const unitTypes = await unitDirectory.listActiveWithUnits();
   return {
     ...(await dropoffLocationOptions(req.body && req.body.dropoffLocationId)),
     defaultRequesterName: profile.displayName(userProfile, req.user.name),
     defaultTel: (userProfile && userProfile.phone) || "",
-    agencyCategories,
-    ...agencyDefaultsFromProfile(userProfile, agencyCategories)
+    unitTypes,
+    ...unitDefaultsFromProfile(userProfile, unitTypes)
   };
 }
 
@@ -95,9 +96,9 @@ function requestInputFromBody(req) {
     requesterEmail: req.user.email,
     requesterName: req.body.requesterName || req.user.name,
     requesterTel: req.body.tel,
-    agencyCategoryId: req.body.agencyCategoryId,
-    agencyUnitId: req.body.agencyUnitId,
-    agencyUnitText: req.body.agencyUnitText,
+    unitTypeId: req.body.unitTypeId,
+    unitId: req.body.unitId,
+    unitText: req.body.unitText,
     dropoffLocationId: req.body.dropoffLocationId,
     paperSize,
     colorMode: req.body.colorMode,
@@ -139,12 +140,12 @@ router.post("/new-request", submitLimiter, requireNoPendingEvaluation, async (re
 // caller's) just goes back to the request's own page.
 async function renderEditForm(req, res, prefill, extra) {
   const dropoffOptions = await dropoffLocationOptions(req.body && req.body.dropoffLocationId || prefill.dropoffLocationId);
-  const agencyCategories = await agencies.listActiveWithUnits();
+  const unitTypes = await unitDirectory.listActiveWithUnits();
   // prefill's category/unit ids are null on a request that predates the
-  // agency tables (or whose stored string didn't match one at backfill) —
+  // unit tables (or whose stored string didn't match one at backfill) —
   // falls back to no default selected, same as a profile with no saved
-  // workplace (see agencyDefaultsFromProfile above).
-  const category = prefill.agencyCategoryId ? agencyCategories.find((c) => c.id === prefill.agencyCategoryId) : null;
+  // workplace (see unitDefaultsFromProfile above).
+  const category = prefill.unitTypeId ? unitTypes.find((c) => c.id === prefill.unitTypeId) : null;
   res.status(extra && extra.error ? 400 : 200).render("requester/new-request", {
     ...dropoffOptions,
     user: req.user,
@@ -152,10 +153,10 @@ async function renderEditForm(req, res, prefill, extra) {
     editing: prefill,
     defaultRequesterName: prefill.requesterName,
     defaultTel: prefill.requesterTel,
-    agencyCategories,
-    defaultAgencyCategoryId: category ? category.id : null,
-    defaultAgencyUnitId: category && !category.allowsFreeText ? prefill.agencyUnitId : null,
-    defaultAgencyUnitText: category && category.allowsFreeText ? prefill.agencyUnit : "",
+    unitTypes,
+    defaultUnitTypeId: category ? category.id : null,
+    defaultUnitId: category && !category.allowsFreeText ? prefill.unitId : null,
+    defaultUnitText: category && category.allowsFreeText ? prefill.unit : "",
     ...extra
   });
 }
@@ -228,16 +229,30 @@ router.get("/my-requests", (req, res) => {
   res.render("requester/my-requests", { user: req.user, active: "myRequests" });
 });
 
+// The form shown is whatever the admin has set up (src/evaluationForm.js).
+async function renderEvaluate(res, req, record, extra) {
+  const [sections, status] = await Promise.all([
+    evaluationForm.listForm(),
+    requests.evaluationState(record.referenceNo, req.user.email)
+  ]);
+  res.render("requester/evaluate", Object.assign({
+    user: req.user, active: "myRequests", record,
+    sections: sections.map(evaluationForm.sectionJSON),
+    deadline: status.deadline ? status.deadline.toISOString() : null,
+    values: {}, errors: {}, error: null
+  }, extra));
+}
+
 router.get("/evaluate/:ref", async (req, res, next) => {
   try {
     const record = await requests.getByRef(req.params.ref);
     if (!record || record.requesterEmail !== req.user.email || record.statusCode !== "completed") {
       return res.status(404).send("Request not found.");
     }
-    const existingEvaluation = await requests.getEvaluation(req.params.ref);
-    if (existingEvaluation) return res.redirect("/requester/my-requests");
-
-    res.render("requester/evaluate", { user: req.user, active: "myRequests", record, error: null });
+    const status = await requests.evaluationState(req.params.ref, req.user.email);
+    if (status.state === "expired") return res.redirect("/requester/my-requests?result=evaluationExpired");
+    if (status.state !== "open") return res.redirect("/requester/my-requests");
+    await renderEvaluate(res, req, record);
   } catch (err) {
     next(err);
   }
@@ -245,22 +260,15 @@ router.get("/evaluate/:ref", async (req, res, next) => {
 
 router.post("/evaluate/:ref", async (req, res, next) => {
   try {
-    const result = await requests.submitEvaluation(req.params.ref, {
-      requesterEmail: req.user.email,
-      ratings: {
-        ratingStaffService: req.body.ratingStaffService,
-        ratingSystemEase: req.body.ratingSystemEase,
-        ratingSpeed: req.body.ratingSpeed,
-        ratingPrintQuality: req.body.ratingPrintQuality,
-        ratingOverall: req.body.ratingOverall
-      },
-      comment: req.body.comment
-    });
+    const result = await requests.submitEvaluation(req.params.ref, { requesterEmail: req.user.email, body: req.body });
 
+    if (result.error === "expired") return res.redirect("/requester/my-requests?result=evaluationExpired");
+    if (result.error === "already-evaluated") return res.redirect("/requester/my-requests");
     if (result.error) {
       const record = await requests.getByRef(req.params.ref);
       if (!record || record.requesterEmail !== req.user.email) return res.status(404).send("Request not found.");
-      return res.status(400).render("requester/evaluate", { user: req.user, active: "myRequests", record, error: result.error });
+      res.status(400);
+      return renderEvaluate(res, req, record, { values: req.body, errors: result.errors || {}, error: result.error });
     }
 
     // Clear the whole backlog before returning to normal browsing, one at a time.

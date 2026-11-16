@@ -66,7 +66,7 @@ router.get("/lookup/:code", requireRole("Officer", "Admin"), claimLookupLimiter,
     res.json({
       requesterName: record.requesterName,
       tel: record.tel,
-      agencyUnit: record.agencyUnit,
+      unit: record.unit,
       runNumber: record.runNumber,
       itemList: record.itemList,
       pickupLocation: record.pickupLocation,

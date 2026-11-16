@@ -1,11 +1,11 @@
 /**
  * Drop-off / pickup places (Location table) — admin-editable and bilingual.
  * See views/admin/locations.ejs for the admin page and routes/api.js for its
- * endpoints. A place that requests have used is archived, not deleted, so
- * those requests keep resolving to a name; only never-used ones can be
- * deleted (see remove()).
+ * endpoints. A place can be deleted once no unfinished request points at it;
+ * finished requests keep showing it through their snapshot (see remove()).
  */
 
+const { Prisma } = require("@prisma/client");
 const prisma = require("./prisma");
 const audit = require("./audit");
 
@@ -199,10 +199,15 @@ function readInput(input) {
   // Both languages are required on save — the fallback in pickLang() is a
   // safety net for migrated rows, not something new rows should rely on.
   if (!nameTh || !nameEn) return { error: "name-required" };
+  // Every field except the map link is required (decided 2026-11-13) so
+  // requesters always know where to go, when, and whom to call.
+  if (!clean(input.detailTh) || !clean(input.detailEn)) return { error: "detail-required" };
   if (!acceptsDropoff && !acceptsPickup) return { error: "purpose-required" };
 
   const hours = buildHours(input);
   if (hours.error) return { error: hours.error };
+  if (!hours.keep && !hours.th) return { error: "hours-required" };
+  if (!clean(input.phone)) return { error: "phone-required" };
 
   return {
     data: {
@@ -326,22 +331,40 @@ async function setActive(id, isActive, adminEmail) {
   });
 }
 
-// Hard delete — only for a place no request ever pointed at (typos, test
-// entries). Anything that has been used must be archived instead so requests
-// keep a name to show. Same "never leave zero places" guard as archiving.
+// Request states after which nobody needs to go to the place any more.
+const FINISHED_STATUSES = ["COMPLETED", "REJECTED", "CANCELLED"];
+
+// Hard delete — blocked only while an unfinished request still points at the
+// place (someone may still have to go there). Finished requests keep the
+// place's name through their snapshot, so their pointers are cleared first.
+// Same "never leave zero places" guard as archiving.
 async function remove(id, adminEmail) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.location.findUnique({ where: { id: Number(id) } });
     if (!existing) return { error: "not-found" };
 
-    const used = await tx.request.count({
-      where: { OR: [{ dropoffLocationId: existing.id }, { pickupLocationId: existing.id }] }
+    const pending = await tx.request.count({
+      where: {
+        status: { notIn: FINISHED_STATUSES },
+        OR: [{ dropoffLocationId: existing.id }, { pickupLocationId: existing.id }]
+      }
     });
-    if (used > 0) return { error: "in-use", count: used };
+    if (pending > 0) return { error: "in-use", count: pending };
 
     if (existing.isActive) {
       if (existing.acceptsDropoff && (await tx.location.count({ where: { isActive: true, acceptsDropoff: true, id: { not: existing.id } } })) === 0) return { error: "last-dropoff" };
       if (existing.acceptsPickup && (await tx.location.count({ where: { isActive: true, acceptsPickup: true, id: { not: existing.id } } })) === 0) return { error: "last-pickup" };
+    }
+
+    // Finished requests: make sure each has a snapshot (very old rows may
+    // not), then drop the pointer so the delete doesn't hit the foreign key.
+    const snap = snapshotOf(existing);
+    for (const [idField, snapField] of [["dropoffLocationId", "dropoffLocationSnapshot"], ["pickupLocationId", "pickupLocationSnapshot"]]) {
+      await tx.request.updateMany({
+        where: { [idField]: existing.id, [snapField]: { equals: Prisma.DbNull } },
+        data: { [snapField]: snap }
+      });
+      await tx.request.updateMany({ where: { [idField]: existing.id }, data: { [idField]: null } });
     }
 
     await tx.location.delete({ where: { id: existing.id } });
@@ -381,5 +404,5 @@ async function move(id, direction) {
 module.exports = {
   listAll, listActive, getById, getDefault,
   create, update, setActive, remove, move,
-  formatText, pickLang, snapshotOf, toAdminJSON, hourWindowOf
+  formatText, pickLang, snapshotOf, toAdminJSON, hourWindowOf, FINISHED_STATUSES
 };

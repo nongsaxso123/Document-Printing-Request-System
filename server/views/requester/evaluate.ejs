@@ -1,8 +1,32 @@
 <%- include("../partials/head", { title: "แบบประเมินความพึงพอใจ | ฝ่ายทะเบียน มฟล." }) %>
 <%- include("../partials/sidebar", { user, active }) %>
-<%- include("../partials/header", { user, crumbKey: "crumb.evaluate", crumbFallback: "คำขอของฉัน / <strong>ประเมินความพึงพอใจ</strong>" }) %>
+<% const isPreview = typeof preview !== "undefined" && preview; %>
+<%- include("../partials/header", isPreview
+  ? { user, crumbKey: "crumb.evaluationPreview", crumbFallback: "แบบประเมิน / <strong>ตัวอย่าง</strong>" }
+  : { user, crumbKey: "crumb.evaluate", crumbFallback: "คำขอของฉัน / <strong>ประเมินความพึงพอใจ</strong>" }) %>
+<%
+  // The questions come from the admin's form (src/evaluationForm.js).
+  // Bilingual text is printed in Thai with data-th/data-en, and swapped by
+  // the script at the bottom when the language changes.
+  const hasRating = sections.some(function (s) { return s.questions.some(function (q) { return q.type === "rating"; }); });
+  const valueList = function (q) {
+    const v = values["q_" + q.id];
+    return v == null ? [] : (Array.isArray(v) ? v : [v]).map(String);
+  };
+%>
 
   <main class="app-main">
+    <% if (isPreview) { %>
+    <%# Admin preview (/admin/evaluation-form/preview): the real page, nothing saved. %>
+    <div class="notice notice-info ef-preview-banner">
+      <span class="icon" data-icon="eye"><%- icon('eye') %></span>
+      <div>
+        <strong data-i18n="evaluate.preview.title">ตัวอย่างหน้าที่ผู้ขอจะเห็น</strong><br>
+        <span data-i18n="evaluate.preview.body">ทดลองตอบและกดส่งได้ ระบบจะตรวจคำตอบเหมือนของจริงแต่ไม่บันทึก ข้อมูลคำขอด้านล่างเป็นตัวอย่าง</span>
+      </div>
+      <a class="btn btn-secondary" href="/admin/evaluation-form" data-i18n="evaluate.preview.back">กลับไปแก้ไขแบบประเมิน</a>
+    </div>
+    <% } %>
     <h1 class="page-title" data-i18n="evaluate.title">ประเมินความพึงพอใจการใช้บริการ</h1>
     <p class="page-subtitle" data-i18n="evaluate.subtitle">กรุณาประเมินคำขอที่ได้รับเอกสารเรียบร้อยแล้ว ก่อนส่งคำขอพิมพ์เอกสารใหม่ครั้งต่อไป</p>
 
@@ -13,19 +37,21 @@
           <dd><%= record.runNumber ? (record.runNumber + " / " + record.referenceNo) : record.referenceNo %></dd>
           <dt data-i18n="summary.itemList">รายการเอกสาร</dt>
           <dd><%= record.itemList %></dd>
+          <% if (deadline) { %>
+          <dt data-i18n="evaluate.deadline">ประเมินได้ถึง</dt>
+          <dd id="eval-deadline" data-iso="<%= deadline %>"></dd>
+          <% } %>
         </dl>
       </div>
     </div>
 
-    <% if (typeof error !== "undefined" && error) { %>
+    <% if (error) { %>
     <div class="notice notice-error" data-result-error>
       <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
       <div>
-        <% if (error === "invalid-rating") { %>
-        <strong data-i18n="evaluate.error.invalidRating">กรุณาให้คะแนนทุกหัวข้อ</strong><br>
-        <span data-i18n="evaluate.error.invalidRating.body">กรุณาเลือกคะแนน 1-5 ให้ครบทุกหัวข้อก่อนส่งแบบประเมิน</span>
-        <% } else if (error === "already-evaluated") { %>
-        <strong data-i18n="evaluate.error.alreadyEvaluated">คำขอนี้ถูกประเมินไปแล้ว</strong>
+        <% if (error === "invalid-answers") { %>
+        <strong data-i18n="evaluate.error.missing">กรุณาตอบคำถามให้ครบ</strong><br>
+        <span data-i18n="evaluate.error.missing.body">คำถามที่ยังไม่ได้ตอบหรือคำตอบไม่ถูกต้องมีกรอบสีแดงด้านล่าง</span>
         <% } else { %>
         <strong data-i18n="evaluate.error.generic">ไม่สามารถบันทึกแบบประเมินได้</strong>
         <% } %>
@@ -33,52 +59,73 @@
     </div>
     <% } %>
 
-    <form method="POST" action="/requester/evaluate/<%= encodeURIComponent(record.referenceNo) %>">
-      <div class="card">
+    <form method="POST" action="<%= isPreview ? "#" : "/requester/evaluate/" + encodeURIComponent(record.referenceNo) %>" id="eval-form" novalidate<%= isPreview ? " data-preview" : "" %>>
+      <% if (!sections.some(function (s) { return s.questions.length; })) { %>
+      <div class="card"><div class="card-body empty-state" data-i18n="evaluate.preview.empty">ยังไม่มีคำถามในแบบประเมิน ผู้ขอจะไม่ถูกขอให้ประเมิน</div></div>
+      <% } %>
+      <% sections.forEach(function (s, sIndex) { %>
+      <div class="card eval-section">
         <div class="card-header">
-          <span data-i18n="evaluate.formTitle">แบบประเมินความพึงพอใจ</span>
+          <span data-th="<%= s.titleTh %>" data-en="<%= s.titleEn %>"><%= s.titleTh %></span>
+          <% if (sIndex === 0 && hasRating) { %>
           <button type="button" class="btn btn-quickfill" id="eval-quickfill" aria-pressed="false">
             <span class="icon" data-icon="star"><%- icon('star') %></span>
             <span data-i18n="evaluate.quickFill">พึงพอใจทุกด้าน</span>
           </button>
+          <% } %>
         </div>
         <div class="card-body">
-          <p class="hint" style="margin-bottom:6px;" data-i18n="evaluate.scaleHint">ให้คะแนนแต่ละหัวข้อตั้งแต่ 1 (ไม่พึงพอใจอย่างมาก) ถึง 5 (พึงพอใจมากที่สุด)</p>
-
-          <div class="rating-list">
-            <% [
-              { field: "ratingStaffService", labelKey: "evaluate.q.staffService", label: "การให้บริการของเจ้าหน้าที่", icon: "user-check" },
-              { field: "ratingSystemEase", labelKey: "evaluate.q.systemEase", label: "ความสะดวกในการใช้งานระบบออนไลน์", icon: "clipboard" },
-              { field: "ratingSpeed", labelKey: "evaluate.q.speed", label: "ความรวดเร็วในการดำเนินการ", icon: "clock" },
-              { field: "ratingPrintQuality", labelKey: "evaluate.q.printQuality", label: "คุณภาพงานพิมพ์ที่ได้รับ", icon: "printer" },
-              { field: "ratingOverall", labelKey: "evaluate.q.overall", label: "ความพึงพอใจโดยรวม", icon: "star" }
-            ].forEach(function (dim) { %>
+          <% s.questions.forEach(function (q) {
+               const name = "q_" + q.id;
+               const chosen = valueList(q);
+               const err = errors[q.id]; %>
+          <div class="eval-q field<%= err ? " invalid" : "" %>" id="eval-q-<%= q.id %>" data-type="<%= q.type %>">
+            <% if (q.type === "rating") { %>
             <div class="rating-row">
               <div class="rating-row-label">
-                <span class="icon" data-icon="<%= dim.icon %>"><%- icon(dim.icon) %></span>
-                <span data-i18n="<%= dim.labelKey %>"><%= dim.label %></span>
+                <span data-th="<%= q.textTh %>" data-en="<%= q.textEn %>"><%= q.textTh %></span><% if (q.required) { %> <span class="req">*</span><% } %>
               </div>
               <div class="rating-row-control">
                 <div class="star-rating">
-                  <% [5,4,3,2,1].forEach(function (n) { %>
-                  <input type="radio" id="<%= dim.field %>-<%= n %>" name="<%= dim.field %>" value="<%= n %>" required>
-                  <label for="<%= dim.field %>-<%= n %>"><span class="icon" data-icon="star"><%- icon('star') %></span></label>
+                  <% [5, 4, 3, 2, 1].forEach(function (n) { %>
+                  <input type="radio" id="<%= name %>-<%= n %>" name="<%= name %>" value="<%= n %>"<%= chosen[0] === String(n) ? " checked" : "" %>>
+                  <label for="<%= name %>-<%= n %>"><span class="icon" data-icon="star"><%- icon('star') %></span></label>
                   <% }) %>
                 </div>
                 <span class="rating-feedback" data-feedback></span>
               </div>
             </div>
-            <% }) %>
+            <% } else { %>
+            <div class="eval-q-label">
+              <span data-th="<%= q.textTh %>" data-en="<%= q.textEn %>"><%= q.textTh %></span><% if (q.required) { %> <span class="req">*</span><% } else { %> <span class="eval-optional" data-i18n="evaluate.optional">(ไม่บังคับ)</span><% } %>
+              <% if (q.type === "multi") { %><span class="eval-q-hint" data-i18n="evaluate.multiHint">เลือกได้มากกว่า 1 ข้อ</span><% } %>
+            </div>
+            <% if (q.type === "single" || q.type === "multi") { %>
+            <div class="<%= q.type === "single" ? "radio-group" : "check-group" %>">
+              <% q.options.forEach(function (o) { %>
+              <label class="<%= q.type === "single" ? "radio-option" : "check-option" %>">
+                <input type="<%= q.type === "single" ? "radio" : "checkbox" %>" name="<%= name %>" value="<%= o.key %>"<%= chosen.indexOf(o.key) !== -1 ? " checked" : "" %>>
+                <span data-th="<%= o.th %>" data-en="<%= o.en %>"><%= o.th %></span>
+              </label>
+              <% }) %>
+            </div>
+            <% } else { %>
+            <textarea name="<%= name %>" maxlength="2000" data-i18n-placeholder="evaluate.textPlaceholder" placeholder="พิมพ์คำตอบของคุณ"><%= chosen[0] || "" %></textarea>
+            <% } %>
+            <% } %>
+            <% if (err) { %>
+            <span class="field-error eval-error" role="alert">
+              <span class="icon" data-icon="alert-circle"><%- icon('info') %></span>
+              <span data-i18n="<%= err === "required" ? "evaluate.error.required" : "evaluate.error.invalid" %>"><%= err === "required" ? "กรุณาตอบคำถามนี้" : "คำตอบไม่ถูกต้อง" %></span>
+            </span>
+            <% } %>
           </div>
-
-          <div class="field span-2" style="margin-top:20px;">
-            <label data-i18n="evaluate.q.comment">ความคิดเห็นเพิ่มเติม (ถ้ามี)</label>
-            <textarea name="comment" data-i18n-placeholder="evaluate.q.comment.placeholder" placeholder="ข้อเสนอแนะหรือสิ่งที่อยากให้ปรับปรุง"></textarea>
-          </div>
+          <% }) %>
         </div>
       </div>
+      <% }) %>
 
-      <div class="form-actions">
+      <div class="form-actions profile-savebar">
         <button type="submit" class="btn btn-primary" data-i18n="evaluate.submitBtn">ส่งแบบประเมิน</button>
       </div>
     </form>
@@ -87,6 +134,16 @@
 <%- include("../partials/foot") %>
 <script>
   (function () {
+    // Admin-written text: Thai by default, English when the page is in English.
+    function applyFormLang() {
+      const lang = getLang();
+      document.querySelectorAll("[data-th]").forEach(function (el) {
+        el.textContent = (lang === "en" && el.getAttribute("data-en")) || el.getAttribute("data-th");
+      });
+      const dl = document.getElementById("eval-deadline");
+      if (dl) dl.textContent = formatDateTime(new Date(dl.getAttribute("data-iso")), lang);
+    }
+
     const ratingRows = document.querySelectorAll(".rating-row");
 
     function updateFeedback(row) {
@@ -102,19 +159,65 @@
     }
 
     ratingRows.forEach(function (row) {
+      updateFeedback(row);
       row.querySelectorAll(".star-rating input").forEach(function (input) {
         input.addEventListener("change", function () { updateFeedback(row); });
       });
     });
 
+    // Answering a question clears its red mark.
+    document.querySelectorAll(".eval-q").forEach(function (q) {
+      ["change", "input"].forEach(function (ev) {
+        q.addEventListener(ev, function () {
+          q.classList.remove("invalid");
+          const err = q.querySelector(".eval-error");
+          if (err) err.remove();
+        });
+      });
+    });
+
+    // Required questions left empty are marked before the form is sent, so
+    // the page doesn't reload just to say so (the server checks again).
+    document.getElementById("eval-form").addEventListener("submit", function (e) {
+      let first = null;
+      document.querySelectorAll(".eval-q").forEach(function (q) {
+        if (!q.querySelector(".req")) return;
+        const answered = q.getAttribute("data-type") === "text"
+          ? q.querySelector("textarea").value.trim() !== ""
+          : !!q.querySelector("input:checked");
+        if (answered) return;
+        q.classList.add("invalid");
+        if (!q.querySelector(".eval-error")) {
+          const msg = document.createElement("span");
+          msg.className = "field-error eval-error";
+          msg.setAttribute("role", "alert");
+          msg.innerHTML = '<span class="icon">' + ICONS["alert-circle"] + '</span><span></span>';
+          msg.lastElementChild.textContent = t("evaluate.error.required");
+          q.appendChild(msg);
+        }
+        if (!first) first = q;
+      });
+      if (first) {
+        e.preventDefault();
+        first.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      // Preview: everything required is answered — say so instead of sending.
+      if (this.hasAttribute("data-preview")) {
+        e.preventDefault();
+        showActionResult(true, t("evaluate.preview.ok"));
+      }
+    });
+
     document.addEventListener("odprs:langchange", function () {
       ratingRows.forEach(updateFeedback);
+      applyFormLang();
     });
+    applyFormLang();
 
     const quickFillBtn = document.getElementById("eval-quickfill");
 
-    // Lights the quick-fill button up while every row is at 5 stars, and
-    // turns it back off as soon as any row is changed to something else.
+    // Lights the quick-fill button up while every rating is at 5 stars.
     function syncQuickFillState() {
       if (!quickFillBtn) return;
       const allFive = Array.prototype.every.call(ratingRows, function (row) {
@@ -127,12 +230,13 @@
     document.querySelectorAll(".star-rating input").forEach(function (input) {
       input.addEventListener("change", syncQuickFillState);
     });
+    syncQuickFillState();
 
     if (quickFillBtn) {
       quickFillBtn.addEventListener("click", function () {
         document.querySelectorAll(".star-rating input[value='5']").forEach(function (input) {
           input.checked = true;
-          input.dispatchEvent(new Event("change"));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
         });
       });
     }

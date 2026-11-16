@@ -7,7 +7,7 @@
  * Each takes the same filter params its page already sends to the JSON API
  * (see routes/api.js), so the file always matches what's on screen, plus a
  * `lang` ("th" | "en") for the column headings. Stored values that are Thai
- * by nature (agency names, document type, …) stay as stored.
+ * by nature (unit names, document type, …) stay as stored.
  *
  * Dates are written as real Excel dates (sortable/filterable), not text:
  * shown in the Buddhist calendar for Thai ([$-th-TH,107] number format) and
@@ -35,8 +35,8 @@ const L = {
     total: "รวม",
     rowsCount: "จำนวนรายการ",
     // filter names
-    fYear: "ปี", fMonth: "เดือน", fFrom: "ตั้งแต่วันที่", fTo: "ถึงวันที่", fStatus: "สถานะ", fAgency: "ประเภทหน่วยงาน",
-    fSearch: "คำค้นหา", fDocType: "ประเภทเอกสาร", fPaper: "แหล่งที่มากระดาษ", fHasComment: "เฉพาะที่มีความเห็น", fSort: "เรียงตาม",
+    fYear: "ปี", fMonth: "เดือน", fFrom: "ตั้งแต่วันที่", fTo: "ถึงวันที่", fStatus: "สถานะ", fUnit: "ประเภทหน่วยงาน",
+    fSearch: "คำค้นหา", fUnitType: "ประเภทหน่วยงาน", fUnit: "หน่วยงาน", fDocType: "ประเภทเอกสาร", fPaper: "แหล่งที่มากระดาษ", fHasComment: "เฉพาะที่มีความเห็น", fSort: "เรียงตาม",
     yes: "ใช่", sortRecent: "ล่าสุดก่อน", sortLowest: "คะแนนต่ำไปสูง",
     months: ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"],
     status: { AWAITING_ORIGINAL_DOCUMENT: "รอส่งเอกสารต้นฉบับ", PRINTING_IN_PROGRESS: "กำลังปริ้น", READY_FOR_PICKUP: "พร้อมส่งมอบ", COMPLETED: "เสร็จสมบูรณ์", REJECTED: "ถูกปฏิเสธ", CANCELLED: "ยกเลิกโดยผู้ขอ" },
@@ -57,7 +57,9 @@ const L = {
     // evaluations
     evalTitle: "รายงานผลการประเมินความพึงพอใจ", evalSummarySheet: "สรุป", evalListSheet: "รายการประเมิน",
     eTotalEvaluated: "จำนวนที่ได้รับการประเมิน", eTotalCompleted: "จำนวนคำขอที่เสร็จสมบูรณ์", eTotalWithComments: "จำนวนที่มีความคิดเห็น",
-    eAverages: "คะแนนเฉลี่ยแยกตามหัวข้อ (เต็ม 5)", eDimension: "หัวข้อ", eAverage: "คะแนนเฉลี่ย",
+    eAverages: "ผลการประเมินแยกตามคำถาม", eDimension: "หัวข้อ", eAverage: "คะแนนเฉลี่ย (เต็ม 5)",
+    eQuestion: "คำถาม", eOverallAvg: "ความพึงพอใจเฉลี่ย", eType: "รูปแบบ", eChoice: "ตัวเลือก", eAnswers: "จำนวนคำตอบ", eRemoved: "(ลบจากแบบประเมินแล้ว)",
+    eTypes: { rating: "คะแนน 1-5", single: "เลือก 1 คำตอบ", multi: "เลือกได้หลายคำตอบ", text: "ข้อความ" },
     eStaff: "การให้บริการของเจ้าหน้าที่", eEase: "ความสะดวกในการใช้งานระบบออนไลน์", eSpeed: "ความรวดเร็วในการดำเนินการ", ePrint: "คุณภาพงานพิมพ์ที่ได้รับ", eOverall: "ความพึงพอใจโดยรวม",
     eRef: "เลขอ้างอิง", eRun: "RUN NUMBER", eName: "ชื่อผู้ขอ", eItems: "รายการเอกสาร", eOfficer: "เจ้าหน้าที่ที่รับผิดชอบ", eComment: "ความคิดเห็น", eSubmitted: "วันที่ประเมิน",
     evalListNote: "รายการประเมินตามตัวกรองในแท็บ ค้นหา / รายการทั้งหมด"
@@ -71,26 +73,28 @@ const L = {
     all: "All",
     total: "Total",
     rowsCount: "Rows",
-    fYear: "Year", fMonth: "Month", fFrom: "From", fTo: "To", fStatus: "Status", fAgency: "Agency category",
-    fSearch: "Search", fDocType: "Document type", fPaper: "Paper source", fHasComment: "With a comment only", fSort: "Sort by",
+    fYear: "Year", fMonth: "Month", fFrom: "From", fTo: "To", fStatus: "Status", fUnit: "Unit category",
+    fSearch: "Search", fUnitType: "Unit type", fUnit: "Unit", fDocType: "Document type", fPaper: "Paper source", fHasComment: "With a comment only", fSort: "Sort by",
     yes: "Yes", sortRecent: "Most recent first", sortLowest: "Lowest score first",
     months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
     status: { AWAITING_ORIGINAL_DOCUMENT: "Awaiting original document", PRINTING_IN_PROGRESS: "Printing", READY_FOR_PICKUP: "Ready for pickup", COMPLETED: "Completed", REJECTED: "Rejected", CANCELLED: "Cancelled by requester" },
     historyTitle: "Print Request History Report", historySheet: "Request history",
     hRef: "Reference No.", hRun: "RUN NUMBER", hSubmitted: "Submitted", hStatus: "Status", hName: "Requester", hEmail: "Email", hTel: "Phone",
-    hCategory: "Agency category", hUnit: "Department", hDocType: "Document type", hPaper: "Paper source", hItems: "Items",
+    hCategory: "Unit category", hUnit: "Department", hDocType: "Document type", hPaper: "Paper source", hItems: "Items",
     hPaperSize: "Paper size", hColor: "Color mode", hSide: "Print side", hPages: "Original pages", hCopies: "Copies", hSheets: "Paper sheets",
     hAppt: "Pickup date", hReceivedOrig: "Original received", hCompleted: "Handed over", hReceiver: "Received by",
     hApprovedBy: "Approved by", hHandedBy: "Handed over by", hReject: "Rejection reason",
-    dashTitle: "Paper Usage Summary Report", dashSummarySheet: "Summary", dashYearSheet: "By year", dashCategorySheet: "By agency category", dashUnitSheet: "By department",
+    dashTitle: "Paper Usage Summary Report", dashSummarySheet: "Summary", dashYearSheet: "By year", dashCategorySheet: "By unit type", dashUnitSheet: "By department",
     kTotalRequests: "Total requests", kTotalSheets: "Paper sheets used (total)", kAvgSheets: "Avg. sheets per request", kActiveUnits: "Active departments",
     sheetsNote: "Counts approved/printed requests only. Double-sided printing counts as half the page count.",
     trendNote: "All years, not affected by the time filter, but follows the document type and paper source filters.",
     dYear: "Year", dSheets: "Paper sheets used", dChange: "Change from previous year",
-    dCategory: "Agency category", dUnit: "Department", dRequests: "Requests", dCopies: "Copies printed", dAvg: "Avg. sheets / request", dRank: "Rank",
+    dCategory: "Unit category", dUnit: "Department", dRequests: "Requests", dCopies: "Copies printed", dAvg: "Avg. sheets / request", dRank: "Rank",
     evalTitle: "Satisfaction Survey Report", evalSummarySheet: "Summary", evalListSheet: "Evaluations",
     eTotalEvaluated: "Evaluations received", eTotalCompleted: "Completed requests", eTotalWithComments: "With a comment",
-    eAverages: "Average score by item (out of 5)", eDimension: "Item", eAverage: "Average",
+    eAverages: "Results by question", eDimension: "Section", eAverage: "Average (out of 5)",
+    eQuestion: "Question", eOverallAvg: "Average satisfaction", eType: "Type", eChoice: "Choice", eAnswers: "Answers", eRemoved: "(removed from the form)",
+    eTypes: { rating: "Rating 1-5", single: "Pick one", multi: "Pick any", text: "Text" },
     eStaff: "Staff service", eEase: "Ease of using the online system", eSpeed: "Processing speed", ePrint: "Print quality", eOverall: "Overall satisfaction",
     eRef: "Reference No.", eRun: "RUN NUMBER", eName: "Requester", eItems: "Items", eOfficer: "Responsible officer", eComment: "Comment", eSubmitted: "Evaluated at",
     evalListNote: "Rows follow the filters on the Search / All entries tab"
@@ -172,8 +176,21 @@ function writeTable(ws, startRow, columns, rows, { totalRow } = {}) {
   columns.forEach((c, i) => { header.getCell(i + 1).value = c.header; });
   styleHeaderRow(header);
 
+  // Big tables (tens of thousands of rows) are styled per column instead of
+  // per cell, without zebra stripes: per-cell styling made a 100k-row
+  // export take about 25 seconds.
+  const big = rows.length > 3000;
+  if (big) columns.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    if (c.numFmt) col.numFmt = c.numFmt;
+    if (c.align || c.wrap) col.alignment = { vertical: "top", horizontal: c.align, wrapText: !!c.wrap };
+  });
   rows.forEach((r, idx) => {
     const row = ws.getRow(startRow + 1 + idx);
+    if (big) {
+      row.values = columns.map((c) => { const v = r[c.key]; return v === undefined || v === "" ? null : v; });
+      return;
+    }
     columns.forEach((c, i) => {
       const cell = row.getCell(i + 1);
       const v = r[c.key];
@@ -264,7 +281,7 @@ async function historyReport(params, { lang, user } = {}) {
   const filters = describePeriod(params, lang);
   const statusEnum = params.status && requests.CODE_TO_STATUS[params.status];
   if (statusEnum) filters.push(t.fStatus + ": " + t.status[statusEnum]);
-  if (params.agencyCategory) filters.push(t.fAgency + ": " + params.agencyCategory);
+  if (params.unitType) filters.push(t.fUnit + ": " + params.unitType);
   if (params.q) filters.push(t.fSearch + ": " + params.q);
 
   const wb = newWorkbook(user);
@@ -306,8 +323,8 @@ async function historyReport(params, { lang, user } = {}) {
     name: r.requesterName,
     email: r.requesterEmail,
     tel: r.requesterTel,
-    category: r.agencyCategory,
-    unit: r.agencyUnit,
+    category: r.unitType,
+    unit: r.unit,
     docType: r.documentType,
     paper: r.paperSource,
     items: r.itemList,
@@ -330,132 +347,341 @@ async function historyReport(params, { lang, user } = {}) {
 }
 
 // ---------------------------------------------------------------- dashboard
+// Built on requests.dashboardRange, the same counting the dashboard page
+// uses, so every number in the file matches the screen for the same
+// period and filters. Sheets: summary, over time, by unit, by unit type,
+// by document type, by paper source, unit x period, and every request.
+const DASH_L = {
+  th: {
+    title: "รายงานสรุปการใช้กระดาษ",
+    sSummary: "สรุป", sTime: { day: "รายวัน", month: "รายเดือน", year: "รายปี" }, sUnits: "ตามหน่วยงาน", sTypes: "ตามประเภทหน่วยงาน",
+    sDocs: "ตามประเภทเอกสาร", sSrcs: "ตามแหล่งกระดาษ", sMatrix: { day: "หน่วยงานรายวัน", month: "หน่วยงานรายเดือน", year: "หน่วยงานรายปี" }, sRows: "รายการคำขอ",
+    period: "ช่วงเวลา", allTime: "ทั้งหมด", countedTo: "นับถึง", to: "ถึง", fy: "ปีงบประมาณ", yearW: "ปี",
+    keyFigures: "ตัวเลขสำคัญ", highlights: "จุดเด่นของช่วงนี้", metric: "ตัวชี้วัด", selected: "ช่วงที่เลือก", lastYear: "ช่วงเดียวกันปีก่อน", change: "เปลี่ยนแปลง",
+    kSheets: "แผ่นกระดาษที่ใช้", kReq: "คำขอที่พิมพ์แล้ว", kAvg: "แผ่นต่อคำขอ (เฉลี่ย)", kUnits: "หน่วยงานที่ใช้บริการ", kRank: "อันดับการใช้กระดาษของหน่วยงานนี้",
+    hTopUnit: "หน่วยงานที่ใช้มากที่สุด", hTopType: "ประเภทหน่วยงานที่ใช้มากที่สุด", hPeak: "ช่วงที่ใช้มากที่สุด", hDoc: "ประเภทเอกสารที่ใช้มากที่สุด",
+    cPeriod: { day: "วันที่", month: "เดือน", year: "ปี" }, cReq: "คำขอ", cSheets: "แผ่นกระดาษ", cPrev: "ปีก่อน (แผ่น)", cChange: "เปลี่ยนแปลง",
+    cRank: "อันดับ", cUnit: "หน่วยงาน", cType: "ประเภทหน่วยงาน", cShare: "สัดส่วน", cAvg: "แผ่นต่อคำขอ", cUnitsN: "จำนวนหน่วยงาน",
+    cDoc: "ประเภทเอกสาร", cSrc: "แหล่งที่มากระดาษ", cTotal: "รวม",
+    rRef: "เลขอ้างอิง", rRun: "RUN NUMBER", rDate: "วันที่ส่งคำขอ", rStatus: "สถานะ", rName: "ผู้ขอ", rSize: "ขนาดกระดาษ", rColor: "โหมดสี", rSide: "การพิมพ์", rPages: "หน้าต้นฉบับ", rCopies: "จำนวนชุด",
+    noteSheets: "นับเฉพาะคำขอที่อนุมัติและพิมพ์แล้ว พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า",
+    noteCompare: "ช่วงเดียวกันปีก่อน คือ {p}",
+    noteUnits: "ตารางนี้แสดงทุกหน่วยงานในช่วงที่เลือก แม้จะกรองไว้เฉพาะหน่วยงานเดียว เพื่อให้เห็นอันดับเทียบกับหน่วยงานอื่น",
+    noteTooMany: "ช่วงนี้มีคำขอ {n} รายการ เกิน {max} รายการที่ใส่ในไฟล์นี้ได้ ถ้าต้องการรายการทั้งหมด ให้ส่งออกจากหน้าประวัติคำขอทั้งหมด โดยเลือกช่วงวันที่ทีละส่วน หรือเลือกช่วงเวลาในแดชบอร์ดให้สั้นลง",
+    noteNew: "ใหม่", 
+    status: { PRINTING_IN_PROGRESS: "กำลังปริ้น", READY_FOR_PICKUP: "พร้อมส่งมอบ", COMPLETED: "เสร็จสมบูรณ์" }
+  },
+  en: {
+    title: "Paper Usage Report",
+    sSummary: "Summary", sTime: { day: "By day", month: "By month", year: "By year" }, sUnits: "By unit", sTypes: "By unit type",
+    sDocs: "By document type", sSrcs: "By paper source", sMatrix: { day: "Units by day", month: "Units by month", year: "Units by year" }, sRows: "Requests",
+    period: "Period", allTime: "All time", countedTo: "counted to", to: "to", fy: "FY", yearW: "Year",
+    keyFigures: "Key figures", highlights: "Highlights", metric: "Measure", selected: "Selected period", lastYear: "Same period last year", change: "Change",
+    kSheets: "Sheets used", kReq: "Printed requests", kAvg: "Sheets per request (avg)", kUnits: "Active units", kRank: "This unit's paper-use rank",
+    hTopUnit: "Unit that used the most", hTopType: "Unit type that used the most", hPeak: "Busiest period", hDoc: "Most used document type",
+    cPeriod: { day: "Date", month: "Month", year: "Year" }, cReq: "Requests", cSheets: "Sheets", cPrev: "Last year (sheets)", cChange: "Change",
+    cRank: "Rank", cUnit: "Unit", cType: "Unit type", cShare: "Share", cAvg: "Sheets per request", cUnitsN: "Units",
+    cDoc: "Document type", cSrc: "Paper source", cTotal: "Total",
+    rRef: "Reference No.", rRun: "RUN NUMBER", rDate: "Submitted", rStatus: "Status", rName: "Requester", rSize: "Paper size", rColor: "Color mode", rSide: "Print side", rPages: "Original pages", rCopies: "Copies",
+    noteSheets: "Counts approved and printed requests only. Double-sided printing counts as half the page count.",
+    noteCompare: "Same period last year: {p}",
+    noteUnits: "This table lists every unit in the period, even when one unit is filtered, so its rank among the others is visible.",
+    noteTooMany: "This period has {n} requests, more than the {max} this file can hold. For the full list, export from the Request history page a date range at a time, or pick a shorter period on the dashboard.",
+    noteNew: "New", 
+    status: { PRINTING_IN_PROGRESS: "Printing", READY_FOR_PICKUP: "Ready for pickup", COMPLETED: "Completed" }
+  }
+};
+const MONTHS_SHORT = {
+  th: ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."],
+  en: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+};
+const VALUE_EN = {
+  "ข้อสอบ": "Exam", "เอกสารทั่วไป": "General document",
+  "ขาวดำ": "Black and white", "สี": "Color", "พิมพ์หน้าเดียว": "Single-sided", "พิมพ์สองหน้า": "Double-sided",
+  "ฝ่ายทะเบียนจัดเตรียมให้": "Provided by Registrar Division", "ผู้ขอจัดเตรียมเอง": "Provided by requester"
+};
+const PCT = "0.0%";
+const DASH_ROWS_MAX = 30000; // "every request" sheet: above this, point to the History export
+const CHANGE = "+0.0%;-0.0%;0.0%";
+
+// "<th> (<en>)" as stored on requests: the name in the report's language
+function unitName(stored, lang) {
+  const m = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(stored || "");
+  return m ? (lang === "en" ? m[2] : m[1]) : stored;
+}
+const dayParts = (s) => s.split("-").map(Number);
+function dayText(s, lang, withYear) {
+  const [y, m, d] = dayParts(s);
+  return `${d} ${MONTHS_SHORT[lang][m - 1]}` + (withYear ? ` ${yearLabel(y, lang)}` : "");
+}
+// same wording as the page: "ปี 2569", "ปีงบประมาณ 2569 (1 ต.ค. 2568 ถึง 30 ก.ย. 2569)", "ต.ค. 2569", a range
+function periodText(from, to, lang) {
+  const D = DASH_L[lang];
+  const [fy, fm, fd] = dayParts(from), [ty, tm, td] = dayParts(to);
+  const range = fy === ty ? `${dayText(from, lang, false)} ${D.to} ${dayText(to, lang, true)}` : `${dayText(from, lang, true)} ${D.to} ${dayText(to, lang, true)}`;
+  if (fm === 1 && fd === 1 && tm === 12 && td === 31 && fy === ty) return `${D.yearW} ${yearLabel(fy, lang)}`;
+  if (fm === 10 && fd === 1 && tm === 9 && td === 30 && ty === fy + 1) return `${D.fy} ${yearLabel(ty, lang)} (${range})`;
+  if (fd === 1 && fy === ty && fm === tm && td === new Date(ty, tm, 0).getDate()) return `${L[lang].months[fm - 1]} ${yearLabel(fy, lang)}`;
+  if (from === to) return dayText(from, lang, true);
+  return range;
+}
+function bucketText(k, bucket, lang, crossesYear) {
+  const [y, m] = dayParts(k);
+  if (bucket === "year") return String(yearLabel(y, lang));
+  if (bucket === "month") return `${MONTHS_SHORT[lang][m - 1]} ${crossesYear ? String(yearLabel(y, lang)).slice(-2) : yearLabel(y, lang)}`;
+  return dayText(k, lang, false);
+}
+const ratio = (a, b) => (b ? (a - b) / b : null);
+
 async function dashboardReport(params, { lang, user } = {}) {
   lang = langOf(lang);
-  const t = L[lang];
-  const s = await requests.dashboardSummary(params);
+  const t = L[lang], D = DASH_L[lang];
+  const q = {
+    from: params.fromDate || params.from, to: params.toDate || params.to,
+    unitType: params.unitType || undefined, unit: params.unit || undefined,
+    documentType: params.documentType || undefined, paperSource: params.paperSource || undefined,
+    withDetail: true, rowLimit: DASH_ROWS_MAX + 1
+  };
+  const [R, opts] = await Promise.all([requests.dashboardRange(q), requests.dashboardOptions()]);
+  const typeEn = new Map(opts.types.map((x) => [x.th, x.en]));
+  const typeName = (th) => (lang === "en" ? typeEn.get(th) || th : th);
+  const valueName = (v) => (lang === "en" ? VALUE_EN[v] || v : v);
+  const hasPrev = !!R.prev;
+  const running = R.upTo < R.to;
 
-  const filters = describePeriod(params, lang);
-  if (params.documentType) filters.push(t.fDocType + ": " + params.documentType);
-  filters.push(t.fPaper + ": " + (params.paperSource || t.all));
+  const periodLabel = R.allTime
+    ? `${D.allTime} (${dayText(R.from, lang, true)} ${D.to} ${dayText(R.upTo, lang, true)})`
+    : periodText(R.from, R.to, lang) + (running ? ` (${D.countedTo} ${dayText(R.upTo, lang, true)})` : "");
+  const prevLabel = hasPrev ? periodText(R.prev.from, R.prev.to, lang) : "";
+  const filters = [periodLabel];
+  if (params.unitType) filters.push(t.fUnitType + ": " + typeName(params.unitType));
+  if (params.unit) filters.push(t.fUnit + ": " + unitName(params.unit, lang));
+  if (params.documentType) filters.push(t.fDocType + ": " + valueName(params.documentType));
+  if (params.paperSource) filters.push(t.fPaper + ": " + valueName(params.paperSource));
 
   const wb = newWorkbook(user);
+  const header = (ws, name, span) => writeHeaderBlock(ws, { title: D.title + (name ? " (" + name + ")" : ""), lang, user, filters, span });
+  const changeCols = hasPrev ? [{ header: D.cPrev, key: "prev", width: 16, numFmt: NUM }, { header: D.cChange, key: "chg", width: 13, numFmt: CHANGE }] : [];
 
-  // Summary
-  const ws1 = wb.addWorksheet(t.dashSummarySheet);
-  ws1.getColumn(1).width = 38;
-  ws1.getColumn(2).width = 18;
-  let r = writeHeaderBlock(ws1, { title: t.dashTitle, lang, user, filters, span: 4 });
-  r = writePairs(ws1, r, [
-    [t.kTotalRequests, s.totalRequests],
-    [t.kTotalSheets, s.totalSheets],
-    [t.kAvgSheets, s.avgSheets],
-    [t.kActiveUnits, s.activeUnits]
-  ], { numFmt: NUM });
+  // 1. Summary: key figures against last year, then highlights
+  const ws1 = wb.addWorksheet(D.sSummary);
+  let r = header(ws1, "", 4);
+  sectionTitle(ws1, r, D.keyFigures);
+  const A = R.totals, B = R.prevTotals;
+  const avg = (x) => (x && x.requests ? Math.round(x.sheets / x.requests) : 0);
+  const kpis = [
+    { metric: D.kSheets, a: A.sheets, b: B && B.sheets },
+    { metric: D.kReq, a: A.requests, b: B && B.requests },
+    { metric: D.kAvg, a: avg(A), b: B && avg(B) },
+    { metric: D.kUnits, a: A.units, b: B && B.units }
+  ].map((k) => ({ ...k, chg: hasPrev ? ratio(k.a, k.b) : null }));
+  if (R.rank) kpis.push({ metric: D.kRank, a: R.rank.pos ? `${R.rank.pos} / ${R.rank.total}` : "-" });
+  r = writeTable(ws1, r + 1, [
+    { header: D.metric, key: "metric", width: 36 },
+    { header: D.selected, key: "a", width: 20, numFmt: NUM },
+    ...(hasPrev ? [{ header: D.lastYear, key: "b", width: 22, numFmt: NUM }, { header: D.change, key: "chg", width: 14, numFmt: CHANGE }] : [])
+  ], kpis);
+  ws1.autoFilter = null;
+  ws1.views = [];
+  r += 2;
+  sectionTitle(ws1, r, D.highlights);
+  const real = R.series.filter((s) => s.sheets != null);
+  const peak = real.reduce((m, s) => (!m || s.sheets > m.sheets ? s : m), null);
+  const crosses = R.from.slice(0, 4) !== R.to.slice(0, 4);
+  const topUnit = R.units.filter((u) => !params.unit || u.unit === params.unit)[0];
+  const topType = R.breakdown.types[0], topDoc = R.breakdown.docs[0];
+  const share = (v) => (A.sheets ? " (" + (v / A.sheets * 100).toFixed(1) + "%)" : "");
+  const fmtN = (n) => Number(n).toLocaleString("en-US");
+  r = writePairs(ws1, r + 1, [
+    topUnit && [D.hTopUnit, unitName(topUnit.unit, lang) + "  " + fmtN(topUnit.sheets) + share(topUnit.sheets)],
+    topType && [D.hTopType, typeName(topType.key) + "  " + fmtN(topType.sheets) + share(topType.sheets)],
+    peak && peak.sheets > 0 && [D.hPeak, (R.bucket === "year" ? D.yearW + " " : "") + bucketText(peak.k, R.bucket, lang, false) + "  " + fmtN(peak.sheets)],
+    topDoc && [D.hDoc, valueName(topDoc.key) + "  " + fmtN(topDoc.sheets) + share(topDoc.sheets)]
+  ].filter(Boolean));
   note(ws1, r + 1, t.sheetsNote, 4);
+  if (hasPrev) note(ws1, r + 2, D.noteCompare.replace("{p}", prevLabel), 4);
 
-  // By year (every year between first and last, 0 for gaps — like the chart)
-  const ws2 = wb.addWorksheet(t.dashYearSheet);
-  const years = Object.keys(s.yearTrend).map(Number).sort((a, b) => a - b);
-  const yearRows = [];
-  if (years.length) {
-    for (let y = years[0]; y <= years[years.length - 1]; y++) {
-      const v = s.yearTrend[y] || 0;
-      const prev = yearRows.length ? yearRows[yearRows.length - 1].sheets : null;
-      yearRows.push({ year: yearLabel(y, lang), sheets: v, change: prev ? (v - prev) / prev : null });
-    }
+  // 2. Over time (day / month / year, as the chart)
+  const ws2 = wb.addWorksheet(D.sTime[R.bucket]);
+  r = header(ws2, D.sTime[R.bucket], 5);
+  const timeRows = real.map((s) => ({
+    k: bucketText(s.k, R.bucket, lang, crosses), req: s.requests, sheets: s.sheets,
+    prev: hasPrev ? s.prev : null, chg: hasPrev ? ratio(s.sheets, s.prev) : null
+  }));
+  const tEnd = writeTable(ws2, r, [
+    { header: D.cPeriod[R.bucket], key: "k", width: 16, align: "center" },
+    { header: D.cReq, key: "req", width: 12, numFmt: NUM },
+    { header: D.cSheets, key: "sheets", width: 16, numFmt: NUM },
+    ...changeCols
+  ], timeRows, { totalRow: { k: D.cTotal, req: A.requests, sheets: A.sheets, prev: hasPrev ? B.sheets : null, chg: hasPrev ? ratio(A.sheets, B.sheets) : null } });
+  if (hasPrev) note(ws2, tEnd + 2, D.noteCompare.replace("{p}", prevLabel), 5);
+
+  // 3. By unit (every unit in the period, as the table on the page)
+  const ws3 = wb.addWorksheet(D.sUnits);
+  r = header(ws3, D.sUnits, 7);
+  const unitList = R.units.filter((u) => u.sheets > 0);
+  const unitTotal = unitList.reduce((a, u) => a + u.sheets, 0) || 1;
+  const uEnd = writeTable(ws3, r, [
+    { header: D.cRank, key: "rank", width: 8, align: "center" },
+    { header: D.cUnit, key: "unit", width: 44, wrap: true },
+    { header: D.cType, key: "type", width: 24 },
+    { header: D.cReq, key: "req", width: 11, numFmt: NUM },
+    { header: D.cSheets, key: "sheets", width: 14, numFmt: NUM },
+    { header: D.cShare, key: "share", width: 10, numFmt: PCT },
+    { header: D.cAvg, key: "avg", width: 13, numFmt: NUM },
+    ...changeCols
+  ], unitList.map((u, i) => ({
+    rank: i + 1, unit: unitName(u.unit, lang), type: typeName(u.type), req: u.requests, sheets: u.sheets,
+    share: u.sheets / unitTotal, avg: u.requests ? Math.round(u.sheets / u.requests) : 0,
+    prev: hasPrev ? u.prev : null, chg: hasPrev ? (u.prev ? ratio(u.sheets, u.prev) : D.noteNew) : null
+  })), { totalRow: { unit: D.cTotal, req: unitList.reduce((a, u) => a + u.requests, 0), sheets: unitList.reduce((a, u) => a + u.sheets, 0), share: 1, prev: hasPrev ? unitList.reduce((a, u) => a + u.prev, 0) : null } });
+  if (params.unit) note(ws3, uEnd + 2, D.noteUnits, 7);
+
+  // 4-6. By unit type, document type, paper source
+  function breakdownSheet(name, list, keyHeader, label, withUnits) {
+    const ws = wb.addWorksheet(name);
+    const rr = header(ws, name, 6);
+    const total = list.reduce((a, x) => a + x.sheets, 0) || 1;
+    writeTable(ws, rr, [
+      { header: keyHeader, key: "key", width: 34 },
+      ...(withUnits ? [{ header: D.cUnitsN, key: "units", width: 14, numFmt: NUM }] : []),
+      { header: D.cReq, key: "req", width: 12, numFmt: NUM },
+      { header: D.cSheets, key: "sheets", width: 16, numFmt: NUM },
+      { header: D.cShare, key: "share", width: 10, numFmt: PCT },
+      { header: D.cAvg, key: "avg", width: 13, numFmt: NUM },
+      ...changeCols
+    ], list.map((x) => ({
+      key: label(x.key), units: x.units, req: x.requests, sheets: x.sheets, share: x.sheets / total,
+      avg: x.requests ? Math.round(x.sheets / x.requests) : 0, prev: hasPrev ? x.prev : null, chg: hasPrev ? (x.prev ? ratio(x.sheets, x.prev) : D.noteNew) : null
+    })), { totalRow: { key: D.cTotal, req: list.reduce((a, x) => a + x.requests, 0), sheets: list.reduce((a, x) => a + x.sheets, 0), share: 1, prev: hasPrev ? list.reduce((a, x) => a + x.prev, 0) : null } });
   }
-  r = writeHeaderBlock(ws2, { title: t.dashTitle + " (" + t.dashYearSheet + ")", lang, user, filters: filters.filter((f) => !f.startsWith(t.fYear) && !f.startsWith(t.fMonth) && !f.startsWith(t.fFrom) && !f.startsWith(t.fTo)), span: 3 });
-  const yEnd = writeTable(ws2, r, [
-    { header: t.dYear, key: "year", width: 12, align: "center" },
-    { header: t.dSheets, key: "sheets", width: 22, numFmt: NUM },
-    { header: t.dChange, key: "change", width: 24, numFmt: "+0.0%;-0.0%;0.0%" }
-  ], yearRows, { totalRow: { year: t.total, sheets: yearRows.reduce((a, x) => a + x.sheets, 0) } });
-  note(ws2, yEnd + 2, t.trendNote, 3);
+  breakdownSheet(D.sTypes, R.breakdown.types, D.cType, typeName, true);
+  breakdownSheet(D.sDocs, R.breakdown.docs, D.cDoc, valueName, false);
+  breakdownSheet(D.sSrcs, R.breakdown.srcs, D.cSrc, valueName, false);
 
-  // By agency category
-  const byCat = s.categoryBreakdown.slice().sort((a, b) => b.sheets - a.sheets);
-  const ws3 = wb.addWorksheet(t.dashCategorySheet);
-  r = writeHeaderBlock(ws3, { title: t.dashTitle + " (" + t.dashCategorySheet + ")", lang, user, filters, span: 5 });
-  const catLabel = (c) => (lang === "en" ? (c.categoryEn || c.category) : c.category);
-  const cEnd = writeTable(ws3, r, [
-    { header: t.dCategory, key: "cat", width: 34 },
-    { header: t.dRequests, key: "count", width: 14, numFmt: NUM },
-    { header: t.dCopies, key: "copies", width: 18, numFmt: NUM },
-    { header: t.dSheets, key: "sheets", width: 20, numFmt: NUM },
-    { header: t.dAvg, key: "avg", width: 18, numFmt: NUM }
-  ], byCat.map((c) => ({ cat: catLabel(c), count: c.count, copies: c.copies, sheets: c.sheets, avg: c.count ? Math.round(c.sheets / c.count) : 0 })), {
-    totalRow: {
-      cat: t.total,
-      count: byCat.reduce((a, c) => a + c.count, 0),
-      copies: byCat.reduce((a, c) => a + c.copies, 0),
-      sheets: byCat.reduce((a, c) => a + c.sheets, 0)
-    }
+  // 7. Unit x period: who used how much in each day / month / year
+  const ws7 = wb.addWorksheet(D.sMatrix[R.bucket]);
+  const keys = real.map((s) => s.k);
+  r = header(ws7, D.sMatrix[R.bucket], Math.min(8, keys.length + 3));
+  const cell = new Map();
+  R.matrix.forEach((m) => cell.set(m.unit + "\u0001" + m.k, m.sheets));
+  const mUnits = R.units.filter((u) => u.sheets > 0 && (!params.unit || u.unit === params.unit));
+  const mRows = mUnits.map((u) => {
+    const row = { unit: unitName(u.unit, lang), type: typeName(u.type), total: 0 };
+    keys.forEach((k, i) => { const v = cell.get(u.unit + "\u0001" + k) || 0; row["k" + i] = v; row.total += v; });
+    return row;
   });
-  note(ws3, cEnd + 2, t.sheetsNote, 5);
+  const mTotal = { unit: D.cTotal, total: 0 };
+  keys.forEach((k, i) => { mTotal["k" + i] = mRows.reduce((a, x) => a + x["k" + i], 0); mTotal.total += mTotal["k" + i]; });
+  writeTable(ws7, r, [
+    { header: D.cUnit, key: "unit", width: 40, wrap: true },
+    { header: D.cType, key: "type", width: 22 },
+    ...keys.map((k, i) => ({ header: bucketText(k, R.bucket, lang, crosses), key: "k" + i, width: R.bucket === "day" ? 9 : 11, numFmt: NUM })),
+    { header: D.cTotal, key: "total", width: 14, numFmt: NUM }
+  ], mRows, { totalRow: mTotal });
+  ws7.views = [{ state: "frozen", xSplit: 1, ySplit: r }];
 
-  // By department
-  const byUnit = s.unitBreakdown.slice().sort((a, b) => b.sheets - a.sheets);
-  const ws4 = wb.addWorksheet(t.dashUnitSheet);
-  r = writeHeaderBlock(ws4, { title: t.dashTitle + " (" + t.dashUnitSheet + ")", lang, user, filters, span: 7 });
-  const uEnd = writeTable(ws4, r, [
-    { header: t.dRank, key: "rank", width: 8, align: "center" },
-    { header: t.dUnit, key: "unit", width: 36 },
-    { header: t.dCategory, key: "cat", width: 28 },
-    { header: t.dRequests, key: "count", width: 14, numFmt: NUM },
-    { header: t.dCopies, key: "copies", width: 18, numFmt: NUM },
-    { header: t.dSheets, key: "sheets", width: 20, numFmt: NUM },
-    { header: t.dAvg, key: "avg", width: 18, numFmt: NUM }
-  ], byUnit.map((u, i) => ({ rank: i + 1, unit: u.unit, cat: catLabel(u), count: u.count, copies: u.copies, sheets: u.sheets, avg: u.count ? Math.round(u.sheets / u.count) : 0 })), {
-    totalRow: {
-      unit: t.total,
-      count: byUnit.reduce((a, u) => a + u.count, 0),
-      copies: byUnit.reduce((a, u) => a + u.copies, 0),
-      sheets: byUnit.reduce((a, u) => a + u.sheets, 0)
-    }
-  });
-  note(ws4, uEnd + 2, t.sheetsNote, 7);
+  // 8. Every request counted
+  const ws8 = wb.addWorksheet(D.sRows, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  r = header(ws8, D.sRows, 8);
+  const rows = R.requestRows || [];
+  if (R.totals.requests > DASH_ROWS_MAX) {
+    // a very long period (many years) would take minutes to write; the
+    // History page exports any date range of requests on its own
+    note(ws8, r, D.noteTooMany.replace("{n}", R.totals.requests.toLocaleString("en-US")).replace("{max}", DASH_ROWS_MAX.toLocaleString("en-US")), 8);
+    ws8.getRow(r).height = 48;
+    return wb;
+  }
+  writeTable(ws8, r, [
+    { header: D.rRef, key: "ref", width: 18 },
+    { header: D.rRun, key: "run", width: 16 },
+    { header: D.rDate, key: "date", width: 17, numFmt: dateFmt(lang, true) },
+    { header: D.rStatus, key: "status", width: 16 },
+    { header: D.rName, key: "name", width: 24 },
+    { header: D.cType, key: "type", width: 22 },
+    { header: D.cUnit, key: "unit", width: 36 },
+    { header: D.cDoc, key: "doc", width: 16 },
+    { header: D.cSrc, key: "src", width: 24 },
+    { header: D.rSize, key: "size", width: 10 },
+    { header: D.rColor, key: "color", width: 11 },
+    { header: D.rSide, key: "side", width: 14 },
+    { header: D.rPages, key: "pages", width: 12, numFmt: NUM },
+    { header: D.rCopies, key: "copies", width: 10, numFmt: NUM },
+    { header: D.cSheets, key: "sheets", width: 12, numFmt: NUM }
+  ], rows.map((x) => ({
+    ref: x.ref, run: x.run, date: localTs(x.submitted), status: D.status[x.status] || x.status, name: x.name,
+    type: typeName(x.type), unit: unitName(x.unit, lang), doc: valueName(x.doc), src: valueName(x.src),
+    size: x.paperSize, color: valueName(x.color), side: valueName(x.side), pages: x.pages, copies: x.copies, sheets: x.sheets
+  })), { totalRow: { ref: D.cTotal, sheets: rows.reduce((a, x) => a + x.sheets, 0) } });
+
   return wb;
 }
 
 // ---------------------------------------------------------------- evaluations
+// The questions are admin-editable (src/evaluationForm.js): the summary sheet
+// lists every question of the current form (plus removed ones answered in
+// the period), and the list sheet gets one column per current question.
 async function evaluationsReport(params, { lang, user } = {}) {
   lang = langOf(lang);
   const t = L[lang];
+  const pick = (th, en) => (lang === "en" && en ? en : th);
   const summary = await requests.evaluationsSummary({ year: params.year });
   const where = await requests.buildEvaluationsWhere(params);
   const rows = await prisma.evaluation.findMany({
     where,
     orderBy: requests.evaluationsOrderBy(params.sort),
     take: EXPORT_ROW_LIMIT,
-    include: { request: { select: { runNumber: true, requesterName: true, itemList: true, reviewedByOfficerName: true, handedOverByOfficerName: true } } }
+    include: {
+      request: { select: { runNumber: true, requesterName: true, itemList: true, reviewedByOfficerName: true, handedOverByOfficerName: true } },
+      answers: { select: { questionId: true, rating: true, text: true, choices: true } }
+    }
   });
 
   const wb = newWorkbook(user);
 
+  // ---- summary sheet ----
   const ws1 = wb.addWorksheet(t.evalSummarySheet);
-  ws1.getColumn(1).width = 40;
-  ws1.getColumn(2).width = 16;
   const yearFilter = params.year ? [t.fYear + " " + yearLabel(Number(params.year), lang)] : [];
-  let r = writeHeaderBlock(ws1, { title: t.evalTitle, lang, user, filters: yearFilter, span: 4 });
+  let r = writeHeaderBlock(ws1, { title: t.evalTitle, lang, user, filters: yearFilter, span: 5 });
   r = writePairs(ws1, r, [
     [t.eTotalEvaluated, summary.totalEvaluated],
     [t.eTotalCompleted, summary.totalCompleted],
-    [t.eTotalWithComments, summary.totalWithComments]
+    [t.eTotalWithComments, summary.totalWithComments],
+    ...(summary.overall && summary.overall.count ? [[t.eOverallAvg, summary.overall.average.toFixed(1) + " / 5"]] : [])
   ], { numFmt: NUM });
   r += 1;
   sectionTitle(ws1, r, t.eAverages);
-  const dims = [
-    ["ratingStaffService", t.eStaff], ["ratingSystemEase", t.eEase], ["ratingSpeed", t.eSpeed],
-    ["ratingPrintQuality", t.ePrint], ["ratingOverall", t.eOverall]
-  ];
+  const qRows = [];
+  const addQuestion = (sectionTitle, q, removed) => {
+    const label = pick(q.textTh, q.textEn) + (removed ? " " + t.eRemoved : "");
+    const base = { section: sectionTitle, question: label, type: t.eTypes[q.type] || q.type, answers: q.count };
+    if (q.type === "rating") qRows.push({ ...base, avg: q.count ? q.average : null });
+    else if (q.type === "single" || q.type === "multi") {
+      qRows.push(base);
+      (q.options || []).forEach((o) => qRows.push({ section: "", question: "", type: "", choice: pick(o.th, o.en), answers: o.count }));
+    } else qRows.push(base);
+  };
+  (summary.sections || []).forEach((sec) => sec.questions.forEach((q) => addQuestion(pick(sec.titleTh, sec.titleEn), q, false)));
+  (summary.removed || []).forEach((q) => addQuestion(pick(q.sectionTitleTh, q.sectionTitleEn), q, true));
   writeTable(ws1, r + 1, [
-    { header: t.eDimension, key: "dim", width: 40 },
-    { header: t.eAverage, key: "avg", width: 16, numFmt: "0.0" }
-  ], dims.map(([f, label]) => ({ dim: label, avg: summary.averages[f] || 0 })));
+    { header: t.eDimension, key: "section", width: 28, wrap: true },
+    { header: t.eQuestion, key: "question", width: 40, wrap: true },
+    { header: t.eType, key: "type", width: 18 },
+    { header: t.eChoice, key: "choice", width: 26, wrap: true },
+    { header: t.eAnswers, key: "answers", width: 14, numFmt: NUM },
+    { header: t.eAverage, key: "avg", width: 18, numFmt: "0.0" }
+  ], qRows);
   ws1.views = [];
   ws1.autoFilter = undefined;
 
+  // ---- list sheet: one column per current question ----
+  const questions = (summary.sections || []).flatMap((sec) => sec.questions);
+  const answerText = (a, q) => {
+    if (!a) return null;
+    if (q.type === "rating") return a.rating;
+    if (q.type === "text") return a.text;
+    return Array.isArray(a.choices) ? a.choices.map((c) => pick(c.th, c.en)).join(", ") : null;
+  };
   const ws2 = wb.addWorksheet(t.evalListSheet, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
   const listFilters = describePeriod(params, lang);
   if (params.q) listFilters.push(t.fSearch + ": " + params.q);
@@ -469,27 +695,26 @@ async function evaluationsReport(params, { lang, user } = {}) {
     { header: t.eName, key: "name", width: 24 },
     { header: t.eItems, key: "items", width: 30, wrap: true },
     { header: t.eOfficer, key: "officer", width: 22 },
-    { header: t.eStaff, key: "staff", width: 14, align: "center" },
-    { header: t.eEase, key: "ease", width: 14, align: "center" },
-    { header: t.eSpeed, key: "speed", width: 14, align: "center" },
-    { header: t.ePrint, key: "print", width: 14, align: "center" },
-    { header: t.eOverall, key: "overall", width: 14, align: "center" },
-    { header: t.eComment, key: "comment", width: 44, wrap: true },
+    { header: t.eAverage, key: "avg", width: 14, align: "center", numFmt: "0.0" },
+    ...questions.map((q) => ({
+      header: pick(q.textTh, q.textEn), key: "q" + q.id,
+      width: q.type === "rating" ? 14 : q.type === "text" ? 40 : 24,
+      wrap: q.type !== "rating", align: q.type === "rating" ? "center" : undefined
+    })),
     { header: t.eSubmitted, key: "submitted", width: 17, numFmt: dateFmt(lang, true) }
-  ], rows.map((e) => ({
-    ref: e.requestReferenceNo,
-    run: e.request.runNumber,
-    name: e.request.requesterName,
-    items: e.request.itemList,
-    officer: e.request.handedOverByOfficerName || e.request.reviewedByOfficerName,
-    staff: e.ratingStaffService,
-    ease: e.ratingSystemEase,
-    speed: e.ratingSpeed,
-    print: e.ratingPrintQuality,
-    overall: e.ratingOverall,
-    comment: e.comment,
-    submitted: localTs(e.submittedAt)
-  })));
+  ], rows.map((e) => {
+    const out = {
+      ref: e.requestReferenceNo,
+      run: e.request.runNumber,
+      name: e.request.requesterName,
+      items: e.request.itemList,
+      officer: e.request.handedOverByOfficerName || e.request.reviewedByOfficerName,
+      avg: e.averageRating,
+      submitted: localTs(e.submittedAt)
+    };
+    questions.forEach((q) => { out["q" + q.id] = answerText(e.answers.find((a) => a.questionId === q.id), q); });
+    return out;
+  }));
   return wb;
 }
 

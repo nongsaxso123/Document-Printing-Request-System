@@ -1,0 +1,22 @@
+<%#
+  Markup for the iPhone-alarm style time picker (behaviour: createTimeWheel()
+  in app.js). Locals: id (root element id).
+%>
+<div class="time-wheel" id="<%= id %>">
+  <button type="button" class="time-wheel-input" aria-haspopup="listbox" aria-expanded="false" data-i18n-title="timeWheel.title" title="เลือกเวลา">
+    <span class="time-wheel-label">08:00</span>
+    <span class="icon" data-icon="clock"><%- icon('clock') %></span>
+  </button>
+  <div class="time-wheel-panel" hidden>
+    <div class="time-wheel-wheels">
+      <div class="time-wheel-band" aria-hidden="true"></div>
+      <div class="time-wheel-col" data-unit="h" role="listbox" tabindex="0" data-i18n-title="timeWheel.hour" title="ชั่วโมง"></div>
+      <span class="time-wheel-sep" aria-hidden="true">:</span>
+      <div class="time-wheel-col" data-unit="m" role="listbox" tabindex="0" data-i18n-title="timeWheel.minute" title="นาที"></div>
+    </div>
+    <div class="time-wheel-foot">
+      <span class="time-wheel-unit" data-i18n="timeWheel.unit">น.</span>
+      <button type="button" class="btn btn-primary btn-sm time-wheel-done" data-i18n="timeWheel.done">ตกลง</button>
+    </div>
+  </div>
+</div>

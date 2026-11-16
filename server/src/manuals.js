@@ -1,13 +1,47 @@
 /**
- * User manuals (PDF) the admin uploads at /admin/manuals and anyone can open
- * from the login page — see the UserManual model. One file per audience and
- * language; uploading again replaces it.
+ * User manuals (PDF) the admin uploads at /admin/manuals — see the UserManual
+ * model. One file per audience and language; uploading again replaces it.
+ *
+ * Who can open which (GET /manual/:audience/:lang, and the sidebar links):
+ *   requester — anyone, even signed out (linked from the login page)
+ *   officer   — signed-in Officers and Admins
+ *   admin     — signed-in Admins only
+ * The officer/admin manuals describe internal steps, so they are never public.
  */
 
 const prisma = require("./prisma");
 const audit = require("./audit");
 
-const AUDIENCES = ["requester"];
+const AUDIENCES = ["requester", "officer", "admin"];
+
+// Roles allowed to open each audience's manual; null = public.
+const ALLOWED_ROLES = {
+  requester: null,
+  officer: ["Officer", "Admin"],
+  admin: ["Admin"]
+};
+
+// Manuals listed in the sidebar for each role, in display order.
+const SIDEBAR_AUDIENCES = {
+  Requester: ["requester"],
+  Officer: ["officer"],
+  Admin: ["admin", "officer"]
+};
+
+function canView(audience, role) {
+  if (!AUDIENCES.includes(audience)) return false;
+  const allowed = ALLOWED_ROLES[audience];
+  return !allowed || allowed.includes(role);
+}
+
+// Audiences to link from the sidebar for this role — only ones that have at
+// least one uploaded file (either language).
+async function sidebarAudiences(role) {
+  const wanted = SIDEBAR_AUDIENCES[role] || [];
+  if (!wanted.length) return [];
+  const uploaded = new Set((await listInfo()).map((m) => m.id.split("-")[0]));
+  return wanted.filter((a) => uploaded.has(a));
+}
 const LANGS = ["th", "en"];
 const MAX_BYTES = 30 * 1024 * 1024;
 
@@ -53,7 +87,7 @@ async function save(audience, lang, { buffer, fileName, actorEmail }) {
   await prisma.userManual.upsert({ where: { id }, create: Object.assign({ id }, fields), update: fields });
   await audit.write(null, {
     actorEmail, action: "manualUpload", entityType: "system", entityLabel: name,
-    after: { size: buffer.length }
+    after: { audience, lang, size: buffer.length }
   });
   return { ok: true };
 }
@@ -68,4 +102,4 @@ async function remove(audience, lang, { actorEmail }) {
   return { ok: true };
 }
 
-module.exports = { AUDIENCES, LANGS, MAX_BYTES, manualId, listInfo, getForDownload, save, remove };
+module.exports = { AUDIENCES, LANGS, MAX_BYTES, manualId, canView, sidebarAudiences, listInfo, getForDownload, save, remove };

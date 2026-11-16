@@ -13,7 +13,7 @@
       <div id="loc-banner-text"></div>
     </div>
 
-    <div class="card admin-card loc-form-card" id="location-form-card" hidden>
+    <div class="card admin-card loc-form-card card-overflow-visible" id="location-form-card" hidden>
       <div class="card-header">
         <span class="step-title"><span class="icon" data-icon="map-pin"><%- icon('map-pin') %></span> <span id="location-form-title" data-i18n="adminLocations.form.addTitle">เพิ่มสถานที่ใหม่</span></span>
       </div>
@@ -37,29 +37,27 @@
                 <div class="field" id="field-nameEn"><input type="text" id="loc-nameEn" placeholder="e.g. Registrar Division Counter"></div>
 
                 <label data-i18n="adminLocations.form.rowDetail">อาคาร / ชั้น / ห้อง</label>
-                <div class="field"><input type="text" id="loc-detailTh" placeholder="เช่น อาคาร E4 ชั้น 1"></div>
-                <div class="field"><input type="text" id="loc-detailEn" placeholder="e.g. Building E4, 1st Floor"></div>
+                <div class="field" id="field-detailTh"><input type="text" id="loc-detailTh" placeholder="เช่น อาคาร E4 ชั้น 1"></div>
+                <div class="field" id="field-detailEn"><input type="text" id="loc-detailEn" placeholder="e.g. Building E4, 1st Floor"></div>
               </div>
             </div>
           </div>
 
           <div class="loc-section">
-            <div class="loc-section-title"><span class="step-num">2</span> <span data-i18n="adminLocations.form.hours">เวลาทำการ</span></div>
+            <div class="loc-section-title"><span class="step-num">2</span> <span data-i18n="adminLocations.form.hours">เวลาทำการ</span> <span class="req">*</span></div>
+            <!-- One compact line: days, then the two clock wheels. Wraps on
+                 narrow screens. Days "ไม่ระบุ" = no hours shown. -->
             <div class="field-box">
-              <div class="hours-picker">
-                <span class="icon" data-icon="clock"><%- icon('clock') %></span>
-                <span class="sep" data-i18n="adminLocations.form.hoursFrom">ตั้งแต่วัน</span>
-                <div class="field"><select id="hours-from-day" aria-label="From day"></select></div>
-                <span class="sep" data-i18n="adminLocations.form.hoursTo">ถึงวัน</span>
-                <div class="field"><select id="hours-to-day" aria-label="To day"></select></div>
-                <span class="sep" data-i18n="adminLocations.form.hoursOpen">เปิด</span>
-                <div class="field" style="width:110px;"><select id="hours-open" aria-label="Opens"></select></div>
-                <span class="sep" data-i18n="adminLocations.form.hoursClose">ปิด</span>
-                <div class="field" style="width:110px;"><select id="hours-close" aria-label="Closes"></select></div>
-              </div>
-              <div class="hours-preview" id="hours-preview" hidden></div>
-              <span class="hint" id="hours-legacy" hidden></span>
-              <span class="hint" id="hours-hint" data-i18n="adminLocations.form.hoursHint">เว้นว่างทั้งหมดถ้าไม่ต้องการแสดงเวลาทำการ</span>
+            <div class="hours-line">
+              <div class="field" id="field-fromDay"><select id="hours-from-day" aria-label="From day"></select></div>
+              <span class="sep" data-i18n="adminLocations.form.hoursUntil">ถึง</span>
+              <div class="field" id="field-toDay"><select id="hours-to-day" aria-label="To day"></select></div>
+              <span class="hours-gap"></span>
+              <%- include("../partials/time-wheel", { id: "hours-open-wheel" }) %>
+              <span class="sep">–</span>
+              <%- include("../partials/time-wheel", { id: "hours-close-wheel" }) %>
+            </div>
+            <span class="hint" id="hours-legacy" hidden></span>
             </div>
           </div>
 
@@ -67,8 +65,8 @@
             <div class="loc-section-title"><span class="step-num">3</span> <span data-i18n="adminLocations.form.contact">ติดต่อ</span></div>
             <div class="field-box">
               <div class="form-grid">
-                <div class="field">
-                  <label><span class="icon" data-icon="phone"><%- icon('phone') %></span> <span data-i18n="adminLocations.form.phone">เบอร์โทรติดต่อ</span></label>
+                <div class="field" id="field-phone">
+                  <label><span class="icon" data-icon="phone"><%- icon('phone') %></span> <span data-i18n="adminLocations.form.phone">เบอร์โทรติดต่อ</span> <span class="req">*</span></label>
                   <input type="text" id="loc-phone" data-i18n-placeholder="adminLocations.form.phonePlaceholder" placeholder="เช่น 053-916xxx (ชื่อผู้ติดต่อ)">
                 </div>
                 <div class="field">
@@ -80,30 +78,29 @@
           </div>
 
           <div class="loc-section">
-            <div class="loc-section-title"><span class="step-num">4</span> <span data-i18n="adminLocations.form.usage">ใช้งานเป็น</span></div>
-            <div class="usage-grid">
-              <div class="usage-card">
-                <label class="check-option usage-card-toggle">
-                  <input type="checkbox" id="loc-acceptsDropoff" checked>
-                  <span class="icon usage-card-icon" data-icon="inbox"><%- icon('inbox') %></span>
-                  <span data-i18n="adminLocations.form.acceptsDropoff">เป็นจุดส่งเอกสารต้นฉบับ</span>
+            <div class="loc-section-title"><span class="step-num">4</span> <span data-i18n="adminLocations.form.usage">สถานที่นี้ใช้ทำอะไร</span> <span class="req">*</span></div>
+            <!-- One row per use: tick the use on the left, star it as the
+                 default on the right (star only shows while the use is ticked). -->
+            <div class="field-box usage-box" id="field-usage">
+            <div class="usage-rows">
+              <div class="usage-row">
+                <label class="usage-row-check"><input type="checkbox" id="loc-acceptsDropoff" checked> <span data-i18n="adminLocations.form.acceptsDropoff">ผู้ขอนำเอกสารต้นฉบับมาส่งที่นี่</span></label>
+                <label class="star-toggle" id="opt-default-dropoff" data-i18n-title="adminLocations.form.defaultTip" title="ระบบจะเลือกสถานที่นี้ไว้ให้ก่อน ผู้ใช้เปลี่ยนได้">
+                  <input type="checkbox" id="loc-isDefaultDropoff">
+                  <span class="star-on">★ <span data-i18n="adminLocations.form.isDefault">ค่าเริ่มต้น</span></span>
+                  <span class="star-off">☆ <span data-i18n="adminLocations.form.makeDefault">ตั้งเป็นค่าเริ่มต้น</span></span>
                 </label>
-                <div class="usage-card-sub" id="sub-dropoff">
-                  <label class="check-option"><input type="checkbox" id="loc-isDefaultDropoff"> <span data-i18n="adminLocations.form.defaultDropoff">ใช้เป็นค่าเริ่มต้น</span></label>
-                </div>
               </div>
-              <div class="usage-card">
-                <label class="check-option usage-card-toggle">
-                  <input type="checkbox" id="loc-acceptsPickup" checked>
-                  <span class="icon usage-card-icon" data-icon="package"><%- icon('package') %></span>
-                  <span data-i18n="adminLocations.form.acceptsPickup">เป็นจุดรับเอกสารที่พิมพ์เสร็จ</span>
+              <div class="usage-row">
+                <label class="usage-row-check"><input type="checkbox" id="loc-acceptsPickup" checked> <span data-i18n="adminLocations.form.acceptsPickup">ผู้ขอมารับเอกสารที่พิมพ์เสร็จที่นี่</span></label>
+                <label class="star-toggle" id="opt-default-pickup" data-i18n-title="adminLocations.form.defaultTip" title="ระบบจะเลือกสถานที่นี้ไว้ให้ก่อน ผู้ใช้เปลี่ยนได้">
+                  <input type="checkbox" id="loc-isDefaultPickup">
+                  <span class="star-on">★ <span data-i18n="adminLocations.form.isDefault">ค่าเริ่มต้น</span></span>
+                  <span class="star-off">☆ <span data-i18n="adminLocations.form.makeDefault">ตั้งเป็นค่าเริ่มต้น</span></span>
                 </label>
-                <div class="usage-card-sub" id="sub-pickup">
-                  <label class="check-option"><input type="checkbox" id="loc-isDefaultPickup"> <span data-i18n="adminLocations.form.defaultPickup">ใช้เป็นค่าเริ่มต้น</span></label>
-                </div>
               </div>
             </div>
-            <span class="hint" data-i18n="adminLocations.editHint">การแก้ไขชื่อหรือรายละเอียดจะแสดงกับคำขอที่ยังค้างอยู่ทันที แต่อีเมลที่ส่งไปแล้วแก้ไม่ได้</span>
+            </div>
           </div>
 
           <div class="loc-actions">
@@ -145,6 +142,9 @@
   const ERROR_KEYS = {
     "name-required": "adminLocations.err.nameRequired",
     "purpose-required": "adminLocations.err.purposeRequired",
+    "detail-required": "adminLocations.err.missingFields",
+    "hours-required": "adminLocations.err.missingFields",
+    "phone-required": "adminLocations.err.missingFields",
     "hours-incomplete": "adminLocations.err.hoursIncomplete",
     "hours-invalid": "adminLocations.err.hoursInvalid",
     "last-dropoff": "adminLocations.err.lastDropoff",
@@ -174,10 +174,13 @@
   const defaultPickupBox = byId("loc-isDefaultPickup");
   const hoursSelects = {
     fromDay: byId("hours-from-day"),
-    toDay: byId("hours-to-day"),
-    open: byId("hours-open"),
-    close: byId("hours-close")
+    toDay: byId("hours-to-day")
   };
+  // Typical MFU office hours — what the wheels show until the admin changes them.
+  const DEFAULT_OPEN = "08:30";
+  const DEFAULT_CLOSE = "16:30";
+  const openWheel = createTimeWheel(byId("hours-open-wheel"), { value: DEFAULT_OPEN, minuteStep: 5 });
+  const closeWheel = createTimeWheel(byId("hours-close-wheel"), { value: DEFAULT_CLOSE, minuteStep: 5 });
 
   let locationList = [];
   let editingId = null;
@@ -200,19 +203,87 @@
   function hideBanner() { banner.hidden = true; }
 
   // ---------- inline form error ----------
+  // Every field the form can flag as missing (all required ones).
+  const CHECKED_FIELDS = ["field-nameTh", "field-nameEn", "field-detailTh", "field-detailEn",
+    "field-fromDay", "field-toDay", "field-phone", "field-usage"];
+
   function showFormError(message, invalidFieldIds) {
     errorText.textContent = message;
     errorBox.hidden = false;
-    ["field-nameTh", "field-nameEn"].forEach(function (id) {
-      byId(id).classList.toggle("invalid", (invalidFieldIds || []).indexOf(id) !== -1);
-    });
-    errorBox.scrollIntoView({ behavior: "smooth", block: "center" });
+    const invalid = invalidFieldIds || [];
+    CHECKED_FIELDS.forEach(function (id) { byId(id).classList.toggle("invalid", invalid.indexOf(id) !== -1); });
+    // The summary box sits at the top of the form, so each empty field also
+    // gets its own red line right under it — visible wherever the page is.
+    clearFieldMessages();
+    invalid.forEach(function (id) { if (id !== "field-toDay") addFieldMessage(id); });
+    // Take the eye to the first empty field (not just the message box) and
+    // put the cursor in it.
+    const first = invalid.length ? byId(invalid[0]) : errorBox;
+    first.scrollIntoView({ behavior: "smooth", block: "center" });
+    const control = first.querySelector("input:not([type=checkbox]), select");
+    if (control) control.focus({ preventScroll: true });
   }
 
   function clearFormError() {
     errorBox.hidden = true;
-    byId("field-nameTh").classList.remove("invalid");
-    byId("field-nameEn").classList.remove("invalid");
+    CHECKED_FIELDS.forEach(function (id) { byId(id).classList.remove("invalid"); });
+    clearFieldMessages();
+  }
+
+  const FIELD_MESSAGE_KEYS = {
+    "field-fromDay": "adminLocations.err.pickDays",
+    "field-usage": "adminLocations.err.pickUsage"
+  };
+
+  function addFieldMessage(id) {
+    const msg = document.createElement("div");
+    // Same look as the request form's field errors: SVG alert icon + text.
+    msg.className = "field-error loc-field-msg";
+    msg.setAttribute("data-for", id);
+    msg.setAttribute("role", "alert");
+    msg.innerHTML = '<span class="icon">' + ICONS["alert-circle"] + '</span><span></span>';
+    msg.lastElementChild.textContent = t(FIELD_MESSAGE_KEYS[id] || "adminLocations.err.fillThis");
+    if (id === "field-fromDay") byId(id).closest(".hours-line").insertAdjacentElement("afterend", msg);
+    else if (id === "field-usage") byId(id).insertAdjacentElement("afterend", msg);
+    else byId(id).appendChild(msg);
+  }
+
+  function removeFieldMessage(id) {
+    const msg = locationForm.querySelector('.loc-field-msg[data-for="' + id + '"]');
+    if (msg) msg.remove();
+  }
+
+  function clearFieldMessages() {
+    locationForm.querySelectorAll(".loc-field-msg").forEach(function (m) { m.remove(); });
+  }
+
+  // The red mark goes away as soon as that field gets a value.
+  CHECKED_FIELDS.forEach(function (id) {
+    byId(id).addEventListener("input", function () { byId(id).classList.remove("invalid"); removeFieldMessage(id); });
+    byId(id).addEventListener("change", function () {
+      if (id === "field-fromDay" || id === "field-toDay") {
+        byId("field-fromDay").classList.remove("invalid");
+        byId("field-toDay").classList.remove("invalid");
+        removeFieldMessage("field-fromDay");
+      } else {
+        byId(id).classList.remove("invalid");
+        removeFieldMessage(id);
+      }
+    });
+  });
+
+  // Labels of the empty required fields, in form order, plus their ids.
+  function findMissing(payload) {
+    const missing = [];
+    const add = function (id, labelKey) { missing.push({ id: id, label: t(labelKey) }); };
+    if (!payload.nameTh.trim()) add("field-nameTh", "adminLocations.missing.nameTh");
+    if (!payload.nameEn.trim()) add("field-nameEn", "adminLocations.missing.nameEn");
+    if (!payload.detailTh.trim()) add("field-detailTh", "adminLocations.missing.detailTh");
+    if (!payload.detailEn.trim()) add("field-detailEn", "adminLocations.missing.detailEn");
+    if (!payload.hoursFromDay && !legacyHours) { add("field-fromDay", "adminLocations.missing.hours"); missing.push({ id: "field-toDay", label: null }); }
+    if (!payload.phone.trim()) add("field-phone", "adminLocations.missing.phone");
+    if (!payload.acceptsDropoff && !payload.acceptsPickup) add("field-usage", "adminLocations.missing.usage");
+    return missing;
   }
 
   function messageFor(error, data) {
@@ -229,54 +300,30 @@
     select.value = previous;
   }
 
-  function fillTimeSelect(select) {
-    const previous = select.value;
-    let html = '<option value="">' + t("adminLocations.form.hoursNone") + '</option>';
-    for (let minutes = 5 * 60; minutes <= 22 * 60; minutes += 30) {
-      const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
-      const mm = String(minutes % 60).padStart(2, "0");
-      html += '<option value="' + hh + ':' + mm + '">' + hh + ':' + mm + '</option>';
-    }
-    select.innerHTML = html;
-    select.value = previous;
-  }
-
   function fillHoursSelects() {
     fillDaySelect(hoursSelects.fromDay);
     fillDaySelect(hoursSelects.toDay);
-    fillTimeSelect(hoursSelects.open);
-    fillTimeSelect(hoursSelects.close);
+  }
+
+  // No days chosen = no opening hours shown; the time wheels are greyed out
+  // until a day is picked so "not set" stays a single, obvious choice.
+  function hasDays() {
+    return !!(hoursSelects.fromDay.value || hoursSelects.toDay.value);
+  }
+
+  function syncTimeWheels() {
+    openWheel.setDisabled(!hasDays());
+    closeWheel.setDisabled(!hasDays());
   }
 
   function readHours() {
+    const on = hasDays();
     return {
       hoursFromDay: hoursSelects.fromDay.value,
       hoursToDay: hoursSelects.toDay.value,
-      hoursOpen: hoursSelects.open.value,
-      hoursClose: hoursSelects.close.value
+      hoursOpen: on ? openWheel.get() : "",
+      hoursClose: on ? closeWheel.get() : ""
     };
-  }
-
-  function buildHoursText(h) {
-    const from = Number(h.hoursFromDay);
-    const to = Number(h.hoursToDay);
-    if (!(from >= 1 && to >= from) || !h.hoursOpen || !h.hoursClose || h.hoursClose <= h.hoursOpen) return null;
-    const days = function (lang) {
-      return from === to ? DAY_NAMES[lang][from - 1] : DAY_NAMES[lang][from - 1] + "-" + DAY_NAMES[lang][to - 1];
-    };
-    return {
-      th: days("th") + " " + h.hoursOpen + "-" + h.hoursClose + " น.",
-      en: days("en") + " " + h.hoursOpen + "-" + h.hoursClose
-    };
-  }
-
-  function renderHoursPreview() {
-    const preview = byId("hours-preview");
-    const text = buildHoursText(readHours());
-    if (!text) { preview.hidden = true; return; }
-    preview.hidden = false;
-    preview.innerHTML = escHtml(t("adminLocations.form.hoursPreview")) + "<br>" +
-      "<strong>TH</strong> " + escHtml(text.th) + "<br><strong>EN</strong> " + escHtml(text.en);
   }
 
   // Reads a stored string ("จันทร์-ศุกร์ 09:00-15:00 น." / "Mon-Fri 9:00-15:00")
@@ -303,39 +350,57 @@
 
   function setHoursFromLocation(loc) {
     legacyHours = null;
-    hoursSelects.fromDay.value = hoursSelects.toDay.value = hoursSelects.open.value = hoursSelects.close.value = "";
+    hoursSelects.fromDay.value = hoursSelects.toDay.value = "";
+    openWheel.set(DEFAULT_OPEN);
+    closeWheel.set(DEFAULT_CLOSE);
     byId("hours-legacy").hidden = true;
 
     const stored = loc && (loc.hoursTh || loc.hoursEn);
-    if (!stored) return;
+    if (!stored) return syncTimeWheels();
 
     const parsed = parseHours(loc.hoursTh) || parseHours(loc.hoursEn);
     if (parsed) {
       hoursSelects.fromDay.value = String(parsed.fromDay);
       hoursSelects.toDay.value = String(parsed.toDay);
-      hoursSelects.open.value = parsed.open;
-      hoursSelects.close.value = parsed.close;
-      // a stored time outside the 30-minute list (e.g. 08:45) can't be selected
-      if (hoursSelects.open.value !== parsed.open || hoursSelects.close.value !== parsed.close) legacyHours = { th: loc.hoursTh, en: loc.hoursEn };
+      openWheel.set(parsed.open);
+      closeWheel.set(parsed.close);
     } else {
       legacyHours = { th: loc.hoursTh, en: loc.hoursEn };
     }
+    syncTimeWheels();
 
     if (legacyHours) {
       const legacy = byId("hours-legacy");
-      legacy.textContent = t("adminLocations.form.hoursLegacy") + " " + (legacyHours.th || legacyHours.en) + " — " + t("adminLocations.form.hoursLegacyHint");
+      legacy.textContent = t("adminLocations.form.hoursLegacy") + " " + (legacyHours.th || legacyHours.en) + " " + t("adminLocations.form.hoursLegacyHint");
       legacy.hidden = false;
     }
   }
 
-  Object.keys(hoursSelects).forEach(function (k) { hoursSelects[k].addEventListener("change", renderHoursPreview); });
+  // Picking one day fills the other with the same day (a one-day schedule),
+  // so a half-filled pair never reaches the server as "incomplete".
+  hoursSelects.fromDay.addEventListener("change", function () {
+    if (hoursSelects.fromDay.value && !hoursSelects.toDay.value) hoursSelects.toDay.value = hoursSelects.fromDay.value;
+    if (!hoursSelects.fromDay.value) hoursSelects.toDay.value = "";
+    syncTimeWheels();
+  });
+  hoursSelects.toDay.addEventListener("change", function () {
+    if (hoursSelects.toDay.value && !hoursSelects.fromDay.value) hoursSelects.fromDay.value = hoursSelects.toDay.value;
+    if (!hoursSelects.toDay.value) hoursSelects.fromDay.value = "";
+    syncTimeWheels();
+  });
 
   // ---------- default checkboxes only make sense for a purpose the place serves ----------
+  // They stay visible but greyed out until that use is ticked above.
+  function syncDefaultOption(acceptsBox, defaultBox, optionId) {
+    const enabled = acceptsBox.checked;
+    if (!enabled) defaultBox.checked = false;
+    defaultBox.disabled = !enabled;
+    byId(optionId).classList.toggle("disabled", !enabled);
+  }
+
   function syncUsageBoxes() {
-    byId("sub-dropoff").hidden = !acceptsDropoffBox.checked;
-    if (!acceptsDropoffBox.checked) defaultDropoffBox.checked = false;
-    byId("sub-pickup").hidden = !acceptsPickupBox.checked;
-    if (!acceptsPickupBox.checked) defaultPickupBox.checked = false;
+    syncDefaultOption(acceptsDropoffBox, defaultDropoffBox, "opt-default-dropoff");
+    syncDefaultOption(acceptsPickupBox, defaultPickupBox, "opt-default-pickup");
   }
   acceptsDropoffBox.addEventListener("change", syncUsageBoxes);
   acceptsPickupBox.addEventListener("change", syncUsageBoxes);
@@ -359,7 +424,6 @@
     defaultPickupBox.checked = loc ? loc.isDefaultPickup : false;
     syncUsageBoxes();
     setHoursFromLocation(loc);
-    renderHoursPreview();
 
     setFormTitle(loc
       ? t("adminLocations.form.editTitleNamed").replace("{name}", pickLang(loc.nameTh, loc.nameEn))
@@ -386,15 +450,23 @@
     }
 
     tbody.innerHTML = locationList.map(function (l, index) {
-      const badges = [];
-      if (l.acceptsDropoff) badges.push('<span class="badge badge-awaiting">' + t("adminLocations.badge.dropoff") + (l.isDefaultDropoff ? " · " + t("adminLocations.badge.default") : "") + '</span>');
-      if (l.acceptsPickup) badges.push('<span class="badge badge-ready">' + t("adminLocations.badge.pickup") + (l.isDefaultPickup ? " · " + t("adminLocations.badge.default") : "") + '</span>');
-      if (!l.isActive) badges.push('<span class="badge badge-cancelled">' + t("adminLocations.badge.archived") + '</span>');
-      if (!l.nameEn) badges.push('<span class="badge badge-rejected">' + t("adminLocations.badge.missingEn") + '</span>');
-      if (inFlightTotal(l) > 0) badges.push('<span class="badge badge-printing">' + t("adminLocations.badge.inFlight").replace("{n}", inFlightTotal(l)) + '</span>');
+      // "Used for" cell: one line per use (its pill + a separate outlined
+      // "Default" tag when it is the default), then status pills, then the
+      // pending-request count as plain text with a dot — not another pill.
+      const lines = [];
+      if (l.acceptsDropoff) lines.push(usageLine("badge-awaiting", t("adminLocations.badge.dropoff"), l.isDefaultDropoff));
+      if (l.acceptsPickup) lines.push(usageLine("badge-ready", t("adminLocations.badge.pickup"), l.isDefaultPickup));
+      const status = [];
+      if (!l.isActive) status.push('<span class="badge badge-cancelled">' + t("adminLocations.badge.archived") + '</span>');
+      if (!l.nameEn) status.push('<span class="badge badge-rejected">' + t("adminLocations.badge.missingEn") + '</span>');
+      if (status.length) lines.push('<div class="loc-usage-line">' + status.join("") + '</div>');
+      if (inFlightTotal(l) > 0) lines.push('<div class="loc-pending"><span class="loc-pending-dot"></span>' + t("adminLocations.badge.inFlight").replace("{n}", inFlightTotal(l)) + '</div>');
 
       const hours = pickLang(l.hoursTh, l.hoursEn, lang);
-      const contact = [hours, l.phone].filter(Boolean).map(escHtml).join("<br>") || "—";
+      const contactLines = [];
+      if (hours) contactLines.push('<div class="loc-contact-line"><span class="icon">' + ICON_CLOCK + '</span><span>' + escHtml(hours) + '</span></div>');
+      if (l.phone) contactLines.push('<div class="loc-contact-line"><span class="icon">' + ICON_PHONE + '</span>' + phoneHtml(l.phone) + '</div>');
+      const contact = contactLines.length ? '<div class="loc-contact">' + contactLines.join("") + '</div>' : "—";
       const small = "padding:6px 12px; font-size:13px;";
 
       return '<tr data-row-id="' + l.id + '"' + (l.isActive ? "" : ' style="opacity:.6;"') + '>' +
@@ -403,7 +475,7 @@
           '<button type="button" class="btn btn-secondary" style="padding:4px 9px;" data-move="down" data-id="' + l.id + '" title="' + t("adminLocations.moveDown") + '"' + (index === locationList.length - 1 ? " disabled" : "") + '>↓</button>' +
         '</td>' +
         '<td>' + escHtml(formatLocation(l, lang)) + '</td>' +
-        '<td><div style="display:flex; flex-wrap:wrap; gap:6px;">' + badges.join("") + '</div></td>' +
+        '<td><div class="loc-usage">' + lines.join("") + '</div></td>' +
         '<td>' + contact + '</td>' +
         '<td style="white-space:nowrap;">' +
           '<button type="button" class="btn btn-secondary" style="' + small + '" data-edit="' + l.id + '">' + t("adminLocations.editBtn") + '</button> ' +
@@ -442,6 +514,31 @@
   // archive can proceed with no notice to anyone (see submit handler and
   // the archive click handler below, which only show the typo/moved or
   // replacement modal when this is > 0).
+  const ICON_CLOCK = <%- safeJson(icon('clock')) %>;
+  const ICON_PHONE = <%- safeJson(icon('phone')) %>;
+
+  // "0882313456 (Somnuk)" → "088-231-3456" + a muted "Somnuk". The phone
+  // field is free text, so anything that doesn't start with a Thai number
+  // (10-digit mobile or 9-digit landline) is shown exactly as typed.
+  function phoneHtml(raw) {
+    const m = String(raw).match(/^\s*([0-9][0-9\s-]{7,}[0-9])\s*(.*)$/);
+    if (!m) return '<span>' + escHtml(raw) + '</span>';
+    const digits = m[1].replace(/\D/g, "");
+    let number = m[1].trim();
+    if (/^0\d{9}$/.test(digits)) number = digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6);
+    else if (/^02\d{7}$/.test(digits)) number = "02-" + digits.slice(2, 5) + "-" + digits.slice(5); // Bangkok
+    else if (/^0\d{8}$/.test(digits)) number = digits.slice(0, 3) + "-" + digits.slice(3, 6) + "-" + digits.slice(6); // provincial, e.g. 053-916-000
+    const note = m[2].replace(/^\((.*)\)$/, "$1").trim();
+    return '<span class="loc-phone-number">' + escHtml(number) + '</span>' +
+      (note ? '<span class="loc-phone-note">' + escHtml(note) + '</span>' : "");
+  }
+
+  function usageLine(badgeClass, label, isDefault) {
+    return '<div class="loc-usage-line"><span class="badge ' + badgeClass + '">' + label + '</span>' +
+      (isDefault ? '<span class="loc-default-tag">' + t("adminLocations.badge.default") + '</span>' : "") +
+      '</div>';
+  }
+
   function inFlightTotal(loc) {
     return loc && loc.inFlight ? loc.inFlight.dropoff + loc.inFlight.pickup : 0;
   }
@@ -556,12 +653,14 @@
     TEXT_FIELDS.forEach(function (f) { payload[f] = byId("loc-" + f).value; });
     Object.assign(payload, readHours());
 
-    // Both languages required — say which box is empty rather than only that
-    // something is wrong.
-    const missing = [];
-    if (!payload.nameTh.trim()) missing.push("field-nameTh");
-    if (!payload.nameEn.trim()) missing.push("field-nameEn");
-    if (missing.length) return showFormError(t("adminLocations.err.nameRequired"), missing);
+    // Check every required field at once: mark each empty one in red and
+    // name them all in the message, instead of stopping at the first.
+    const missing = findMissing(payload);
+    if (missing.length) {
+      const labels = missing.map(function (m) { return m.label; }).filter(Boolean);
+      return showFormError(t("adminLocations.err.missingFields") + " " + labels.join(", "),
+        missing.map(function (m) { return m.id; }));
+    }
 
     // Only an edit (not a new place) can have in-flight requests already
     // pointing at it — ask typo-vs-moved first, and only when it does.
@@ -668,7 +767,6 @@
 
   document.addEventListener("odprs:langchange", function () {
     fillHoursSelects();
-    renderHoursPreview();
     renderTable();
   });
 

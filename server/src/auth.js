@@ -87,8 +87,11 @@ function configure(passport) {
   passport.deserializeUser(function (user, done) { done(null, user); });
 }
 
+// Not signed in (logged out, session expired) → back to the login page.
+// Signed in but the wrong role → 403, that's a real permission problem.
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== "Admin") return res.status(403).send("Forbidden — Admin role required.");
+  if (!req.user) return res.redirect("/");
+  if (req.user.role !== "Admin") return res.status(403).send("Forbidden — Admin role required.");
   next();
 }
 
@@ -97,7 +100,8 @@ function requireAdmin(req, res, next) {
 // the Officer flow with only one real test account available so far.
 function requireRole(...allowed) {
   return function (req, res, next) {
-    if (!req.user || !allowed.includes(req.user.role)) return res.status(403).send("Forbidden — insufficient role.");
+    if (!req.user) return res.redirect("/");
+    if (!allowed.includes(req.user.role)) return res.status(403).send("Forbidden — insufficient role.");
     next();
   };
 }

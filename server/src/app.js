@@ -14,7 +14,7 @@ const passport = require("passport");
 
 const auth = require("./auth");
 const profile = require("./profile");
-const agencies = require("./agencies");
+const unitDirectory = require("./units");
 const settings = require("./settings");
 const prisma = require("./prisma");
 const { ensureDefaults } = require("./defaults");
@@ -56,6 +56,15 @@ if (process.env.NODE_ENV === "production") app.set("trust proxy", 2);
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../views"));
 app.locals.icon = icon; // every EJS view can call icon('name') — see src/icons.js
+// JSON for embedding inside <script> via <%- safeJson(x) %>. Plain
+// JSON.stringify would let stored text like "</script><script>..." break out
+// of the script tag (stored XSS), so <, >, & and the JS line separators are
+// written as \u escapes — still the same value once the browser parses it.
+app.locals.safeJson = function safeJson(value) {
+  return JSON.stringify(value === undefined ? null : value)
+    .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+};
 app.use(express.static(path.join(__dirname, "../public")));
 app.use(express.urlencoded({ extended: false }));
 
@@ -74,6 +83,14 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// Signed-in pages must never come back from the browser cache: otherwise
+// pressing Back after logout shows the old page (with someone's data) as if
+// still logged in. no-store also keeps them out of the back/forward cache,
+// so Back re-asks the server, which then sends a logged-out user to login.
+app.use(function (req, res, next) {
+  if (req.user) res.set("Cache-Control", "no-store");
+  next();
+});
 // Read by the sidebar so its open/closed section memory resets on each login.
 app.use(function (req, res, next) {
   res.locals.navScope = req.session && req.session.loginAt ? String(req.session.loginAt) : "";
@@ -128,6 +145,19 @@ app.use(async function (req, res, next) {
   }
 });
 
+// Manual links at the bottom of the sidebar (partials/sidebar.ejs): which
+// uploaded manuals this user's role may open. Page loads only — API calls
+// and file downloads don't render the sidebar.
+app.use(async function (req, res, next) {
+  if (!req.user || req.method !== "GET" || req.path.startsWith("/api/") || req.path.startsWith("/manual/")) return next();
+  try {
+    res.locals.sidebarManuals = await manuals.sidebarAudiences(req.user.role);
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Admin-toggleable "จัดการระบบ" maintenance mode — blocks the Requester
 // role app-wide (every /requester/* page, the "/" redirect, and Requester
 // hits to /api/*), while leaving Officer/Admin access untouched. Admin can
@@ -168,10 +198,16 @@ app.get("/", async function (req, res, next) {
   } catch (err) { next(err); }
 });
 
-// Public on purpose — linked from the login page, before anyone signs in.
-// Falls back to the other language when the requested one isn't uploaded.
+// The requester manual is public on purpose — linked from the login page,
+// before anyone signs in. Officer/admin manuals need a signed-in user with
+// that role (manuals.canView). Falls back to the other language when the
+// requested one isn't uploaded.
 app.get("/manual/:audience/:lang", async function (req, res, next) {
   try {
+    if (!manuals.canView(req.params.audience, null)) {
+      if (!req.user) return res.redirect("/");
+      if (!manuals.canView(req.params.audience, req.user.role)) return res.status(403).send("Forbidden — insufficient role.");
+    }
     const file = await manuals.getForDownload(req.params.audience, req.params.lang);
     if (!file) return res.status(404).send("Not found");
     res.set({
@@ -237,7 +273,7 @@ app.get("/logout", function (req, res) {
 app.get("/profile", async function (req, res, next) {
   if (!req.user) return res.redirect("/");
   try {
-    res.render("profile", { user: req.user, agencyCategories: await agencies.listActiveWithUnits() });
+    res.render("profile", { user: req.user, unitTypes: await unitDirectory.listActiveWithUnits() });
   } catch (err) { next(err); }
 });
 
@@ -249,7 +285,7 @@ app.use("/kiosk", kioskRoutes); // deliberately mounted with no login/role gate 
 
 app.listen(PORT, function () {
   console.log(`ODPRS server (Postgres-backed) running at http://localhost:${PORT}`);
-  // A brand-new (or emptied) database gets the default agencies, drop-off
+  // A brand-new (or emptied) database gets the default units, drop-off
   // place and settings it needs to take requests — see src/defaults.js.
   ensureDefaults(prisma)
     .then((filled) => { if (filled.length) console.log("Filled empty reference tables with defaults:", filled.join(", ")); })

@@ -25,7 +25,7 @@
             <tr>
               <th data-i18n="officerQueue.th.ref">เลขอ้างอิงคำขอ</th>
               <th data-i18n="officerQueue.th.requester">ผู้ขอ</th>
-              <th data-i18n="officerQueue.th.agency">หน่วยงาน</th>
+              <th data-i18n="officerQueue.th.unit">หน่วยงาน</th>
               <th data-i18n="officerQueue.th.submitted">วันที่ส่งคำขอ</th>
               <th data-i18n="officerQueue.th.deadline">กำหนดส่งต้นฉบับ</th>
               <th data-i18n="summary.completion">วันที่ต้องการรับเอกสาร</th>
@@ -43,23 +43,23 @@
   // Only ever fetches the (naturally small) awaiting-original-document
   // slice — filtered server-side — instead of every request in the system.
   let allRequests = [];
-  // All agency categories (active + archived), for translating a request's
-  // stored Thai category name to English — see src/agencies.js.
-  let AGENCY_CATEGORIES = [];
+  // All unit types (active + archived), for translating a request's
+  // stored Thai category name to English — see src/units.js.
+  let UNIT_TYPES = [];
 
   async function loadRequests() {
     const res = await fetch("/api/requests/awaiting");
     allRequests = await res.json();
   }
 
-  async function loadAgencyCategories() {
-    const res = await fetch("/api/agencies/categories");
-    AGENCY_CATEGORIES = res.ok ? await res.json() : [];
+  async function loadUnitTypes() {
+    const res = await fetch("/api/unit-types");
+    UNIT_TYPES = res.ok ? await res.json() : [];
   }
 
-  function agencyLabelOf(nameTh, lang) {
+  function unitLabelOf(nameTh, lang) {
     if (lang !== "en") return nameTh;
-    const found = AGENCY_CATEGORIES.find(function (c) { return c.nameTh === nameTh; });
+    const found = UNIT_TYPES.find(function (c) { return c.nameTh === nameTh; });
     return (found && found.nameEn) || nameTh;
   }
 
@@ -72,8 +72,8 @@
       .filter(function (r) { return !showOverdueOnly || isOverdue(r); })
       .filter(function (r) {
         if (!query) return true;
-        const agencyLabel = agencyLabelOf(r.agencyCategory, lang);
-        const haystack = [r.referenceNo, r.requesterName, agencyLabel, r.agencyUnit].join(" ").toLowerCase();
+        const unitLabel = unitLabelOf(r.unitType, lang);
+        const haystack = [r.referenceNo, r.requesterName, unitLabel, r.unit].join(" ").toLowerCase();
         return haystack.includes(query);
       })
       // Default sort: soonest requested pickup/completion date first, so
@@ -89,15 +89,15 @@
     }
 
     tbody.innerHTML = records.map(function (r) {
-      const agencyLabel = agencyLabelOf(r.agencyCategory, lang);
+      const unitLabel = unitLabelOf(r.unitType, lang);
       const statusBadge = isOverdue(r)
         ? '<span class="badge badge-overdue">' + t("officerQueue.overdue") + '</span>'
         : '<span class="badge badge-awaiting">' + t("status.awaiting") + '</span>';
 
-      return '<tr data-ref="' + r.referenceNo + '">' +
-        '<td>' + r.referenceNo + '</td>' +
-        '<td>' + r.requesterName + '</td>' +
-        '<td>' + agencyLabel + '</td>' +
+      return '<tr data-ref="' + escapeHtml(r.referenceNo) + '">' +
+        '<td>' + escapeHtml(r.referenceNo) + '</td>' +
+        '<td>' + escapeHtml(r.requesterName) + '</td>' +
+        '<td>' + escapeHtml(unitLabel) + '</td>' +
         '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
         '<td>' + formatDateTime(new Date(r.dropoffDeadlineDate), lang) + '</td>' +
         '<td>' + formatDate(new Date(r.completionDateProposed + "T00:00:00"), lang) + '</td>' +
@@ -116,7 +116,7 @@
   document.getElementById("overdue-filter").addEventListener("change", renderQueue);
   document.getElementById("queue-search").addEventListener("input", renderQueue);
   document.addEventListener("odprs:langchange", renderQueue);
-  Promise.all([loadRequests(), loadAgencyCategories()]).then(renderQueue);
+  Promise.all([loadRequests(), loadUnitTypes()]).then(renderQueue);
 </script>
 </body>
 </html>

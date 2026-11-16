@@ -1,7 +1,7 @@
 /**
  * "Who changed what, when" for admin-editable reference data — Location
  * today (see src/locations.js, which calls write() from inside its own
- * transactions so a log row never survives a rolled-back write), Agencies
+ * transactions so a log row never survives a rolled-back write), Units
  * later on the same table. Read by the admin page at /admin/audit-log.
  *
  * before/after are plain snapshots of the fields that matter for that
@@ -29,7 +29,7 @@ async function write(tx, { actorEmail, action, entityType, entityId, entityLabel
   });
 }
 
-// entityType may be a comma-separated list ("agency_category,agency_unit").
+// entityType may be a comma-separated list ("unit_type,unit").
 function typeWhere(entityType) {
   const types = String(entityType || "").split(",").map((x) => x.trim()).filter(Boolean);
   if (!types.length) return undefined;

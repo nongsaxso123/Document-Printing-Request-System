@@ -8,12 +8,21 @@
 
     <div class="card filter-panel">
       <div class="card-body">
-        <div class="filter-search">
-          <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
-          <input type="text" id="search-input" data-i18n-placeholder="history.searchPlaceholder"
-                 placeholder="RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code">
+        <div class="filter-top">
+          <div class="filter-search">
+            <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+            <input type="text" id="search-input" data-i18n-placeholder="history.searchPlaceholder"
+                   placeholder="RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code">
+          </div>
+          <button type="button" class="btn btn-secondary filter-toggle" id="history-filter-toggle" aria-expanded="false" aria-controls="history-filter-body">
+              <span data-i18n="filter.toggle">ตัวกรอง</span>
+              <span class="filter-toggle-count" id="history-filter-count" hidden></span>
+              <span class="icon filter-toggle-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+            </button>
         </div>
 
+        <div class="filter-collapse" id="history-filter-body">
+        <div class="filter-collapse-inner">
         <div class="filter-row">
           <div class="filter-group">
             <div class="filter-head"><span class="filter-label" data-i18n="filter.status">สถานะ</span></div>
@@ -31,9 +40,9 @@
           </div>
 
           <div class="filter-group">
-            <div class="filter-head"><span class="filter-label" data-i18n="filter.agency">หน่วยงาน</span></div>
+            <div class="filter-head"><span class="filter-label" data-i18n="filter.unit">หน่วยงาน</span></div>
             <div class="filter-controls">
-              <select id="agency-filter" class="toolbar-select"></select>
+              <select id="unit-filter" class="toolbar-select"></select>
             </div>
           </div>
 
@@ -56,6 +65,8 @@
               <button type="button" id="custom-range-clear" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
             </div>
           </div>
+        </div>
+        </div>
         </div>
       </div>
     </div>
@@ -84,7 +95,7 @@
             <tr>
               <th data-i18n="history.th.ref">เลขอ้างอิง / RUN NUMBER</th>
               <th data-i18n="history.th.requester">ผู้ขอ</th>
-              <th data-i18n="history.th.agency">หน่วยงาน</th>
+              <th data-i18n="history.th.unit">หน่วยงาน</th>
               <th data-i18n="history.th.item">รายการ</th>
               <th data-i18n="history.th.submitted">วันที่ส่งคำขอ</th>
               <th data-i18n="history.th.status">สถานะ</th>
@@ -109,7 +120,7 @@
 <script>
   const searchInput = document.getElementById("search-input");
   const statusFilter = document.getElementById("status-filter");
-  const agencyFilter = document.getElementById("agency-filter");
+  const unitFilter = document.getElementById("unit-filter");
   const calendarFields = document.getElementById("calendar-fields");
   const yearFilter = document.getElementById("year-filter");
   const monthFilter = document.getElementById("month-filter");
@@ -138,35 +149,35 @@
     return res.json();
   }
 
-  // All agency categories (active + archived — a past request can reference
-  // one since archived, see src/agencies.js) for the filter dropdown; the
+  // All unit types (active + archived — a past request can reference
+  // one since archived, see src/units.js) for the filter dropdown; the
   // option's value stays the category's Thai name, matching what
-  // searchHistory's agencyCategory filter compares against on the raw
+  // searchHistory's unitType filter compares against on the raw
   // stored string column (unchanged by the E track — see requests.js).
-  let AGENCY_CATEGORIES = [];
-  async function loadAgencyCategories() {
-    const res = await fetch("/api/agencies/categories");
+  let UNIT_TYPES = [];
+  async function loadUnitTypes() {
+    const res = await fetch("/api/unit-types");
     return res.ok ? res.json() : [];
   }
 
-  function renderAgencyFilterOptions() {
+  function renderUnitFilterOptions() {
     const lang = getLang();
-    const previous = agencyFilter.value;
-    agencyFilter.innerHTML = "";
+    const previous = unitFilter.value;
+    unitFilter.innerHTML = "";
 
     const allOpt = document.createElement("option");
     allOpt.value = "";
-    allOpt.textContent = t("history.filterAgency.all");
-    agencyFilter.appendChild(allOpt);
+    allOpt.textContent = t("history.filterUnit.all");
+    unitFilter.appendChild(allOpt);
 
-    AGENCY_CATEGORIES.forEach(function (category) {
+    UNIT_TYPES.forEach(function (category) {
       const opt = document.createElement("option");
       opt.value = category.nameTh;
       opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
-      agencyFilter.appendChild(opt);
+      unitFilter.appendChild(opt);
     });
 
-    agencyFilter.value = previous;
+    unitFilter.value = previous;
   }
 
   let availableYears = [];
@@ -223,7 +234,7 @@
   function historyFilterParams() {
     const params = new URLSearchParams();
     if (statusFilter.value) params.set("status", statusFilter.value);
-    if (agencyFilter.value) params.set("agencyCategory", agencyFilter.value);
+    if (unitFilter.value) params.set("unitType", unitFilter.value);
     if (customRangeToggle.checked) {
       if (fromDateInput.value) params.set("fromDate", fromDateInput.value);
       if (toDateInput.value) params.set("toDate", toDateInput.value);
@@ -275,19 +286,19 @@
     }
 
     tbody.innerHTML = data.records.map(function (r) {
-      const categoryRow = AGENCY_CATEGORIES.find(function (c) { return c.nameTh === r.agencyCategory; });
-      const agencyLabel = lang === "en" ? ((categoryRow && categoryRow.nameEn) || r.agencyCategory) : r.agencyCategory;
+      const categoryRow = UNIT_TYPES.find(function (c) { return c.nameTh === r.unitType; });
+      const unitLabel = lang === "en" ? ((categoryRow && categoryRow.nameEn) || r.unitType) : r.unitType;
       const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
       const officerLabel = r.handedOverByOfficer || r.reviewedByOfficer || "—";
 
-      return '<tr data-ref="' + r.referenceNo + '">' +
-        '<td>' + idLabel + '</td>' +
-        '<td>' + r.requesterName + '</td>' +
-        '<td>' + agencyLabel + '</td>' +
-        '<td>' + r.itemList + '</td>' +
+      return '<tr data-ref="' + escapeHtml(r.referenceNo) + '">' +
+        '<td>' + escapeHtml(idLabel) + '</td>' +
+        '<td>' + escapeHtml(r.requesterName) + '</td>' +
+        '<td>' + escapeHtml(unitLabel) + '</td>' +
+        '<td>' + escapeHtml(r.itemList) + '</td>' +
         '<td>' + formatDateTime(new Date(r.submissionDate), lang) + '</td>' +
-        '<td><span class="badge badge-' + r.statusCode + '">' + t("status." + r.statusCode) + '</span></td>' +
-        '<td>' + officerLabel + '</td>' +
+        '<td><span class="badge badge-' + escapeHtml(r.statusCode) + '">' + t("status." + r.statusCode) + '</span></td>' +
+        '<td>' + escapeHtml(officerLabel) + '</td>' +
         '<td><a class="btn btn-secondary" style="padding:6px 12px; font-size:13px;" href="request-form-view?ref=' + encodeURIComponent(r.referenceNo) + '" target="_blank">' +
           '<span class="icon" data-icon="eye" style="width:14px; height:14px;"><%- icon('eye') %></span> ' + t("history.viewForm") +
         '</a></td>' +
@@ -331,11 +342,23 @@
 
   searchInput.addEventListener("input", onSearchInput);
   statusFilter.addEventListener("change", onFilterChange);
-  agencyFilter.addEventListener("change", onFilterChange);
+  unitFilter.addEventListener("change", onFilterChange);
   yearFilter.addEventListener("change", onFilterChange);
   monthFilter.addEventListener("change", onFilterChange);
   customRangeToggle.addEventListener("change", onCustomRangeToggleChange);
   customRangeClearBtn.addEventListener("click", clearCustomRange);
+
+  // Collapsible filter panel (initFilterCollapse in app.js).
+  initFilterCollapse({
+    toggle: "history-filter-toggle", body: "history-filter-body", badge: "history-filter-count", key: "history",
+    count: function () {
+      let n = 0;
+      if (statusFilter.value) n++;
+      if (unitFilter.value) n++;
+      if (customRangeToggle.checked ? (fromDateInput.value || toDateInput.value) : (yearFilter.value || monthFilter.value !== "")) n++;
+      return n;
+    }
+  });
   fromDateInput.addEventListener("change", onFilterChange);
   toDateInput.addEventListener("change", onFilterChange);
   pageSizeSelect.addEventListener("change", onFilterChange);
@@ -350,16 +373,16 @@
   });
 
   document.addEventListener("odprs:langchange", function () {
-    renderAgencyFilterOptions();
+    renderUnitFilterOptions();
     renderYearFilterOptions();
     renderMonthFilterOptions();
     renderHistory();
   });
 
-  Promise.all([loadAvailableYears(), loadAgencyCategories()]).then(function (results) {
+  Promise.all([loadAvailableYears(), loadUnitTypes()]).then(function (results) {
     availableYears = results[0];
-    AGENCY_CATEGORIES = results[1];
-    renderAgencyFilterOptions();
+    UNIT_TYPES = results[1];
+    renderUnitFilterOptions();
     renderYearFilterOptions();
     renderMonthFilterOptions();
     renderHistory();

@@ -37,7 +37,9 @@ async function renderPagePdf(path, cookieHeader) {
     const pdfData = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "15mm", bottom: "15mm", left: "15mm", right: "15mm" }
+      // 0: the 15mm border is body padding in the @media print CSS (see
+      // style.css), which also keeps the browser's own header/footer off.
+      margin: { top: "0", bottom: "0", left: "0", right: "0" }
     });
     // page.pdf() returns a Uint8Array, not a true Node Buffer — Express's
     // res.send() only recognizes Buffer.isBuffer() as binary and otherwise

@@ -3,846 +3,704 @@
 <%- include("../partials/header", { user, crumbKey: "crumb.dashboard", crumbFallback: "แดชบอร์ดสรุปข้อมูล / <strong>ภาพรวม</strong>" }) %>
 
   <main class="app-main">
-    <h1 class="page-title" data-i18n="dashboard.title">แดชบอร์ดสรุปข้อมูล</h1>
-    <p class="page-subtitle" data-i18n="dashboard.subtitle">ภาพรวมการใช้ทรัพยากรกระดาษ แยกตามหน่วยงานและประเภทหน่วยงาน สำหรับใช้รายงานต่อมหาวิทยาลัย</p>
-
-    <div class="card filter-panel">
-      <div class="card-body">
-        <div class="filter-row">
-          <div class="filter-group">
-            <div class="filter-head">
-              <span class="filter-label" data-i18n="dashboard.filter.period">ช่วงเวลา</span>
-              <label class="filter-switch">
-                <input type="checkbox" id="dash-custom-range-toggle">
-                <span data-i18n="dashboard.dateMode.custom">กำหนดช่วงวันที่เอง</span>
-              </label>
-            </div>
-            <div id="dash-calendar-fields" class="filter-controls">
-              <select id="dash-year-filter" class="toolbar-select"></select>
-              <select id="dash-month-filter" class="toolbar-select"></select>
-            </div>
-            <div id="dash-custom-range-fields" class="filter-controls" hidden>
-              <input type="date" id="dash-from-date" class="toolbar-select">
-              <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
-              <input type="date" id="dash-to-date" class="toolbar-select">
-              <button type="button" id="dash-custom-range-clear" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <div class="filter-head"><span class="filter-label" data-i18n="dashboard.documentTypeFilter">ประเภทเอกสาร</span></div>
-            <div class="filter-controls">
-              <select id="dash-document-type-filter" class="toolbar-select">
-                <option value="" data-i18n="dashboard.documentTypeFilter.all">ทุกประเภทเอกสาร</option>
-                <option value="ข้อสอบ" data-i18n="dashboard.documentTypeFilter.exam">ข้อสอบ</option>
-                <option value="เอกสารทั่วไป" data-i18n="dashboard.documentTypeFilter.general">เอกสารทั่วไป</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <div class="filter-head"><span class="filter-label" data-i18n="dashboard.paperSourceFilter">แหล่งที่มากระดาษ</span></div>
-            <div class="filter-controls">
-              <select id="dash-paper-source-filter" class="toolbar-select">
-                <option value="" data-i18n="dashboard.paperSourceFilter.all">ทุกแหล่งที่มากระดาษ</option>
-                <option value="ฝ่ายทะเบียนจัดเตรียมให้" selected data-i18n="dashboard.paperSourceFilter.office">ฝ่ายทะเบียนจัดเตรียมให้</option>
-                <option value="ผู้ขอจัดเตรียมเอง" data-i18n="dashboard.paperSourceFilter.requester">ผู้ขอจัดเตรียมเอง</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <p class="filter-note">
-          <span class="icon" data-icon="info"><%- icon('info') %></span>
-          <span data-i18n="dashboard.paperSourceDefaultNote">ค่าเริ่มต้นนับเฉพาะกระดาษที่ฝ่ายทะเบียนจัดเตรียม เพื่อใช้รายงานงบประมาณ</span>
-        </p>
-      </div>
-    </div>
-
-    <div class="tab-row">
-      <div class="tab-nav" id="tab-nav">
-        <div class="tab-nav-thumb" id="tab-nav-thumb"></div>
-        <button type="button" class="tab-btn active" id="tab-btn-overview" data-tab="overview" data-i18n="dashboard.tab.overview">ภาพรวม</button>
-        <button type="button" class="tab-btn" id="tab-btn-category" data-tab="category" data-i18n="dashboard.tab.category">ตามประเภทหน่วยงาน</button>
-        <button type="button" class="tab-btn" id="tab-btn-unit" data-tab="unit" data-i18n="dashboard.tab.unit">ตามหน่วยงาน</button>
+    <div class="db-head">
+      <div>
+        <h1 class="page-title" data-i18n="dashboard.title">แดชบอร์ดสรุปข้อมูล</h1>
+        <p class="page-subtitle" data-i18n="db.subtitle">การใช้กระดาษของแต่ละหน่วยงาน</p>
       </div>
       <button type="button" class="export-btn" id="dashboard-export-btn">
-          <span class="icon" data-icon="download"><%- icon('download') %></span>
-          <span class="export-btn-label" data-i18n="export.excel">ส่งออก Excel</span>
+        <span class="icon" data-icon="download"><%- icon('download') %></span>
+        <span class="export-btn-label" data-i18n="export.excel">ส่งออก Excel</span>
+      </button>
+    </div>
+
+    <!-- Every choice lives in this one card, in the order people ask:
+         when, then who, then what kind. The results below follow it. -->
+    <div class="card filter-panel db-filter-card">
+      <div class="card-body">
+        <div class="filter-row db-period-row">
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="dashboard.filter.period">ช่วงเวลา</span></div>
+            <div class="filter-controls db-period-controls">
+              <div class="db-seg" id="db-mode" role="group">
+                <button type="button" data-mode="all" data-i18n="db.mode.all">ทั้งหมด</button>
+                <button type="button" data-mode="year" data-i18n="db.mode.year">รายปี</button>
+                <button type="button" data-mode="fiscal" data-i18n="db.mode.fiscal">ปีงบประมาณ</button>
+                <button type="button" data-mode="month" data-i18n="db.mode.month">รายเดือน</button>
+                <button type="button" data-mode="range" data-i18n="db.mode.range">เลือกวันที่</button>
+              </div>
+              <div class="db-pick" id="db-pick-step" hidden>
+                <button type="button" class="db-step is-prev" id="db-prev" data-i18n-title="db.step.prev" title="ก่อนหน้า" aria-label="ก่อนหน้า"><span class="icon" data-icon="chevron-down"><%- icon('chevron-down') %></span></button>
+                <div class="dd" id="db-month"><button type="button" class="toolbar-select dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="เดือน"><span class="dd-value"></span><span class="icon dd-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span></button><div class="dd-panel" hidden></div></div>
+                <div class="dd" id="db-year"><button type="button" class="toolbar-select dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="ปี"><span class="dd-value"></span><span class="icon dd-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span></button><div class="dd-panel" hidden></div></div>
+                <button type="button" class="db-step is-next" id="db-next" data-i18n-title="db.step.next" title="ถัดไป" aria-label="ถัดไป"><span class="icon" data-icon="chevron-down"><%- icon('chevron-down') %></span></button>
+              </div>
+              <div class="db-pick" id="db-pick-range" hidden>
+                <input type="date" id="db-from" class="toolbar-select" aria-label="ตั้งแต่วันที่">
+                <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
+                <input type="date" id="db-to" class="toolbar-select" aria-label="ถึงวันที่">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-row db-who-row">
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="db.f.unitGroup">หน่วยงาน</span></div>
+            <div class="filter-controls">
+              <div class="dd" id="db-type"><button type="button" class="toolbar-select dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="ประเภทหน่วยงาน"><span class="dd-value"></span><span class="icon dd-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span></button><div class="dd-panel" hidden></div></div>
+              <!-- searchable unit picker (a datalist could not search part of a name) -->
+              <div class="db-combo" id="db-unit-combo">
+                <button type="button" class="toolbar-select db-combo-btn" id="db-unit-btn" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="db-combo-value" id="db-unit-label">ทุกหน่วยงาน</span>
+                  <span class="icon db-combo-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+                </button>
+                <div class="db-combo-panel" id="db-unit-panel" hidden>
+                  <input type="text" class="db-combo-search" id="db-unit-search" autocomplete="off" data-i18n-placeholder="db.f.unitSearch" placeholder="พิมพ์ชื่อหน่วยงาน (ไทยหรืออังกฤษ)">
+                  <div class="db-combo-list" id="db-unit-options" role="listbox"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="filter-group">
+            <div class="filter-head"><span class="filter-label" data-i18n="db.f.paperGroup">เอกสารและกระดาษ</span></div>
+            <div class="filter-controls">
+              <div class="dd" id="db-doc"><button type="button" class="toolbar-select dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="ประเภทเอกสาร"><span class="dd-value"></span><span class="icon dd-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span></button><div class="dd-panel" hidden></div></div>
+              <div class="dd" id="db-src"><button type="button" class="toolbar-select dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="แหล่งที่มากระดาษ"><span class="dd-value"></span><span class="icon dd-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span></button><div class="dd-panel" hidden></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-loading" id="db-loading" data-i18n="db.loading">กำลังโหลดข้อมูล…</div>
+
+    <div id="db-body" hidden>
+      <!-- What is on screen, in words. Sticks under the header while scrolling. -->
+      <div class="db-active" id="db-active">
+        <div class="db-active-main">
+          <span class="db-active-label" data-i18n="db.active.label">กำลังดู</span>
+          <span class="db-active-period" id="db-active-period"></span>
+          <div class="db-active-chips" id="db-active-chips"></div>
+        </div>
+        <button type="button" class="btn btn-secondary db-active-reset" id="db-active-reset" hidden>
+          <span data-i18n="db.reset">ล้างตัวกรอง</span>
         </button>
-    </div>
-
-    <div id="tab-panel-overview">
-      <div class="stat-grid">
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="dashboard.kpi.totalRequests">จำนวนคำขอทั้งหมด</div>
-            <div class="stat-value" id="kpi-total-requests">—</div>
-          </div>
-        </div>
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="dashboard.kpi.totalSheets">จำนวนแผ่นกระดาษที่ใช้ไป (รวม)</div>
-            <div class="stat-value" id="kpi-total-sheets">—</div>
-          </div>
-        </div>
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="dashboard.kpi.avgSheets">เฉลี่ยแผ่นกระดาษ/คำขอ</div>
-            <div class="stat-value" id="kpi-avg-sheets">—</div>
-          </div>
-        </div>
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="dashboard.kpi.activeUnits">จำนวนหน่วยงานที่มีการใช้งาน</div>
-            <div class="stat-value" id="kpi-active-units">—</div>
-          </div>
-        </div>
       </div>
 
-      <div class="card trend-card">
-        <div class="card-header trend-card-header">
-          <div class="trend-heading">
-            <div class="trend-title">
-              <span data-i18n="dashboard.trendSheetsTitle">จำนวนแผ่นกระดาษที่ใช้ต่อปี</span>
-              <span class="viz-demo-badge" id="trend-demo-badge" hidden>ข้อมูลจำลอง</span>
-            </div>
-            <div class="trend-subtitle" data-i18n="dashboard.trendNote">ไม่ขึ้นกับตัวกรองช่วงเวลาด้านบน แต่ขึ้นกับตัวกรองประเภทเอกสารและแหล่งที่มากระดาษ</div>
-          </div>
-          <div class="trend-controls">
-            <div class="viz-range" id="year-range-buttons" hidden></div>
-            <div class="trend-view-switch" role="tablist">
-              <button type="button" class="trend-view-btn active" data-view="chart" role="tab" aria-selected="true">
-                <span class="icon" data-icon="bar-chart"><%- icon('bar-chart') %></span>
-                <span data-i18n="dashboard.trend.view.chart">กราฟ</span>
-              </button>
-              <button type="button" class="trend-view-btn" data-view="table" role="tab" aria-selected="false">
-                <span class="icon" data-icon="clipboard"><%- icon('clipboard') %></span>
-                <span data-i18n="dashboard.trend.view.table">ตาราง</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="trend-summary" id="trend-summary"></div>
-          <div class="trend-view" id="trend-view-chart">
-            <div id="year-sheets-chart" class="viz-line-chart"></div>
-          </div>
-          <div class="trend-view trend-table-wrap" id="trend-view-table" hidden>
-            <table class="trend-table">
-              <thead>
-                <tr>
-                  <th data-i18n="dashboard.trend.th.year">ปี พ.ศ.</th>
-                  <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
-                  <th class="num" data-i18n="dashboard.trend.th.change">เปลี่ยนแปลงจากปีก่อนหน้า</th>
-                </tr>
-              </thead>
-              <tbody id="trend-table-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
+      <div class="db-kpis" id="db-kpis"></div>
 
-    <div id="tab-panel-category" hidden>
-      <div class="card">
-        <div class="card-header">
-          <span data-i18n="dashboard.categorySheetsTitle">จำนวนแผ่นกระดาษที่ใช้ แยกตามประเภทหน่วยงาน</span>
+      <div class="db-card">
+        <div class="db-card-head">
+          <div><h2 id="db-chart-title"></h2><div class="db-hint" id="db-chart-hint"></div></div>
+          <div class="db-legend" id="db-chart-legend"></div>
         </div>
-        <div class="card-body">
-          <p class="hint" style="margin-bottom:14px;" data-i18n="dashboard.sheetsNote">คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) นับเป็นจำนวนแผ่นกระดาษจริงที่ใช้ (พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า) — ใช้ตัวเลขนี้ประกอบการรายงานและประมาณการงบประมาณ</p>
-          <div id="category-sheets-chart" class="viz-bar-chart"></div>
-        </div>
+        <div id="db-chart"></div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><span data-i18n="dashboard.categoryTableTitle">ตารางสรุปรายประเภทหน่วยงาน</span></div>
-        <div class="card-body" style="padding:0;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
-                <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
-                <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
-                <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
-                <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
-              </tr>
-            </thead>
-            <tbody id="category-table-body"></tbody>
-          </table>
+      <div class="db-grid">
+        <div class="db-card db-span-8">
+          <div class="db-card-head"><div><h2 data-i18n="db.table.title">แยกตามหน่วยงาน</h2><div class="db-hint" data-i18n="db.table.hint">คลิกชื่อหน่วยงานเพื่อกรองเฉพาะหน่วยงานนั้น คลิกหัวคอลัมน์เพื่อเรียง</div></div></div>
+          <div class="table-wrap"><table class="db-table" id="db-table"></table></div>
+          <div class="db-table-more" id="db-table-more"></div>
         </div>
-      </div>
-    </div>
-
-    <div id="tab-panel-unit" hidden>
-      <div class="card">
-        <div class="card-header">
-          <span data-i18n="dashboard.unitTopTitle">10 อันดับหน่วยงานที่ใช้กระดาษมากที่สุด</span>
-        </div>
-        <div class="card-body">
-          <div id="unit-top-chart" class="viz-bar-chart"></div>
-        </div>
-      </div>
-
-      <div class="card filter-panel">
-        <div class="card-header"><span data-i18n="dashboard.unitTableTitle">ตารางสรุปรายหน่วยงาน (ทั้งหมด)</span></div>
-        <div class="card-body">
-          <div class="filter-inline">
-            <div class="filter-search">
-              <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
-              <input type="text" id="unit-search-input" data-i18n-placeholder="dashboard.unitSearchPlaceholder" placeholder="พิมพ์ชื่อหน่วยงาน">
-            </div>
-            <select id="unit-category-filter" class="toolbar-select"></select>
+        <div class="db-span-4 db-side">
+          <div class="db-card">
+            <div class="db-card-head"><div><h2 id="db-share-title"></h2><div class="db-hint" id="db-share-hint"></div></div><button type="button" class="db-back-link" id="db-share-back" hidden><span class="icon" data-icon="arrow-left"><%- icon('arrow-left') %></span><span data-i18n="db.share.back">ทุกประเภท</span></button></div>
+            <div id="db-share"></div>
           </div>
-        </div>
-        <div class="card-body" style="padding:0;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th data-i18n="dashboard.th.unit">หน่วยงาน</th>
-                <th data-i18n="dashboard.th.category">ประเภทหน่วยงาน</th>
-                <th data-i18n="dashboard.th.requests">จำนวนคำขอ</th>
-                <th data-i18n="dashboard.th.copies">จำนวนชุดที่ปริ้นแล้ว</th>
-                <th data-i18n="dashboard.th.sheets">จำนวนแผ่นกระดาษที่ใช้</th>
-                <th data-i18n="dashboard.th.avgSheets">เฉลี่ยแผ่น/คำขอ</th>
-              </tr>
-            </thead>
-            <tbody id="unit-table-body"></tbody>
-          </table>
+          <div class="db-card">
+            <div class="db-card-head"><div><h2 data-i18n="db.split.title">สัดส่วนเอกสารและกระดาษ</h2><div class="db-hint" data-i18n="db.split.hint">คลิกเพื่อกรอง</div></div></div>
+            <div id="db-splits"></div>
+          </div>
         </div>
       </div>
     </div>
   </main>
+  <div class="db-tip" id="db-tip"></div>
 
 <%- include("../partials/foot") %>
 <script>
-  // The dashboard used to GET /api/requests (every raw row) and aggregate in
-  // browser JS — fine at a few dozen rows, visibly slow once the table has
-  // tens of thousands. All aggregation now happens server-side
-  // (GET /api/dashboard-summary); the browser only ever handles small,
-  // pre-summarized arrays (per-category, per-unit), regardless of how many
-  // total requests exist.
-  const customRangeToggle = document.getElementById("dash-custom-range-toggle");
-  const calendarFields = document.getElementById("dash-calendar-fields");
-  const customRangeFields = document.getElementById("dash-custom-range-fields");
-  const customRangeClearBtn = document.getElementById("dash-custom-range-clear");
-  const yearFilter = document.getElementById("dash-year-filter");
-  const monthFilter = document.getElementById("dash-month-filter");
-  const fromDateInput = document.getElementById("dash-from-date");
-  const toDateInput = document.getElementById("dash-to-date");
-  const documentTypeFilter = document.getElementById("dash-document-type-filter");
-  const paperSourceFilter = document.getElementById("dash-paper-source-filter");
-  const unitCategoryFilter = document.getElementById("unit-category-filter");
-  const unitSearchInput = document.getElementById("unit-search-input");
-
-  let summary = null;
-
-  // TEMPORARY preview aid: /officer/dashboard?demoYears=20 swaps the yearly
-  // trend for N years of made-up numbers so the line chart can be seen at a
-  // long span. Browser-only — nothing is written to the database, the other
-  // stats/tables stay real, and a "ข้อมูลจำลอง" badge marks the chart.
-  // Remove this block (and the badge) once the chart has been reviewed.
-  const trendDemoYears = Math.min(100, Number(new URLSearchParams(window.location.search).get("demoYears")) || 0);
-  function applyTrendDemo() {
-    if (!trendDemoYears) return;
-    const last = new Date().getFullYear();
-    let seed = 7;
-    const rand = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const demo = {};
-    for (let i = 0; i < trendDemoYears; i++) {
-      const y = last - trendDemoYears + 1 + i;
-      const growth = 18000 + i * 2600;                 // slow long-run growth
-      const noise = (rand() - 0.5) * 9000;             // year-to-year wobble
-      const dip = (y === 2020 || y === 2021) ? -14000 : 0; // a COVID-style dip
-      demo[y] = Math.max(0, Math.round(growth + noise + dip));
-    }
-    summary.yearTrend = demo;
-    document.getElementById("trend-demo-badge").hidden = false;
+(function () {
+  // The server counts (requests.dashboardRange); the page only draws.
+  let O = null, R = null, seq = 0;
+  const CAT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"], OTHER = "#b9b1a8";
+  const BLUE = "#2a78d6", PREV = "#8f8780";
+  const cache = new Map();
+  const state = { mode: "year", year: null, fy: null, month: 0, from: "", to: "", type: "", unit: "", doc: "", src: "", sort: "sheets", dir: -1, showAll: false };
+  const byId = (id) => document.getElementById(id);
+  const esc = (s) => escapeHtml(String(s));
+  const lang = () => getLang();
+  const months = () => (lang() === "en" ? ENG_MONTHS : THAI_MONTHS);
+  const yl = (y) => (lang() === "en" ? String(y) : String(y + 543));
+  const yearN = (y) => t("db.yearN").replace("{y}", yl(y));
+  const fmt = (n) => Math.round(n).toLocaleString(lang() === "en" ? "en-US" : "th-TH");
+  function short(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + (lang() === "en" ? "M" : " ล้าน");
+    if (n >= 1e4) return Math.round(n / 1e3) + "K";
+    return fmt(n);
   }
-
-  // Just one toggle: pick a Year, or check the box to pick an exact
-  // from/to range instead. A single from/to range already covers a whole
-  // year, a whole month, or one specific day — so that's simpler than
-  // separate Year/Month/Day dropdowns (an earlier version had those, plus a
-  // "mode" dropdown on top; three dependent selects proved confusing).
-  // Shared by the summary fetch and the Excel export (one workbook with the
-  // summary, per-year, per-category and per-department sheets).
-  function dashboardFilterParams() {
-    const params = new URLSearchParams();
-    if (documentTypeFilter.value) params.set("documentType", documentTypeFilter.value);
-    if (paperSourceFilter.value) params.set("paperSource", paperSourceFilter.value);
-
-    if (customRangeToggle.checked) {
-      if (fromDateInput.value) params.set("fromDate", fromDateInput.value);
-      if (toDateInput.value) params.set("toDate", toDateInput.value);
-    } else {
-      if (yearFilter.value) params.set("year", yearFilter.value);
-      if (monthFilter.value !== "") params.set("month", monthFilter.value);
-    }
-    return params;
+  function niceMax(v) {
+    const raw = Math.max(1, v) / 4, p10 = Math.pow(10, Math.floor(Math.log10(raw)));
+    return [1, 2, 2.5, 5, 10].map((m) => m * p10).find((m) => m >= raw) * 4;
   }
+  const pct = (a, b) => (b ? (a - b) / b * 100 : null);
+  const deltaHtml = (d) => (d == null || !isFinite(d) || Math.abs(d) < 0.05 ? "" : `<b class="${d >= 0 ? "is-up" : "is-down"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)}%</b>`);
 
-  document.getElementById("dashboard-export-btn").addEventListener("click", function () {
-    downloadReport("/api/reports/dashboard.xlsx?" + dashboardFilterParams().toString(), this);
-  });
-
-  async function fetchSummary() {
-    const params = dashboardFilterParams();
-    const res = await fetch("/api/dashboard-summary?" + params.toString());
-    summary = await res.json();
-    applyTrendDemo();
+  function unitLabel(stored) {
+    const m = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(stored || "");
+    return m ? (lang() === "en" ? m[2] : m[1]) : stored;
   }
-
-  function formatNumber(n) {
-    return n.toLocaleString(getLang() === "en" ? "en-US" : "th-TH");
-  }
-
-  // nameEn comes straight off the categoryBreakdown/unitBreakdown row —
-  // requests.js's dashboardSummary() already resolved it live from
-  // src/agencies.js (falls back to null for an older/unmatched request with
-  // no category id, hence the `|| nameTh` below).
-  function categoryLabelFor(nameTh, nameEn) {
-    return getLang() === "en" ? (nameEn || nameTh) : nameTh;
-  }
-
-  function renderYearFilterOptions() {
-    const lang = getLang();
-    const previous = yearFilter.value;
-    yearFilter.innerHTML = "";
-
-    const allOpt = document.createElement("option");
-    allOpt.value = "";
-    allOpt.textContent = t("dashboard.yearFilter.all");
-    yearFilter.appendChild(allOpt);
-
-    (summary.availableYears || []).forEach(function (year) {
-      const opt = document.createElement("option");
-      opt.value = String(year);
-      opt.textContent = lang === "en" ? String(year) : String(year + 543);
-      yearFilter.appendChild(opt);
-    });
-
-    yearFilter.value = previous;
-  }
-
-  function renderMonthFilterOptions() {
-    const lang = getLang();
-    const previous = monthFilter.value;
-    monthFilter.innerHTML = "";
-
-    const allOpt = document.createElement("option");
-    allOpt.value = "";
-    allOpt.textContent = t("dashboard.monthFilter.all");
-    monthFilter.appendChild(allOpt);
-
-    const months = lang === "en" ? ENG_MONTHS : THAI_MONTHS;
-    months.forEach(function (label, index) {
-      const opt = document.createElement("option");
-      opt.value = String(index);
-      opt.textContent = label;
-      monthFilter.appendChild(opt);
-    });
-
-    monthFilter.value = previous;
-  }
-
-  function renderUnitCategoryFilterOptions() {
-    const previous = unitCategoryFilter.value;
-    unitCategoryFilter.innerHTML = "";
-
-    const allOpt = document.createElement("option");
-    allOpt.value = "";
-    allOpt.textContent = t("dashboard.unitCategoryFilter.all");
-    unitCategoryFilter.appendChild(allOpt);
-
-    const nameEnByCategory = {};
-    summary.categoryBreakdown.forEach(function (c) { nameEnByCategory[c.category] = c.categoryEn; });
-    const categories = Object.keys(nameEnByCategory).sort();
-    categories.forEach(function (category) {
-      const opt = document.createElement("option");
-      opt.value = category;
-      opt.textContent = categoryLabelFor(category, nameEnByCategory[category]);
-      unitCategoryFilter.appendChild(opt);
-    });
-
-    unitCategoryFilter.value = previous;
-  }
-
-  function renderBarChart(containerId, items, valueKey, labelFn) {
-    const container = document.getElementById(containerId);
-    const sorted = items.filter(function (it) { return it[valueKey] > 0; })
-      .sort(function (a, b) { return b[valueKey] - a[valueKey]; });
-
-    if (sorted.length === 0) {
-      container.innerHTML = '<div class="empty-state">' + t("dashboard.noData") + '</div>';
-      return;
-    }
-
-    const max = sorted[0][valueKey];
-
-    container.innerHTML = sorted.map(function (it, index) {
-      const label = labelFn(it);
-      const pct = max > 0 ? Math.round((it[valueKey] / max) * 100) : 0;
-      let badge = "";
-      if (index === 0) badge = '<span class="viz-bar-badge highest">' + t("dashboard.highest") + '</span>';
-      else if (index === sorted.length - 1 && sorted.length > 1) badge = '<span class="viz-bar-badge lowest">' + t("dashboard.lowest") + '</span>';
-
-      return '<div class="viz-bar-row" title="' + label + ': ' + formatNumber(it[valueKey]) + '">' +
-        '<div class="viz-bar-label">' + label + '</div>' +
-        '<div class="viz-bar-track"><div class="viz-bar-fill" style="width:' + pct + '%"></div></div>' +
-        '<div class="viz-bar-value">' + formatNumber(it[valueKey]) + '</div>' +
-        badge +
-        '</div>';
-    }).join("");
-  }
-
-  // ---- Yearly trend: summary strip + line chart (inline SVG) + table ----
-  // Laid out like a standard analytics "trend card": the headline numbers
-  // first (latest year, change vs. the year before, peak, average), then
-  // the line for the shape, then an optional table for exact figures.
-  // Scales from one year to a century without changing shape:
-  //  - every year between the first and last is on the axis (a year with no
-  //    printed requests plots as 0 instead of silently vanishing);
-  //  - year labels thin out to a round step (1/2/5/10/20/25/50) so they
-  //    never collide;
-  //  - point markers only show while points are far enough apart to read;
-  //  - range buttons (last 5 / 10 / 20 / 50 years / all) appear only once
-  //    there are more years than that range.
-  const YEAR_RANGE_OPTIONS = [5, 10, 20, 50];
-  let yearRange = 0; // 0 = all years
-
-  function yearLabelFor(y) {
-    return getLang() === "en" ? String(y) : String(y + 543);
-  }
-
-  function niceStep(rawStep) {
-    const exp = Math.pow(10, Math.floor(Math.log10(rawStep)));
-    const f = rawStep / exp;
-    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * exp;
-  }
-
-  function percentChange(curr, prev) {
-    if (!prev) return null;
-    return ((curr - prev) / prev) * 100;
-  }
-
-  // Neutral ink on purpose: more paper isn't "bad" and less isn't "good"
-  // in itself, so no red/green — just an arrow and the number.
-  function changeHtml(pct) {
-    if (pct === null) return '<span class="trend-change flat">—</span>';
-    const rounded = Math.round(pct * 10) / 10;
-    if (rounded === 0) return '<span class="trend-change flat">0%</span>';
-    const up = rounded > 0;
-    return '<span class="trend-change ' + (up ? "up" : "down") + '">' + (up ? "▲ " : "▼ ") +
-      Math.abs(rounded).toLocaleString(getLang() === "en" ? "en-US" : "th-TH", { maximumFractionDigits: 1 }) + '%</span>';
-  }
-
-  function trendSeries(counts) {
-    const recorded = Object.keys(counts).map(Number).sort(function (a, b) { return a - b; });
-    if (recorded.length === 0) return { allYears: [], years: [], values: [] };
-    const allYears = [];
-    for (let y = recorded[0]; y <= recorded[recorded.length - 1]; y++) allYears.push(y);
-    const years = yearRange ? allYears.slice(-yearRange) : allYears;
-    return { allYears: allYears, years: years, values: years.map(function (y) { return counts[y] || 0; }) };
-  }
-
-  function renderYearRangeButtons(totalYears) {
-    const wrap = document.getElementById("year-range-buttons");
-    const options = YEAR_RANGE_OPTIONS.filter(function (n) { return n < totalYears; });
-    if (yearRange && options.indexOf(yearRange) === -1) yearRange = 0;
-    if (options.length === 0) { wrap.innerHTML = ""; wrap.hidden = true; return; }
-    wrap.hidden = false;
-    wrap.innerHTML = options.concat([0]).map(function (n) {
-      const label = n === 0 ? t("dashboard.range.all") : t("dashboard.range.lastYears").replace("{n}", n);
-      return '<button type="button" class="viz-range-btn' + (n === yearRange ? " active" : "") + '" data-range="' + n + '">' + label + '</button>';
-    }).join("");
-  }
-
-  document.getElementById("year-range-buttons").addEventListener("click", function (e) {
-    const btn = e.target.closest("[data-range]");
-    if (!btn) return;
-    yearRange = Number(btn.getAttribute("data-range"));
-    renderYearTrend();
-  });
-
-  function renderTrendSummary(years, values) {
-    const el = document.getElementById("trend-summary");
-    if (years.length === 0) { el.innerHTML = ""; return; }
-    const n = years.length;
-    let peak = 0;
-    values.forEach(function (v, i) { if (v > values[peak]) peak = i; });
-    const avg = Math.round(values.reduce(function (s, v) { return s + v; }, 0) / n);
-    const unit = '<span class="trend-stat-unit">' + t("dashboard.sheetsUnit") + '</span>';
-    const rangeText = n > 1
-      ? t("dashboard.trend.rangeYears").replace("{from}", yearLabelFor(years[0])).replace("{to}", yearLabelFor(years[n - 1]))
-      : yearLabelFor(years[0]);
-
-    const stats = [
-      { icon: "printer", label: t("dashboard.trend.latest"), value: formatNumber(values[n - 1]) + unit,
-        note: t("dashboard.yearWord") + " " + yearLabelFor(years[n - 1]) },
-      { icon: "bar-chart", label: t("dashboard.trend.change"),
-        value: n > 1 ? changeHtml(percentChange(values[n - 1], values[n - 2])) : '<span class="trend-change flat">—</span>',
-        note: n > 1 ? t("dashboard.trend.vsYear").replace("{y}", yearLabelFor(years[n - 2])) : "" },
-      { icon: "star", label: t("dashboard.trend.peak"), value: formatNumber(values[peak]) + unit,
-        note: t("dashboard.yearWord") + " " + yearLabelFor(years[peak]) },
-      { icon: "clipboard", label: t("dashboard.trend.avg"), value: formatNumber(avg) + unit, note: rangeText }
-    ];
-    el.innerHTML = stats.map(function (s) {
-      return '<div class="trend-stat">' +
-        '<span class="trend-stat-icon icon">' + (ICONS[s.icon] || "") + '</span>' +
-        '<div class="trend-stat-body">' +
-          '<div class="trend-stat-label">' + s.label + '</div>' +
-          '<div class="trend-stat-value">' + s.value + '</div>' +
-          (s.note ? '<div class="trend-stat-note">' + s.note + '</div>' : '') +
-        '</div></div>';
-    }).join("");
-  }
-
-  function renderTrendTable(years, values) {
-    const tbody = document.getElementById("trend-table-body");
-    if (years.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
-      return;
-    }
-    const max = Math.max.apply(null, values) || 1;
-    let peak = 0;
-    values.forEach(function (v, i) { if (v > values[peak]) peak = i; });
-    // Newest first — that's the row people look for. Each row carries a
-    // small bar so the table still shows the shape at a glance.
-    tbody.innerHTML = years.map(function (y, i) {
-      const pct = Math.round((values[i] / max) * 100);
-      return '<tr' + (i === peak ? ' class="is-peak"' : '') + '>' +
-        '<td class="trend-td-year">' + yearLabelFor(y) +
-          (i === peak ? ' <span class="trend-peak-badge">' + t("dashboard.highest") + '</span>' : '') + '</td>' +
-        '<td><div class="trend-td-sheets">' +
-          '<span class="trend-td-value">' + formatNumber(values[i]) + '</span>' +
-          '<span class="trend-td-bar"><span style="width:' + pct + '%"></span></span>' +
-        '</div></td>' +
-        '<td class="num">' + (i > 0 ? changeHtml(percentChange(values[i], values[i - 1])) : '<span class="trend-change flat">—</span>') + '</td>' +
-        '</tr>';
-    }).reverse().join("");
-  }
-
-  function renderYearTrend() {
-    const series = trendSeries(summary.yearTrend);
-    renderYearRangeButtons(series.allYears.length);
-    // Range may have been reset by renderYearRangeButtons — recompute.
-    const s2 = trendSeries(summary.yearTrend);
-    renderTrendSummary(s2.years, s2.values);
-    renderYearLineChart("year-sheets-chart", s2.years, s2.values);
-    renderTrendTable(s2.years, s2.values);
-  }
-
-  function renderYearLineChart(containerId, years, values) {
-    const container = document.getElementById(containerId);
-    if (years.length === 0) {
-      container.innerHTML = '<div class="empty-state">' + t("dashboard.noData") + '</div>';
-      return;
-    }
-
-    const width = Math.max(container.clientWidth, 280);
-    const narrow = width < 520;
-    const height = narrow ? 260 : 320;
-    const m = { top: 36, right: narrow ? 16 : 28, bottom: 48, left: narrow ? 58 : 72 };
-    const plotW = width - m.left - m.right;
-    const plotH = height - m.top - m.bottom;
-
-    // Y axis: 4 evenly spaced, round gridlines (e.g. 0 / 20,000 / 40,000 …).
-    const rawMax = Math.max.apply(null, values);
-    const yStep = niceStep(Math.max(rawMax, 1) / 4);
-    const yMax = yStep * Math.max(1, Math.ceil(rawMax / yStep));
-    const n = years.length;
-    const xAt = function (i) { return n === 1 ? m.left + plotW / 2 : m.left + (i / (n - 1)) * plotW; };
-    const yAt = function (v) { return m.top + plotH - (v / yMax) * plotH; };
-
-    const maxLabels = Math.max(2, Math.floor(plotW / 58));
-    const step = [1, 2, 5, 10, 20, 25, 50, 100].find(function (s) { return Math.ceil(n / s) <= maxLabels; }) || 100;
-    const showMarkers = n === 1 || plotW / (n - 1) >= 22;
-
-    let svg = '<svg class="viz-line-svg" width="' + width + '" height="' + height + '" role="img" aria-label="' + t("dashboard.trendSheetsTitle") + '">';
-    svg += '<defs><linearGradient id="viz-line-area" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0%" stop-color="var(--viz-bar)" stop-opacity="0.22"/>' +
-      '<stop offset="100%" stop-color="var(--viz-bar)" stop-opacity="0.02"/></linearGradient></defs>';
-    const bandW = n > 1 ? Math.min(plotW / (n - 1), 64) : 64;
-    svg += '<rect class="viz-hover-band" id="viz-crosshair" y="' + m.top + '" height="' + plotH + '" x="0" width="' + bandW + '" rx="6" visibility="hidden"/>';
-
-    // Axis titles, so nobody has to guess what the numbers mean.
-    svg += '<text class="viz-axis-title" x="' + m.left + '" y="14" text-anchor="start">' + t("dashboard.trend.yAxis") + '</text>';
-    svg += '<text class="viz-axis-title" x="' + (m.left + plotW / 2) + '" y="' + (height - 4) + '" text-anchor="middle">' + t("dashboard.trend.xAxis") + '</text>';
-
-    for (let v = 0; v <= yMax + 1e-9; v += yStep) {
-      const y = yAt(v);
-      svg += '<line class="viz-grid' + (v === 0 ? " viz-baseline" : "") + '" x1="' + m.left + '" x2="' + (m.left + plotW) + '" y1="' + y + '" y2="' + y + '"/>';
-      svg += '<text class="viz-axis-label" x="' + (m.left - 10) + '" y="' + (y + 4) + '" text-anchor="end">' + formatNumber(Math.round(v)) + '</text>';
-    }
-
-    // Rounded on the year as displayed (B.E. in Thai, C.E. in English), so
-    // Thai labels land on 2570, 2580 … rather than C.E.-round 2573, 2583 ….
-    // The first and latest years are labelled too, unless they'd crowd the
-    // nearest round-year label.
-    const yearOffset = getLang() === "en" ? 0 : 543;
-    years.forEach(function (y, i) {
-      const shown = y + yearOffset;
-      const onStep = shown % step === 0;
-      const isFirst = i === 0, isLast = i === n - 1;
-      let show = onStep;
-      if (!onStep && isLast) show = (shown % step) >= step * 0.6;
-      if (!onStep && isFirst) show = (step - (shown % step)) >= step * 0.6;
-      if (!show) return;
-      svg += '<line class="viz-tick" x1="' + xAt(i) + '" x2="' + xAt(i) + '" y1="' + yAt(0) + '" y2="' + (yAt(0) + 5) + '"/>';
-      svg += '<text class="viz-axis-label" x="' + xAt(i) + '" y="' + (yAt(0) + 20) + '" text-anchor="middle">' + yearLabelFor(y) + '</text>';
-    });
-
-    const pts = values.map(function (v, i) { return [xAt(i), yAt(v)]; });
-    if (n > 1) {
-      const line = pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ");
-      const area = line + " L" + pts[n - 1][0].toFixed(1) + " " + yAt(0) + " L" + pts[0][0].toFixed(1) + " " + yAt(0) + " Z";
-      svg += '<path class="viz-line-area" d="' + area + '"/>';
-      svg += '<path class="viz-line-path" d="' + line + '"/>';
-    }
-    if (showMarkers) {
-      pts.forEach(function (p, i) { if (i !== n - 1) svg += '<circle class="viz-line-dot" cx="' + p[0] + '" cy="' + p[1] + '" r="4"/>'; });
-    }
-
-    // One direct label only — the latest year, as a pill — since the
-    // summary strip above already names the peak and the average.
-    const last = pts[n - 1];
-    svg += '<circle class="viz-line-dot viz-line-dot-latest" cx="' + last[0] + '" cy="' + last[1] + '" r="5.5"/>';
-    const pillText = formatNumber(values[n - 1]);
-    const pillW = pillText.length * 7.6 + 18;
-    const pillX = Math.min(Math.max(last[0] - pillW / 2, m.left), m.left + plotW - pillW + m.right - 4);
-    const pillY = Math.max(last[1] - 34, 2);
-    svg += '<g class="viz-pill"><rect x="' + pillX + '" y="' + pillY + '" width="' + pillW + '" height="22" rx="11"/>' +
-      '<text x="' + (pillX + pillW / 2) + '" y="' + (pillY + 15) + '" text-anchor="middle">' + pillText + '</text></g>';
-
-    // Hover layer: crosshair + highlighted point, driven by one overlay rect.
-    svg += '<circle class="viz-line-dot viz-line-dot-active" id="viz-hover-dot" r="6" cx="0" cy="0" visibility="hidden"/>';
-    svg += '<rect class="viz-hit" x="' + (m.left - 12) + '" y="' + m.top + '" width="' + (plotW + 24) + '" height="' + plotH + '"/>';
-    svg += '</svg>';
-
-    container.innerHTML = svg + '<div class="viz-tooltip" id="viz-tooltip" hidden></div>';
-
-    const hit = container.querySelector(".viz-hit");
-    const crosshair = container.querySelector("#viz-crosshair");
-    const dot = container.querySelector("#viz-hover-dot");
-    const tip = container.querySelector("#viz-tooltip");
-
-    function showAt(clientX) {
-      const rect = container.querySelector("svg").getBoundingClientRect();
-      const x = clientX - rect.left;
-      const i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round(((x - m.left) / plotW) * (n - 1))));
-      crosshair.setAttribute("x", pts[i][0] - bandW / 2);
-      crosshair.setAttribute("visibility", "visible");
-      dot.setAttribute("cx", pts[i][0]); dot.setAttribute("cy", pts[i][1]);
-      dot.setAttribute("visibility", "visible");
-      const pct = i > 0 ? percentChange(values[i], values[i - 1]) : null;
-      tip.innerHTML = '<div class="viz-tooltip-title">' + t("dashboard.yearWord") + " " + yearLabelFor(years[i]) + '</div>' +
-        '<div class="viz-tooltip-value">' + formatNumber(values[i]) + ' <span>' + t("dashboard.sheetsUnit") + '</span></div>' +
-        (i > 0 ? '<div class="viz-tooltip-change">' + changeHtml(pct) + ' ' + t("dashboard.trend.fromPrev") + '</div>' : '');
-      tip.hidden = false;
-      const tipW = tip.offsetWidth;
-      const left = Math.max(0, Math.min(rect.width - tipW, pts[i][0] - tipW / 2));
-      tip.style.left = left + "px";
-      tip.style.top = Math.max(0, pts[i][1] - tip.offsetHeight - 16) + "px";
-    }
-    function hide() {
-      crosshair.setAttribute("visibility", "hidden");
-      dot.setAttribute("visibility", "hidden");
-      tip.hidden = true;
-    }
-    hit.addEventListener("pointermove", function (e) { showAt(e.clientX); });
-    hit.addEventListener("pointerdown", function (e) { showAt(e.clientX); });
-    hit.addEventListener("pointerleave", hide);
-  }
-
-  let trendView = "chart";
-  document.querySelectorAll(".trend-view-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      trendView = btn.getAttribute("data-view");
-      document.querySelectorAll(".trend-view-btn").forEach(function (b) {
-        const on = b === btn;
-        b.classList.toggle("active", on);
-        b.setAttribute("aria-selected", on ? "true" : "false");
-      });
-      document.getElementById("trend-view-chart").hidden = trendView !== "chart";
-      document.getElementById("trend-view-table").hidden = trendView !== "table";
-      if (trendView === "chart" && summary) renderYearTrend();
-    });
-  });
-
-  // Redraw at the new width (the SVG is laid out in real pixels so text
-  // never stretches) — debounced so a window drag doesn't redraw 60×/s.
-  let yearChartResizeTimer = null;
-  window.addEventListener("resize", function () {
-    clearTimeout(yearChartResizeTimer);
-    yearChartResizeTimer = setTimeout(function () {
-      if (summary) renderYearTrend();
-    }, 150);
-  });
-
-  function renderCategoryTable(items) {
-    const tbody = document.getElementById("category-table-body");
-    const sorted = items.slice().sort(function (a, b) { return b.sheets - a.sheets; });
-
-    if (sorted.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = sorted.map(function (it) {
-      const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
-      return '<tr>' +
-        '<td>' + categoryLabelFor(it.category, it.categoryEn) + '</td>' +
-        '<td>' + formatNumber(it.count) + '</td>' +
-        '<td>' + formatNumber(it.copies) + '</td>' +
-        '<td>' + formatNumber(it.sheets) + '</td>' +
-        '<td>' + formatNumber(avgSheets) + '</td>' +
-        '</tr>';
-    }).join("");
-  }
-
-  // Filtered/searched purely client-side — summary.unitBreakdown is already
-  // a small pre-aggregated array (bounded by the number of distinct
-  // departments, not by how many total requests exist), so no server
-  // round-trip is needed just to search or narrow by category.
-  function renderUnitTable(items) {
-    const tbody = document.getElementById("unit-table-body");
-    const query = unitSearchInput.value.trim().toLowerCase();
-    const category = unitCategoryFilter.value;
-
-    const filtered = items.filter(function (it) {
-      if (category && it.category !== category) return false;
-      if (query && it.unit.toLowerCase().indexOf(query) === -1) return false;
-      return true;
-    });
-
-    const sorted = filtered.slice().sort(function (a, b) { return b.sheets - a.sheets; });
-
-    if (sorted.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">' + t("dashboard.noData") + '</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = sorted.map(function (it) {
-      const avgSheets = it.count > 0 ? Math.round(it.sheets / it.count) : 0;
-      return '<tr>' +
-        '<td>' + it.unit + '</td>' +
-        '<td>' + categoryLabelFor(it.category, it.categoryEn) + '</td>' +
-        '<td>' + formatNumber(it.count) + '</td>' +
-        '<td>' + formatNumber(it.copies) + '</td>' +
-        '<td>' + formatNumber(it.sheets) + '</td>' +
-        '<td>' + formatNumber(avgSheets) + '</td>' +
-        '</tr>';
-    }).join("");
-  }
-
-  function renderAll() {
-    document.getElementById("kpi-total-requests").textContent = formatNumber(summary.totalRequests);
-    document.getElementById("kpi-total-sheets").textContent = formatNumber(summary.totalSheets);
-    document.getElementById("kpi-avg-sheets").textContent = formatNumber(summary.avgSheets);
-    document.getElementById("kpi-active-units").textContent = formatNumber(summary.activeUnits);
-
-    renderBarChart("category-sheets-chart", summary.categoryBreakdown, "sheets", function (it) { return categoryLabelFor(it.category, it.categoryEn); });
-    renderCategoryTable(summary.categoryBreakdown);
-
-    const top10 = summary.unitBreakdown.slice().sort(function (a, b) { return b.sheets - a.sheets; }).slice(0, 10);
-    renderBarChart("unit-top-chart", top10, "sheets", function (it) { return it.unit; });
-    renderUnitTable(summary.unitBreakdown);
-
-    renderYearTrend();
-  }
-
-  // Year/month/custom-range/document-type/paper-source changes need a fresh
-  // server-side aggregation; unit search/category-filter only re-slice the
-  // array already in memory.
-  async function reload() {
-    await fetchSummary();
-    renderYearFilterOptions();
-    renderMonthFilterOptions();
-    renderUnitCategoryFilterOptions();
-    renderAll();
-  }
-
-  function onCustomRangeToggleChange() {
-    const isCustom = customRangeToggle.checked;
-    calendarFields.hidden = isCustom;
-    customRangeFields.hidden = !isCustom;
-    reload();
-  }
-
-  // One click undoes the whole custom range — clears both dates, unchecks
-  // the toggle, and goes back to the plain Year/Month dropdowns — instead of
-  // needing to clear each date field individually plus the checkbox.
-  function clearCustomRange() {
-    fromDateInput.value = "";
-    toDateInput.value = "";
-    customRangeToggle.checked = false;
-    onCustomRangeToggleChange();
-  }
-
-  customRangeToggle.addEventListener("change", onCustomRangeToggleChange);
-  customRangeClearBtn.addEventListener("click", clearCustomRange);
-  yearFilter.addEventListener("change", reload);
-  monthFilter.addEventListener("change", reload);
-  fromDateInput.addEventListener("change", reload);
-  toDateInput.addEventListener("change", reload);
-  documentTypeFilter.addEventListener("change", reload);
-  paperSourceFilter.addEventListener("change", reload);
-  unitCategoryFilter.addEventListener("change", function () { renderUnitTable(summary.unitBreakdown); });
-  unitSearchInput.addEventListener("input", function () { renderUnitTable(summary.unitBreakdown); });
-
-  document.addEventListener("odprs:langchange", function () {
-    renderYearFilterOptions();
-    renderMonthFilterOptions();
-    renderUnitCategoryFilterOptions();
-    renderAll();
-    positionTabThumb(true);
-  });
-
-  // ---- Tabs (Overview / By Category / By Unit) ----
-  const tabButtons = document.querySelectorAll(".tab-btn");
-  const tabThumb = document.getElementById("tab-nav-thumb");
-  const tabPanels = {
-    overview: document.getElementById("tab-panel-overview"),
-    category: document.getElementById("tab-panel-category"),
-    unit: document.getElementById("tab-panel-unit")
+  const typeLabel = (th) => { const x = O && O.types.find((t0) => t0.th === th); return x && lang() === "en" ? x.en : th; };
+  const VALUE_KEYS = {
+    "ข้อสอบ": "dashboard.documentTypeFilter.exam", "เอกสารทั่วไป": "dashboard.documentTypeFilter.general",
+    "ฝ่ายทะเบียนจัดเตรียมให้": "dashboard.paperSourceFilter.office", "ผู้ขอจัดเตรียมเอง": "dashboard.paperSourceFilter.requester"
   };
+  const valueLabel = (v) => (VALUE_KEYS[v] ? t(VALUE_KEYS[v]) : v);
 
-  function positionTabThumb(skipAnimation) {
-    const activeBtn = document.querySelector(".tab-btn.active");
-    if (!activeBtn) return;
-    if (skipAnimation) tabThumb.style.transition = "none";
-    tabThumb.style.left = activeBtn.offsetLeft + "px";
-    tabThumb.style.width = activeBtn.offsetWidth + "px";
-    if (skipAnimation) {
-      void tabThumb.offsetWidth; // force reflow before restoring the transition
-      tabThumb.style.transition = "";
+  // ---------------- days as "YYYY-MM-DD" strings ----------------
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const parts = (s) => s.split("-").map(Number);
+  const lastDayOf = (y, m) => new Date(y, m, 0).getDate(); // m is 1-12
+  const dayText = (s, withYear) => { const [y, m, d] = parts(s); return `${d} ${months()[m - 1]}` + (withYear ? ` ${yl(y)}` : ""); };
+  // Thai fiscal year N runs 1 Oct of N-1 to 30 Sep of N
+  const fyN = (y) => t("db.fyN").replace("{y}", yl(y));
+  const rangeText = (from, to) => {
+    const sep = " " + t("dashboard.dateMode.rangeTo") + " ";
+    return from.slice(0, 4) === to.slice(0, 4) ? dayText(from, false) + sep + dayText(to, true) : dayText(from, true) + sep + dayText(to, true);
+  };
+  // the shortest way to say a period: "ปี 2569", "ต.ค. 2569", "1 ม.ค. ถึง 16 พ.ย. 2569"
+  function periodText(from, to) {
+    const [fy, fm, fd] = parts(from), [ty, tm, td] = parts(to);
+    if (fm === 1 && fd === 1 && tm === 12 && td === 31 && fy === ty) return yearN(fy);
+    if (fm === 10 && fd === 1 && tm === 9 && td === 30 && ty === fy + 1) return `${fyN(ty)} (${rangeText(from, to)})`;
+    if (fd === 1 && fy === ty && fm === tm && td === lastDayOf(ty, tm)) return `${months()[fm - 1]} ${yl(fy)}`;
+    if (from === to) return dayText(from, true);
+    return rangeText(from, to);
+  }
+
+  // the period the controls describe, as from/to ("" = everything)
+  function period() {
+    if (state.mode === "all") return { from: "", to: "" };
+    if (state.mode === "year") return { from: ymd(state.year, 1, 1), to: ymd(state.year, 12, 31) };
+    if (state.mode === "fiscal") return { from: ymd(state.fy - 1, 10, 1), to: ymd(state.fy, 9, 30) };
+    if (state.mode === "month") return { from: ymd(state.year, state.month + 1, 1), to: ymd(state.year, state.month + 1, lastDayOf(state.year, state.month + 1)) };
+    return { from: state.from, to: state.to || state.from };
+  }
+
+  // ---------------- tooltip ----------------
+  const tip = byId("db-tip");
+  function bindTips(root) {
+    root.querySelectorAll("[data-tip]").forEach((el) => {
+      el.addEventListener("mouseenter", (e) => { tip.innerHTML = el.getAttribute("data-tip"); tip.style.display = "block"; move(e); });
+      el.addEventListener("mousemove", move);
+      el.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+    });
+    function move(e) { tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+  }
+
+  // ---------------- dropdown (.dd): button + tidy panel ----------------
+  // A list (with a check on the chosen row) or, with `cols`, a grid of
+  // equal tiles for years and months. Arrow keys, Enter and Esc work.
+  //   items(): [{ v, label, disabled, now, sep }]   (sep: a line after it)
+  //   value(): current v;  text(): button text;  title(): panel heading
+  // Panels float above the page (position: fixed): as wide as their button
+  // (at least minW), as tall as the room left on screen, and opening upwards
+  // when there is little room below. They follow the button while scrolling.
+  let placed = null;
+  function placePanel(panel, anchor, minW) {
+    // out of the card: its entrance transform would pin a fixed panel to the card
+    if (panel.parentNode !== document.body) document.body.appendChild(panel);
+    panel.classList.add("is-placed");
+    const r = anchor.getBoundingClientRect();
+    const head = (document.querySelector(".app-header") || { getBoundingClientRect: () => ({ bottom: 0 }) }).getBoundingClientRect().bottom;
+    const below = innerHeight - r.bottom - 12, above = r.top - Math.max(8, head) - 12;
+    const w = Math.min(innerWidth - 16, Math.max(r.width, minW));
+    panel.style.width = w + "px";
+    panel.style.maxHeight = "none";
+    const natural = panel.offsetHeight;
+    const up = natural > below && above > below;
+    const room = Math.max(140, up ? above : below);
+    panel.style.maxHeight = Math.min(natural, room) + "px";
+    panel.style.left = Math.max(8, Math.min(r.left, innerWidth - 8 - w)) + "px";
+    panel.style.top = (up ? r.top - 6 - panel.offsetHeight : r.bottom + 6) + "px";
+    placed = { panel, anchor, minW };
+  }
+  window.addEventListener("scroll", (e) => {
+    if (!placed || placed.panel.hidden) return;
+    if (placed.panel.contains(e.target)) return;
+    const r = placed.anchor.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) { if (openDD) openDD.close(); closeUnits(); }
+    else placePanel(placed.panel, placed.anchor, placed.minW);
+  }, true);
+  window.addEventListener("resize", () => { if (openDD) openDD.close(); closeUnits(); });
+
+  let openDD = null;
+  function dropdown(id, cfg) {
+    const root = byId(id), btn = root.querySelector(".dd-btn"), panel = root.querySelector(".dd-panel");
+    panel.classList.toggle("is-grid", !!cfg.cols);
+    const api = {
+      sync() { root.querySelector(".dd-value").textContent = cfg.text(); btn.title = cfg.text(); },
+      close(focus) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); if (openDD === api) openDD = null; if (focus) btn.focus(); },
+      open() {
+        if (openDD) openDD.close();
+        closeUnits();
+        const list = cfg.items(), cur = String(cfg.value());
+        const head = cfg.title ? `<div class="dd-title">${esc(cfg.title())}</div>` : "";
+        const opts = list.map((it) => {
+          const sel = String(it.v) === cur;
+          return `<button type="button" class="dd-opt${sel ? " is-selected" : ""}${it.now ? " is-now" : ""}" role="option" aria-selected="${sel}" data-v="${esc(it.v)}"${it.disabled ? " disabled" : ""}>` +
+            (cfg.cols ? "" : `<span class="dd-check" aria-hidden="true">✓</span>`) + `<span class="dd-label">${esc(it.label)}</span></button>` +
+            (it.sep ? `<div class="dd-sep"></div>` : "");
+        }).join("");
+        panel.innerHTML = head + `<div class="${cfg.cols ? "dd-grid" : "dd-list"}" role="listbox"${cfg.cols ? ` style="--cols:${cfg.cols}"` : ""}>${opts}</div>`;
+        panel.hidden = false; btn.setAttribute("aria-expanded", "true"); openDD = api;
+        // keep the panel on screen
+        placePanel(panel, btn, cfg.cols ? 300 : 240);
+        panel.querySelectorAll(".dd-opt").forEach((o) => o.addEventListener("click", () => {
+          api.close(true);
+          if (o.dataset.v !== cur) cfg.pick(o.dataset.v);
+        }));
+        const first = panel.querySelector(".dd-opt.is-selected:not(:disabled)") || panel.querySelector(".dd-opt:not(:disabled)");
+        if (first) { first.focus(); first.scrollIntoView({ block: "nearest" }); }
+      }
+    };
+    btn.addEventListener("click", () => (panel.hidden ? api.open() : api.close()));
+    btn.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" && panel.hidden) { e.preventDefault(); api.open(); } });
+    panel.addEventListener("keydown", (e) => {
+      const opts = Array.from(panel.querySelectorAll(".dd-opt:not(:disabled)"));
+      const i = opts.indexOf(document.activeElement), cols = cfg.cols || 1;
+      const move = { ArrowRight: cfg.cols ? 1 : 0, ArrowLeft: cfg.cols ? -1 : 0, ArrowDown: cols, ArrowUp: -cols }[e.key];
+      if (e.key === "Escape") { e.preventDefault(); api.close(true); }
+      else if (move) { e.preventDefault(); const n = opts[Math.min(opts.length - 1, Math.max(0, (i < 0 ? 0 : i + move)))]; if (n) n.focus(); }
+      else if (e.key === "Tab") api.close();
+    });
+    document.addEventListener("mousedown", (e) => { if (!panel.hidden && !root.contains(e.target) && !panel.contains(e.target)) api.close(); });
+    return api;
+  }
+
+  // ---------------- period controls ----------------
+  const fFrom = byId("db-from"), fTo = byId("db-to");
+  const todayY = () => Number(O.today.slice(0, 4));
+  const todayM = () => Number(O.today.slice(5, 7)) - 1;
+  const todayFY = () => (todayM() >= 9 ? todayY() + 1 : todayY());
+  const firstY = () => Math.min(O.firstYear || todayY(), todayY());
+  const ddYear = dropdown("db-year", {
+    cols: 4,
+    title: () => t(state.mode === "fiscal" ? "db.dd.fy" : "db.dd.year"),
+    items: () => {
+      const fiscal = state.mode === "fiscal", last = fiscal ? todayFY() : todayY(), out = [];
+      for (let y = last; y >= firstY(); y--) out.push({ v: y, label: yl(y), now: y === last });
+      return out;
+    },
+    value: () => (state.mode === "fiscal" ? state.fy : state.year),
+    text: () => (state.mode === "fiscal" ? fyN(state.fy) : yearN(state.year)),
+    pick: (v) => { if (state.mode === "fiscal") state.fy = +v; else state.year = +v; syncPeriod(); load(); }
+  });
+  const ddMonth = dropdown("db-month", {
+    cols: 3,
+    title: () => t("db.dd.month").replace("{y}", yl(state.year)),
+    items: () => months().map((m, i) => ({ v: i, label: m, now: state.year === todayY() && i === todayM(), disabled: state.year > todayY() || (state.year === todayY() && i > todayM()) })),
+    value: () => state.month,
+    text: () => months()[state.month],
+    pick: (v) => { state.month = +v; syncPeriod(); load(); }
+  });
+  function syncPeriod() {
+    document.querySelectorAll("#db-mode [data-mode]").forEach((b) => {
+      const on = b.dataset.mode === state.mode;
+      b.classList.toggle("is-active", on); b.setAttribute("aria-pressed", on);
+    });
+    byId("db-pick-step").hidden = !["year", "fiscal", "month"].includes(state.mode);
+    byId("db-month").hidden = state.mode !== "month";
+    byId("db-pick-range").hidden = state.mode !== "range";
+    if (state.mode === "month" && state.year === todayY() && state.month > todayM()) state.month = todayM();
+    ddYear.sync(); ddMonth.sync();
+    fFrom.value = state.from; fTo.value = state.to;
+    fFrom.max = O.today; fTo.max = O.today;
+    // no stepping past the current year / fiscal year / month, or before the first data
+    let atEnd, atStart;
+    if (state.mode === "fiscal") { atEnd = state.fy >= todayFY(); atStart = state.fy <= firstY(); }
+    else if (state.mode === "year") { atEnd = state.year >= todayY(); atStart = state.year <= firstY(); }
+    else { atEnd = state.year * 12 + state.month >= todayY() * 12 + todayM(); atStart = state.year <= firstY() && state.month === 0; }
+    byId("db-next").disabled = atEnd; byId("db-prev").disabled = atStart;
+  }
+  function setMode(mode) {
+    if (mode === state.mode) return;
+    if (mode === "range" && !state.from) {
+      // start from what was on screen
+      const p = period();
+      state.from = p.from || O.today.slice(0, 8) + "01";
+      state.to = p.to && p.to < O.today ? p.to : O.today;
+    }
+    state.mode = mode;
+    syncPeriod(); load();
+  }
+  document.querySelectorAll("#db-mode [data-mode]").forEach((b) => { b.onclick = () => setMode(b.dataset.mode); });
+  function step(n) {
+    if (state.mode === "year") state.year += n;
+    else if (state.mode === "fiscal") state.fy += n;
+    else { const k = state.year * 12 + state.month + n; state.year = Math.floor(k / 12); state.month = k % 12; }
+    syncPeriod(); load();
+  }
+  byId("db-prev").onclick = () => step(-1);
+  byId("db-next").onclick = () => step(1);
+  // a start after the end moves the end along (and the other way round)
+  function onRange(e) {
+    state.from = fFrom.value; state.to = fTo.value;
+    if (state.from && state.to && state.from > state.to) { if (e.target === fFrom) state.to = state.from; else state.from = state.to; }
+    syncPeriod();
+    if (state.from) load();
+  }
+  fFrom.onchange = onRange; fTo.onchange = onRange;
+  function showYear(y) { state.mode = "year"; state.year = y; syncPeriod(); load(); }
+  function showMonth(y, m) { state.mode = "month"; state.year = y; state.month = m; syncPeriod(); load(); }
+
+  // ---------------- unit / document filters ----------------
+  // "all" first with a line under it, then the choices
+  const listOf = (allKey, values, label) => [{ v: "", label: t(allKey), sep: true }].concat(values.map((v) => ({ v, label: label(v) })));
+  const ddType = dropdown("db-type", {
+    items: () => listOf("dashboard.unitCategoryFilter.all", O.types.map((x) => x.th), typeLabel),
+    value: () => state.type,
+    text: () => (state.type ? typeLabel(state.type) : t("dashboard.unitCategoryFilter.all")),
+    pick: (v) => { state.type = v; state.unit = ""; fillFilters(); load(); }
+  });
+  const ddDoc = dropdown("db-doc", {
+    items: () => listOf("dashboard.documentTypeFilter.all", O.docs, valueLabel),
+    value: () => state.doc,
+    text: () => (state.doc ? valueLabel(state.doc) : t("dashboard.documentTypeFilter.all")),
+    pick: (v) => { state.doc = v; fillFilters(); load(); }
+  });
+  const ddSrc = dropdown("db-src", {
+    items: () => listOf("dashboard.paperSourceFilter.all", O.srcs, valueLabel),
+    value: () => state.src,
+    text: () => (state.src ? valueLabel(state.src) : t("dashboard.paperSourceFilter.all")),
+    pick: (v) => { state.src = v; fillFilters(); load(); }
+  });
+  function fillFilters() { ddType.sync(); ddDoc.sync(); ddSrc.sync(); syncUnitButton(); }
+
+  // ---- unit picker: button + panel with a search box and a grouped list ----
+  const uBtn = byId("db-unit-btn"), uPanel = byId("db-unit-panel"), uSearch = byId("db-unit-search"), uList = byId("db-unit-options");
+  let uItems = [], uActive = 0;
+  function syncUnitButton() {
+    const label = byId("db-unit-label");
+    label.textContent = state.unit ? unitLabel(state.unit) : t("db.f.unitPh");
+    uBtn.title = state.unit ? unitLabel(state.unit) : "";
+  }
+  const norm = (v) => String(v || "").toLowerCase().replace(/\s+/g, "");
+  function renderUnitOptions() {
+    const q = norm(uSearch.value);
+    const pool = O.units.filter((u) => !state.type || u.type === state.type)
+      .filter((u) => !q || norm(u.unit).includes(q) || norm(unitLabel(u.unit)).includes(q));
+    const order = O.types.map((x) => x.th);
+    pool.sort((a, b) => (order.indexOf(a.type) - order.indexOf(b.type)) || unitLabel(a.unit).localeCompare(unitLabel(b.unit), "th"));
+    uItems = q ? pool : [{ unit: "" }].concat(pool);
+    if (uActive >= uItems.length) uActive = 0;
+    let html = "", lastType = null;
+    uItems.forEach((u, i) => {
+      if (u.unit && !state.type && u.type !== lastType) { lastType = u.type; html += `<div class="db-combo-group">${esc(typeLabel(u.type))}</div>`; }
+      const sel = state.unit === u.unit;
+      html += `<div class="db-combo-option${i === uActive ? " is-active" : ""}${sel ? " is-selected" : ""}" role="option" aria-selected="${sel}" data-i="${i}">${esc(u.unit ? unitLabel(u.unit) : t("db.f.unitPh"))}</div>`;
+    });
+    uList.innerHTML = html || `<div class="db-combo-empty">${esc(t("db.f.unitNone"))}</div>`;
+    uList.querySelectorAll(".db-combo-option").forEach((el) => {
+      el.addEventListener("mousedown", (e) => { e.preventDefault(); chooseUnit(+el.dataset.i); });
+      el.addEventListener("mousemove", () => { if (uActive !== +el.dataset.i) { uActive = +el.dataset.i; markActive(); } });
+    });
+  }
+  function markActive() {
+    uList.querySelectorAll(".db-combo-option").forEach((el) => el.classList.toggle("is-active", +el.dataset.i === uActive));
+    const el = uList.querySelector(".db-combo-option.is-active");
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }
+  function openUnits() {
+    if (openDD) openDD.close();
+    uPanel.hidden = false; uBtn.setAttribute("aria-expanded", "true");
+    uSearch.value = "";
+    renderUnitOptions();
+    placePanel(uPanel, uBtn, 340);
+    uActive = Math.max(0, uItems.findIndex((u) => u.unit === state.unit)); markActive();
+    uSearch.focus();
+  }
+  function closeUnits() { uPanel.hidden = true; uBtn.setAttribute("aria-expanded", "false"); }
+  function chooseUnit(i) {
+    const u = uItems[i];
+    if (!u) return;
+    closeUnits(); uBtn.focus();
+    if (u.unit !== state.unit) pickUnit(u.unit, true);
+  }
+  uBtn.addEventListener("click", () => (uPanel.hidden ? openUnits() : closeUnits()));
+  uSearch.addEventListener("input", () => { uActive = 0; renderUnitOptions(); placePanel(uPanel, uBtn, 340); });
+  uSearch.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); uActive = Math.min(uItems.length - 1, uActive + 1); markActive(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); uActive = Math.max(0, uActive - 1); markActive(); }
+    else if (e.key === "Enter") { e.preventDefault(); chooseUnit(uActive); }
+    else if (e.key === "Escape") { e.preventDefault(); closeUnits(); uBtn.focus(); }
+  });
+  document.addEventListener("mousedown", (e) => { if (!uPanel.hidden && !byId("db-unit-combo").contains(e.target) && !uPanel.contains(e.target)) closeUnits(); });
+  function pickUnit(stored, set) {
+    state.unit = set ? stored : (state.unit === stored ? "" : stored);
+    syncUnitButton(); load();
+  }
+  function clearFilters(keys) {
+    keys.forEach((k) => { state[k] = ""; });
+    if (keys.includes("type")) state.unit = "";
+    fillFilters(); load();
+  }
+  byId("db-active-reset").onclick = () => clearFilters(["type", "unit", "doc", "src"]);
+  byId("db-share-back").onclick = () => clearFilters(["type"]);
+
+  byId("dashboard-export-btn").addEventListener("click", function () {
+    const p = new URLSearchParams(), pr = period();
+    if (pr.from) { p.set("fromDate", pr.from); p.set("toDate", pr.to); }
+    if (state.type) p.set("unitType", state.type);
+    if (state.unit) p.set("unit", state.unit);
+    if (state.doc) p.set("documentType", state.doc);
+    if (state.src) p.set("paperSource", state.src);
+    downloadReport("/api/reports/dashboard.xlsx?" + p.toString(), this);
+  });
+
+  // ---------------- data ----------------
+  function query() {
+    const p = new URLSearchParams(), pr = period();
+    if (pr.from) { p.set("from", pr.from); p.set("to", pr.to); }
+    if (state.type) p.set("unitType", state.type);
+    if (state.unit) p.set("unit", state.unit);
+    if (state.doc) p.set("documentType", state.doc);
+    if (state.src) p.set("paperSource", state.src);
+    return p.toString();
+  }
+  async function load() {
+    const my = ++seq, q = query();
+    byId("db-body").classList.add("is-busy");
+    try {
+      let data = cache.get(q);
+      if (!data) {
+        const res = await fetch("/api/dashboard-range?" + q);
+        if (!res.ok) throw new Error(res.status);
+        data = await res.json();
+        if (cache.size > 40) cache.clear();
+        cache.set(q, data);
+      }
+      if (my !== seq) return;
+      R = data;
+      byId("db-loading").hidden = true; byId("db-body").hidden = false;
+      render();
+    } catch (e) {
+      if (my === seq) { byId("db-loading").hidden = false; byId("db-loading").textContent = t("db.loadError"); }
+    } finally {
+      if (my === seq) byId("db-body").classList.remove("is-busy");
     }
   }
 
-  function activateTab(name, skipAnimation) {
-    if (!tabPanels[name]) name = "overview";
-    tabButtons.forEach(function (btn) {
-      btn.classList.toggle("active", btn.getAttribute("data-tab") === name);
-    });
-    Object.keys(tabPanels).forEach(function (key) {
-      tabPanels[key].hidden = key !== name;
-    });
-    positionTabThumb(skipAnimation);
-    history.replaceState(null, "", "#" + name);
-    // The trend chart sizes itself to its container, which has no width
-    // while its panel is hidden — redraw it once it's visible again.
-    if (name === "overview" && summary) renderYearTrend();
+  // ---------------- "กำลังดู" bar ----------------
+  const running = () => R.upTo < R.to;
+  function nowText() {
+    const base = R.allTime ? t("db.mode.allSpan").replace("{a}", dayText(R.from, true)).replace("{b}", dayText(R.upTo, true)) : periodText(R.from, R.to);
+    return !R.allTime && running() ? base + " " + t("db.upTo").replace("{d}", dayText(R.upTo, false)) : base;
+  }
+  const prevText = () => (R.prev ? periodText(R.prev.from, R.prev.to) : "");
+  function renderActive() {
+    byId("db-active-period").textContent = nowText();
+    const chips = [];
+    const chip = (key, label) => `<span class="db-chip"><span class="db-chip-text" title="${esc(label)}">${esc(label)}</span><button type="button" data-clear="${key}" aria-label="${esc(t("db.active.remove"))}">✕</button></span>`;
+    if (state.type) chips.push(chip("type", typeLabel(state.type)));
+    if (state.unit) chips.push(chip("unit", unitLabel(state.unit)));
+    if (state.doc) chips.push(chip("doc", valueLabel(state.doc)));
+    if (state.src) chips.push(chip("src", valueLabel(state.src)));
+    byId("db-active-chips").innerHTML = chips.join("");
+    byId("db-active-reset").hidden = !chips.length;
+    byId("db-active-chips").querySelectorAll("[data-clear]").forEach((b) => { b.onclick = () => clearFilters([b.dataset.clear]); });
   }
 
-  tabButtons.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      activateTab(btn.getAttribute("data-tab"));
+  // ---------------- KPI tiles ----------------
+  function renderKpis() {
+    const A = R.totals, B = R.prevTotals;
+    const avg = (x) => (x && x.requests ? x.sheets / x.requests : 0);
+    function tile(label, a, b, show, valueHtml) {
+      let line = "";
+      if (B) line = b ? `<span>${esc(t("db.cmp.prevLabel"))} ${show(b)}</span>${deltaHtml(pct(a, b))}` : `<span class="db-kpi-muted">${esc(t("db.noPrev"))}</span>`;
+      return `<div class="db-card"><div class="db-kpi-label">${esc(label)}</div><div class="db-kpi-value">${valueHtml || show(a)}</div>` +
+        (line ? `<div class="db-kpi-cmp">${line}</div>` : "") + `</div>`;
+    }
+    let html = tile(t("db.kpi.sheets"), A.sheets, B && B.sheets, fmt) +
+      tile(t("db.kpi.req"), A.requests, B && B.requests, fmt) +
+      tile(t("db.kpi.avg"), avg(A), B && avg(B), fmt);
+    if (R.rank) {
+      const r = R.rank;
+      html += `<div class="db-card"><div class="db-kpi-label">${esc(t("db.kpi.rank"))}</div><div class="db-kpi-value">${r.pos ? `${r.pos}<small> / ${r.total}</small>` : "-"}</div><div class="db-kpi-cmp"><span>${esc(t("db.kpi.rankOf"))}</span></div></div>`;
+    } else html += tile(t("db.kpi.units"), A.units, B && B.units, fmt);
+    byId("db-kpis").innerHTML = html;
+  }
+
+  // ---------------- main chart: columns per day / month / year ----------------
+  function bucketLabel(k, long) {
+    const [y, m, d] = parts(k);
+    if (R.bucket === "year") return long ? yearN(y) : yl(y);
+    if (R.bucket === "month") {
+      const crosses = R.from.slice(0, 4) !== R.to.slice(0, 4);
+      return long || crosses ? `${months()[m - 1]} ${long ? yl(y) : yl(y).slice(-2)}` : months()[m - 1];
+    }
+    return long ? dayText(k, true) : String(d);
+  }
+  function renderChart() {
+    const S = R.series, n = S.length, hasPrev = !!R.prev;
+    byId("db-chart-title").textContent = t("db.chart." + R.bucket);
+    // what the dashed line means, then what a click does
+    byId("db-chart-hint").textContent = [hasPrev ? t("db.chart.readHint") : "", R.bucket === "year" ? t("db.chart.hintYear") : R.bucket === "month" ? t("db.chart.hintMonth") : ""].filter(Boolean).join(" ");
+    byId("db-chart-legend").innerHTML = hasPrev
+      ? `<span><i class="is-bar" style="background:${BLUE}"></i>${esc(t("db.legend.now"))}</span><span title="${esc(prevText())}"><i class="is-dash"></i>${esc(t("db.legend.prev"))}</span>` : "";
+    const el = byId("db-chart");
+    if (!n) { el.innerHTML = `<div class="db-empty">${esc(t("db.noData"))}</div>`; return; }
+    const vals = S.map((s) => s.sheets || 0), pv = S.map((s) => s.prev || 0);
+    const W = 1000, H = 300, L = 60, Rm = 16, T = 24, B = 34;
+    const max = niceMax(Math.max(...vals, ...(hasPrev ? pv : [0])) * 1.08);
+    const slot = (W - L - Rm) / n, bw = Math.min(64, slot * 0.62);
+    const y = (v) => T + (1 - v / max) * (H - T - B);
+    const cx = (i) => L + slot * i + slot / 2;
+    let g = "";
+    for (let k = 0; k <= 4; k++) { const v = (max / 4) * k; g += `<line x1="${L}" x2="${W - Rm}" y1="${y(v)}" y2="${y(v)}" stroke="#ece7e0"/><text x="${L - 8}" y="${y(v) + 4}" font-size="11" fill="#7a716a" text-anchor="end">${short(v)}</text>`; }
+    const every = Math.max(1, Math.ceil(n / 16));
+    const peak = vals.indexOf(Math.max(...vals));
+    const click = R.bucket !== "day";
+    // value labels are drawn last, with an outline, so the dashed line never covers them
+    let labels = "";
+    S.forEach((s, i) => {
+      const v = vals[i], top = y(v), h = H - B - top, x = cx(i) - bw / 2;
+      let tipHtml = `<b>${esc(bucketLabel(s.k, true))}</b><br>`;
+      if (s.sheets == null) tipHtml += esc(t("db.chart.future"));
+      else {
+        tipHtml += `${fmt(v)} ${esc(t("db.sheetsUnit"))} (${fmt(s.requests)} ${esc(t("db.reqUnit"))})`;
+        if (hasPrev) tipHtml += `<br>${esc(t("db.legend.prevShort"))} ${fmt(pv[i])} ${esc(t("db.sheetsUnit"))} ${deltaHtml(pct(v, pv[i]))}`;
+      }
+      if (click && s.sheets != null) tipHtml += `<br><span class="db-tip-hint">${esc(t(R.bucket === "year" ? "db.chart.clickYear" : "db.chart.clickMonth"))}</span>`;
+      g += `<g class="db-col${click && s.sheets != null ? " is-click" : ""}" data-i="${i}" data-tip="${esc(tipHtml)}"><rect x="${L + slot * i}" y="${T}" width="${slot}" height="${H - T - B}" fill="transparent"/>` +
+        (h > 0 ? `<path d="M${x} ${H - B} V${top + 3} Q${x} ${top} ${x + 3} ${top} H${x + bw - 3} Q${x + bw} ${top} ${x + bw} ${top + 3} V${H - B}Z" fill="${BLUE}"/>` : "") +
+        ((n - 1 - i) % every === 0 ? `<text x="${cx(i)}" y="${H - 10}" font-size="11.5" fill="#7a716a" text-anchor="middle">${esc(bucketLabel(s.k, false))}</text>` : "") + `</g>`;
     });
-  });
+    S.forEach((s, i) => {
+      const v = vals[i];
+      if (!((n <= 14 || i === peak) && v > 0)) return;
+      // tall bar: white number inside its top; short bar: just above it
+      const top = y(v), inside = H - B - top >= 26;
+      labels += `<text class="db-val${inside ? " is-in" : ""}" x="${cx(i)}" y="${inside ? top + 16 : Math.max(12, top - 7)}" text-anchor="middle">${short(v)}</text>`;
+    });
+    // same stretch a year earlier: dashed line over the columns
+    let prevPath = "";
+    if (hasPrev) {
+      prevPath = S.map((s, i) => (s.prev == null ? "" : (i && S[i - 1].prev != null ? "L" : "M") + cx(i).toFixed(1) + " " + y(s.prev).toFixed(1))).join(" ");
+      prevPath = n > 1 ? `<path d="${prevPath}" fill="none" stroke="${PREV}" stroke-width="2" stroke-dasharray="5 4" pointer-events="none"/>`
+        : `<line x1="${cx(0) - bw / 2 - 6}" x2="${cx(0) + bw / 2 + 6}" y1="${y(pv[0])}" y2="${y(pv[0])}" stroke="${PREV}" stroke-width="2" stroke-dasharray="5 4" pointer-events="none"/>`;
+      if (n > 1 && n <= 40) prevPath += S.map((s, i) => (s.prev == null ? "" : `<circle cx="${cx(i).toFixed(1)}" cy="${y(s.prev).toFixed(1)}" r="2.5" fill="#fff" stroke="${PREV}" stroke-width="1.5" pointer-events="none"/>`)).join("");
+    }
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(byId("db-chart-title").textContent)}"><line x1="${L}" x2="${W - Rm}" y1="${H - B}" y2="${H - B}" stroke="#d8d2ca"/>${g}${prevPath}${labels}</svg>`;
+    bindTips(el);
+    if (click) el.querySelectorAll(".db-col.is-click").forEach((c) => c.addEventListener("click", () => {
+      tip.style.display = "none";
+      const [yy, mm] = parts(S[+c.dataset.i].k);
+      if (R.bucket === "year") showYear(yy); else showMonth(yy, mm - 1);
+    }));
+  }
 
-  activateTab(window.location.hash.replace("#", "") || "overview", true);
+  // ---------------- units table ----------------
+  function renderTable() {
+    const hasPrev = !!R.prev;
+    const list = R.units.filter((e) => e.sheets > 0).map((e) => ({ ...e, name: unitLabel(e.unit), chg: e.prev ? (e.sheets - e.prev) / e.prev * 100 : Infinity }));
+    const k = state.sort === "chg" && !hasPrev ? "sheets" : state.sort, dir = state.dir;
+    list.sort((p, q) => (k === "name" ? p.name.localeCompare(q.name, "th") * dir : (q[k] - p[k]) * -dir) || (q.sheets - p.sheets));
+    const total = list.reduce((s, e) => s + e.sheets, 0) || 1;
+    const max = Math.max(1, ...list.map((e) => e.sheets));
+    const rows = state.showAll ? list : list.slice(0, 10);
+    const head = (key, label, cls) => `<th class="${cls || ""}"><button type="button" class="db-sort${k === key ? " is-active" : ""}" data-k="${key}">${esc(label)}${k === key ? (dir < 0 ? " ↓" : " ↑") : ""}</button></th>`;
+    let html = `<thead><tr><th class="db-col-n">#</th>${head("name", t("db.table.unit"))}${head("requests", t("db.kpi.req"), "db-num db-col-req")}${head("sheets", t("db.kpi.sheets"), "db-num")}` +
+      (hasPrev ? head("chg", t("db.table.vsPrev"), "db-num") : "") + `</tr></thead><tbody>`;
+    if (!rows.length) html += `<tr><td colspan="5" class="db-empty">${esc(t("db.noData"))}</td></tr>`;
+    rows.forEach((e, i) => {
+      const chg = e.chg === Infinity ? `<span class="db-kpi-muted">${esc(t("db.table.new"))}</span>` : (deltaHtml(e.chg) || "0%");
+      html += `<tr class="${state.unit === e.unit ? "is-selected" : ""}"><td class="db-col-n">${i + 1}</td>` +
+        `<td class="db-name"><button type="button" class="db-unit-link" data-i="${list.indexOf(e)}" title="${esc(e.name)}">${esc(e.name)}</button>` +
+        `<div class="db-bars"><span class="db-bar-a" style="width:${(e.sheets / max * 100).toFixed(1)}%"></span></div></td>` +
+        `<td class="db-num db-col-req">${fmt(e.requests)}</td>` +
+        `<td class="db-num"><b>${fmt(e.sheets)}</b><small>${(e.sheets / total * 100).toFixed(1)}%</small></td>` +
+        (hasPrev ? `<td class="db-num">${chg}</td>` : "") + `</tr>`;
+    });
+    const table = byId("db-table");
+    table.innerHTML = html + "</tbody>";
+    table.querySelectorAll(".db-sort").forEach((b) => { b.onclick = () => { if (state.sort === b.dataset.k) state.dir = -state.dir; else { state.sort = b.dataset.k; state.dir = b.dataset.k === "name" ? 1 : -1; } renderTable(); }; });
+    table.querySelectorAll(".db-unit-link").forEach((b) => { b.onclick = () => pickUnit(list[+b.dataset.i].unit); });
+    const more = byId("db-table-more");
+    more.innerHTML = list.length > 10 ? `<button type="button" class="btn btn-secondary" id="db-more-btn">${esc(state.showAll ? t("db.table.less") : t("db.table.all").replace("{n}", list.length))}</button>` : "";
+    if (list.length > 10) byId("db-more-btn").onclick = () => { state.showAll = !state.showAll; renderTable(); };
+  }
 
-  reload();
+  // ---------------- donut: unit types (or units inside the chosen type) ----------------
+  function renderShare() {
+    const byType = !state.type;
+    const all = (byType ? R.types.map((x) => ({ k: x.type, v: x.sheets })) : R.units.filter((u) => !state.unit || u.unit === state.unit).map((u) => ({ k: u.unit, v: u.sheets })))
+      .filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
+    const total = all.reduce((s0, x) => s0 + x.v, 0);
+    const parts0 = all.slice(0, 5).map((x, i) => ({ ...x, color: CAT[i], name: byType ? typeLabel(x.k) : unitLabel(x.k) }));
+    const rest = all.slice(5).reduce((s0, x) => s0 + x.v, 0);
+    if (rest > 0) parts0.push({ k: null, v: rest, color: OTHER, name: t("db.share.other").replace("{n}", all.length - 5) });
+    byId("db-share-title").textContent = byType ? t("db.share.byType") : t("db.share.inType").replace("{name}", typeLabel(state.type));
+    byId("db-share-hint").textContent = byType ? t("db.share.hintType") : t("db.share.hintUnit");
+    byId("db-share-back").hidden = byType;
+    const el = byId("db-share");
+    if (!total) { el.innerHTML = `<div class="db-empty">${esc(t("db.noData"))}</div>`; return; }
+    const R0 = 70, r0 = 44, C = 80;
+    let ang = -Math.PI / 2, arcs = "";
+    parts0.forEach((p, i) => {
+      const a2 = ang + (p.v / total) * Math.PI * 2;
+      const large = a2 - ang > Math.PI ? 1 : 0;
+      const pt = (r, a) => `${(C + r * Math.cos(a)).toFixed(2)} ${(C + r * Math.sin(a)).toFixed(2)}`;
+      const d = parts0.length === 1 ? `M${pt(R0, 0)} A${R0} ${R0} 0 1 1 ${pt(R0, Math.PI)} A${R0} ${R0} 0 1 1 ${pt(R0, 0)} M${pt(r0, 0)} A${r0} ${r0} 0 1 0 ${pt(r0, Math.PI)} A${r0} ${r0} 0 1 0 ${pt(r0, 0)}Z`
+        : `M${pt(R0, ang)} A${R0} ${R0} 0 ${large} 1 ${pt(R0, a2)} L${pt(r0, a2)} A${r0} ${r0} 0 ${large} 0 ${pt(r0, ang)}Z`;
+      arcs += `<path class="db-arc${p.k == null ? "" : " is-click"}" data-i="${i}" d="${d}" fill="${p.color}" stroke="#fff" stroke-width="2" fill-rule="evenodd" data-tip="${esc(`<b>${esc(p.name)}</b><br>${fmt(p.v)} ${esc(t("db.sheetsUnit"))} (${(p.v / total * 100).toFixed(1)}%)`)}"/>`;
+      ang = a2;
+    });
+    const center = `<text x="${C}" y="${C - 2}" text-anchor="middle" font-size="15" font-weight="700" fill="#262220">${short(total)}</text><text x="${C}" y="${C + 15}" text-anchor="middle" font-size="10.5" fill="#7a716a">${esc(t("db.sheetsUnit"))}</text>`;
+    el.innerHTML = `<div class="db-share"><svg viewBox="0 0 160 160" class="db-donut" role="img" aria-label="${esc(byId("db-share-title").textContent)}">${arcs}${center}</svg>` +
+      `<div class="db-share-legend">` + parts0.map((p, i) => `<button type="button" class="db-share-row${p.k == null ? " is-static" : ""}" data-i="${i}"><span class="db-swatch" style="background:${p.color}"></span><span class="db-share-name" title="${esc(p.name)}">${esc(p.name)}</span><b>${(p.v / total * 100).toFixed(0)}%</b></button>`).join("") + `</div></div>`;
+    bindTips(el);
+    const pick = (i) => { const p = parts0[i]; if (!p || p.k == null) return; tip.style.display = "none"; if (byType) { state.type = p.k; state.unit = ""; fillFilters(); load(); } else pickUnit(p.k); };
+    el.querySelectorAll(".db-arc.is-click, .db-share-row:not(.is-static)").forEach((n) => n.addEventListener("click", () => pick(+n.dataset.i)));
+  }
+
+  // ---------------- 100% bars: document type, paper source ----------------
+  function renderSplits() {
+    function block(title, list, key) {
+      const total = list.reduce((s0, x) => s0 + x.sheets, 0) || 1;
+      const segs = list.map((x, i) => {
+        const p = x.sheets / total * 100;
+        return p <= 0 ? "" : `<div class="db-split-seg" style="flex:${x.sheets};background:${CAT[i] || OTHER}" data-key="${key}" data-v="${esc(x.value)}" data-tip="${esc(`<b>${esc(valueLabel(x.value))}</b><br>${fmt(x.sheets)} ${esc(t("db.sheetsUnit"))} (${p.toFixed(1)}%)`)}">${p >= 12 ? p.toFixed(0) + "%" : ""}</div>`;
+      }).join("");
+      const legend = list.map((x, i) => `<span><span class="db-swatch" style="background:${CAT[i] || OTHER}"></span>${esc(valueLabel(x.value))}<b>${short(x.sheets)}</b></span>`).join("");
+      return `<div class="db-split"><div class="db-split-title">${esc(title)}</div><div class="db-split-bar">${segs}</div><div class="db-split-legend">${legend}</div></div>`;
+    }
+    const el = byId("db-splits");
+    el.innerHTML = block(t("dashboard.documentTypeFilter"), R.docs, "doc") + block(t("dashboard.paperSourceFilter"), R.srcs, "src");
+    bindTips(el);
+    el.querySelectorAll(".db-split-seg").forEach((n) => n.addEventListener("click", () => {
+      tip.style.display = "none";
+      const k = n.dataset.key, v = n.dataset.v;
+      state[k] = state[k] === v ? "" : v;
+      fillFilters();
+      load();
+    }));
+  }
+
+  function render() {
+    if (!R) return;
+    renderActive(); renderKpis(); renderChart(); renderTable(); renderShare(); renderSplits();
+  }
+
+  document.addEventListener("odprs:langchange", function () { if (!O) return; syncPeriod(); fillFilters(); render(); });
+
+  fetch("/api/dashboard-options").then((res) => res.json()).then((opts) => {
+    O = opts;
+    state.year = todayY(); state.month = todayM(); state.fy = todayFY();
+    syncPeriod(); fillFilters(); load();
+  }).catch(() => { byId("db-loading").textContent = t("db.loadError"); });
+})();
 </script>
 </body>
 </html>

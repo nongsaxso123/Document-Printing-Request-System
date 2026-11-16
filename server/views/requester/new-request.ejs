@@ -37,19 +37,22 @@
         <% } else if (error === "copy-label-manual-invalid") { %>
         <strong data-i18n="newRequest.error.copyLabelManual">เลขรันประจำชุดแบบกรอกเองไม่ถูกต้อง</strong><br>
         <span data-i18n="newRequest.error.copyLabelManual.body">กรุณากรอกข้อความสำหรับทุกชุดให้ครบตามจำนวนชุดที่ต้องการ</span>
+        <% } else if (error === "item-list-too-long") { %>
+        <strong data-i18n="newRequest.error.itemListTooLong">รายการเอกสารยาวเกินไป</strong><br>
+        <span data-i18n="newRequest.error.itemListTooLong.body">พิมพ์ได้ไม่เกิน 120 ตัวอักษร เพื่อให้ใบคำขออยู่ในกระดาษหน้าเดียว</span>
         <% } else if (error === "copies-out-of-range") { %>
         <strong data-i18n="newRequest.error.copiesOutOfRange">จำนวนชุดไม่ถูกต้อง</strong><br>
         <span data-i18n="newRequest.error.copiesOutOfRange.body">กรุณาระบุจำนวนชุดระหว่าง 1 ถึง 999 ชุด</span>
         <% } else if (error === "dropoff-location-invalid") { %>
         <strong data-i18n="newRequest.error.dropoffLocation">สถานที่ส่งเอกสารไม่ถูกต้อง</strong><br>
         <span data-i18n="newRequest.error.dropoffLocation.body">สถานที่ที่เลือกไม่เปิดให้ส่งเอกสารแล้ว กรุณาเลือกสถานที่ใหม่</span>
-        <% } else if (error === "agency-category-invalid" || error === "agency-unit-invalid" || error === "agency-unit-required") { %>
-        <strong data-i18n="newRequest.error.agency">ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง</strong><br>
-        <span data-i18n="newRequest.error.agency.body">กรุณาเลือกประเภทหน่วยงานและหน่วยงานใหม่อีกครั้ง</span>
+        <% } else if (error === "unit-type-invalid" || error === "unit-invalid" || error === "unit-required") { %>
+        <strong data-i18n="newRequest.error.unit">ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง</strong><br>
+        <span data-i18n="newRequest.error.unit.body">กรุณาเลือกประเภทหน่วยงานและหน่วยงานใหม่อีกครั้ง</span>
         <% } else { %>
         <strong data-i18n="newRequest.error.dateTooSoon">วันที่เลือกไม่ถูกต้อง</strong><br>
         <% if (error === "completion-date-weekend") { %>
-        <span data-i18n="field.completionDate.weekendError">วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ — กรุณาเลือกวันทำการ (จันทร์-ศุกร์)</span>
+        <span data-i18n="field.completionDate.weekendError">วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ กรุณาเลือกวันทำการ (จันทร์ถึงศุกร์)</span>
         <% } else { %>
         <span data-i18n="field.completionDate.error">กรุณาเลือกวันที่ห่างจากวันนี้อย่างน้อย 3 วันทำการ</span>
         <% } %>
@@ -76,7 +79,7 @@
               </div>
               <input type="text" name="requesterName" value="<%= defaultRequesterName %>" required>
               <div class="hint-popover" hidden>
-                <span class="hint" data-i18n="field.requesterName.hint">ดึงจากโปรไฟล์ของคุณให้อัตโนมัติ (หรือบัญชีที่ล็อกอิน หากยังไม่ได้ตั้งค่าโปรไฟล์) แก้ไขได้ทุกครั้ง — ไปตั้งค่าถาวรได้ที่ <a href="/profile">โปรไฟล์ของฉัน</a></span>
+                <span class="hint" data-i18n="field.requesterName.hint">ดึงจากโปรไฟล์ของคุณให้อัตโนมัติ (หรือบัญชีที่ล็อกอิน หากยังไม่ได้ตั้งค่าโปรไฟล์) แก้ไขได้ทุกครั้ง ตั้งค่าถาวรได้ที่ <a href="/profile">โปรไฟล์ของฉัน</a></span>
               </div>
             </div>
 
@@ -92,14 +95,14 @@
             </div>
 
             <div class="field">
-              <label data-i18n="field.agencyCategory">ประเภทหน่วยงาน *</label>
-              <select name="agencyCategoryId" id="agency-category" required></select>
+              <label data-i18n="field.unitType">ประเภทหน่วยงาน *</label>
+              <select name="unitTypeId" id="unit-type" required></select>
             </div>
 
             <div class="field">
-              <label data-i18n="field.agencyUnit">หน่วยงาน *</label>
-              <select name="agencyUnitId" id="agency-unit-select" required></select>
-              <input type="text" name="agencyUnitText" id="agency-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
+              <label data-i18n="field.unit">หน่วยงาน *</label>
+              <select name="unitId" id="unit-select" required></select>
+              <input type="text" name="unitText" id="unit-text" data-i18n-placeholder="field.unit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
             </div>
 
           </div>
@@ -140,12 +143,13 @@
                 <span data-i18n="option.paperSource.requester">ผู้ขอจัดเตรียมเอง</span>
               </label>
             </div>
-            <span class="hint" id="paper-source-fixed-notice" data-i18n="field.paperSource.fixedNotice" style="display:none;">เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) — ไม่มีตัวเลือกอื่น</span>
+            <span class="hint" id="paper-source-fixed-notice" data-i18n="field.paperSource.fixedNotice" style="display:none;">เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) ไม่มีตัวเลือกอื่น</span>
           </div>
 
           <div class="field span-2">
             <label data-i18n="field.itemList">รายการเอกสารที่ต้องการพิมพ์ *</label>
-            <textarea name="itemList" data-i18n-placeholder="field.itemList.placeholder" placeholder="เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า" required></textarea>
+            <textarea name="itemList" rows="2" maxlength="120" data-i18n-placeholder="field.itemList.placeholder" placeholder="เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า" required></textarea>
+            <span class="hint char-count" id="itemlist-count" aria-live="polite">0/120</span>
           </div>
 
           <div class="field">
@@ -174,7 +178,7 @@
           <div class="field">
             <label data-i18n="field.paperSize">ขนาดกระดาษ *</label>
             <select name="paperSize" id="paper-size-select" required>
-              <option value="" data-i18n="option.select">— เลือก —</option>
+              <option value="" data-i18n="option.select">เลือก</option>
               <option value="A4" data-i18n="option.paperSize.a4">A4</option>
               <option value="A3" data-i18n="option.paperSize.a3">A3</option>
               <option value="A5" data-i18n="option.paperSize.a5">A5</option>
@@ -376,21 +380,21 @@
 <%- include("../partials/foot") %>
 <script>
   // "<" is escaped so free text (the item list) can never end this script block early.
-  const EDIT_PREFILL = <%- JSON.stringify(isEditing ? editing.form : null).replace(/</g, "\\u003c") %>;
-  // Agency directory (src/agencies.js) — active categories with their
-  // active units nested, in place of the old hardcoded AGENCY_DATA/
-  // AGENCY_CATEGORY_EN objects, so admin edits show up here without a code
+  const EDIT_PREFILL = <%- safeJson(isEditing ? editing.form : null) %>;
+  // Unit directory (src/units.js) — active categories with their
+  // active units nested, in place of the old hardcoded UNIT_DATA/
+  // UNIT_TYPE_EN objects, so admin edits show up here without a code
   // change. A category with allowsFreeText true has no units at all; the
-  // Requester types the unit name directly instead (see renderAgencyUnitOptions).
-  const AGENCIES = <%- JSON.stringify(typeof agencyCategories !== "undefined" ? agencyCategories : []).replace(/</g, "\\u003c") %>;
-  const DEFAULT_AGENCY_CATEGORY_ID = <%- JSON.stringify(typeof defaultAgencyCategoryId !== "undefined" ? defaultAgencyCategoryId : null) %>;
-  const DEFAULT_AGENCY_UNIT_ID = <%- JSON.stringify(typeof defaultAgencyUnitId !== "undefined" ? defaultAgencyUnitId : null) %>;
-  const DEFAULT_AGENCY_UNIT_TEXT = <%- JSON.stringify(typeof defaultAgencyUnitText !== "undefined" ? defaultAgencyUnitText : "") %>;
+  // Requester types the unit name directly instead (see renderUnitOptions).
+  const UNITS = <%- safeJson(typeof unitTypes !== "undefined" ? unitTypes : []) %>;
+  const DEFAULT_UNIT_TYPE_ID = <%- safeJson(typeof defaultUnitTypeId !== "undefined" ? defaultUnitTypeId : null) %>;
+  const DEFAULT_UNIT_ID = <%- safeJson(typeof defaultUnitId !== "undefined" ? defaultUnitId : null) %>;
+  const DEFAULT_UNIT_TEXT = <%- safeJson(typeof defaultUnitText !== "undefined" ? defaultUnitText : "") %>;
 
   // Drop-off places (src/locations.js) — a <select> when there's a choice, a
   // plain line when there's only one (the server then picks it itself).
-  const DROPOFF_LOCATIONS = <%- JSON.stringify(typeof dropoffLocations !== "undefined" ? dropoffLocations : []).replace(/</g, "\\u003c") %>;
-  const SELECTED_DROPOFF_ID = <%- JSON.stringify(typeof selectedDropoffLocationId !== "undefined" ? selectedDropoffLocationId : null) %>;
+  const DROPOFF_LOCATIONS = <%- safeJson(typeof dropoffLocations !== "undefined" ? dropoffLocations : []) %>;
+  const SELECTED_DROPOFF_ID = <%- safeJson(typeof selectedDropoffLocationId !== "undefined" ? selectedDropoffLocationId : null) %>;
   const dropoffSelect = document.getElementById("dropoff-location-select");
   const dropoffStatic = document.getElementById("dropoff-location-static");
   const dropoffInfo = document.getElementById("dropoff-location-info");
@@ -460,89 +464,89 @@
   document.addEventListener("odprs:langchange", renderDropoffLocation);
   renderDropoffLocation();
 
-  const agencyCategorySelect = document.getElementById("agency-category");
-  const agencyUnitSelect = document.getElementById("agency-unit-select");
-  const agencyUnitText = document.getElementById("agency-unit-text");
+  const unitTypeSelect = document.getElementById("unit-type");
+  const unitSelect = document.getElementById("unit-select");
+  const unitText = document.getElementById("unit-text");
 
-  function agencyCategoryById(id) {
-    return AGENCIES.find(function (c) { return c.id === id; });
+  function unitTypeById(id) {
+    return UNITS.find(function (c) { return c.id === id; });
   }
 
-  function renderAgencyUnitOptions() {
-    const category = agencyCategoryById(Number(agencyCategorySelect.value));
+  function renderUnitOptions() {
+    const category = unitTypeById(Number(unitTypeSelect.value));
 
     if (category && category.allowsFreeText) {
-      agencyUnitSelect.style.display = "none";
-      agencyUnitSelect.disabled = true;
-      agencyUnitSelect.required = false;
+      unitSelect.style.display = "none";
+      unitSelect.disabled = true;
+      unitSelect.required = false;
 
-      agencyUnitText.style.display = "block";
-      agencyUnitText.disabled = false;
-      agencyUnitText.required = true;
+      unitText.style.display = "block";
+      unitText.disabled = false;
+      unitText.required = true;
       return;
     }
 
-    agencyUnitText.style.display = "none";
-    agencyUnitText.disabled = true;
-    agencyUnitText.required = false;
+    unitText.style.display = "none";
+    unitText.disabled = true;
+    unitText.required = false;
 
-    agencyUnitSelect.style.display = "block";
-    agencyUnitSelect.disabled = false;
-    agencyUnitSelect.required = true;
+    unitSelect.style.display = "block";
+    unitSelect.disabled = false;
+    unitSelect.required = true;
 
-    const previousUnit = agencyUnitSelect.value;
-    agencyUnitSelect.innerHTML = "";
+    const previousUnit = unitSelect.value;
+    unitSelect.innerHTML = "";
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = category ? t("option.select") : t("option.selectCategoryFirst");
-    agencyUnitSelect.appendChild(placeholder);
+    unitSelect.appendChild(placeholder);
 
     const lang = getLang();
     (category ? category.units : []).forEach(function (unit) {
       const opt = document.createElement("option");
       opt.value = String(unit.id);
       opt.textContent = pickLang(unit.nameTh, unit.nameEn, lang);
-      agencyUnitSelect.appendChild(opt);
+      unitSelect.appendChild(opt);
     });
-    agencyUnitSelect.value = previousUnit;
+    unitSelect.value = previousUnit;
   }
 
-  function renderAgencyCategoryOptions() {
-    const previousCategory = agencyCategorySelect.value;
-    agencyCategorySelect.innerHTML = "";
+  function renderUnitTypeOptions() {
+    const previousCategory = unitTypeSelect.value;
+    unitTypeSelect.innerHTML = "";
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = t("option.select");
-    agencyCategorySelect.appendChild(placeholder);
+    unitTypeSelect.appendChild(placeholder);
 
     const lang = getLang();
-    AGENCIES.forEach(function (category) {
+    UNITS.forEach(function (category) {
       const opt = document.createElement("option");
       opt.value = String(category.id);
       opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
-      agencyCategorySelect.appendChild(opt);
+      unitTypeSelect.appendChild(opt);
     });
 
-    agencyCategorySelect.value = previousCategory;
-    renderAgencyUnitOptions();
+    unitTypeSelect.value = previousCategory;
+    renderUnitOptions();
   }
 
-  agencyCategorySelect.addEventListener("change", renderAgencyUnitOptions);
-  document.addEventListener("odprs:langchange", renderAgencyCategoryOptions);
-  renderAgencyCategoryOptions();
+  unitTypeSelect.addEventListener("change", renderUnitOptions);
+  document.addEventListener("odprs:langchange", renderUnitTypeOptions);
+  renderUnitTypeOptions();
 
   // Pre-fill from the requester's saved Profile (see profile.js/profile.ejs)
-  // or, when editing, the request's own stored agency — same AGENCIES
+  // or, when editing, the request's own stored unit — same UNITS
   // source as above. Only runs once on load — after this,
-  // renderAgencyCategoryOptions() preserves whatever the user has selected.
-  if (DEFAULT_AGENCY_CATEGORY_ID) {
-    agencyCategorySelect.value = String(DEFAULT_AGENCY_CATEGORY_ID);
-    renderAgencyUnitOptions();
-    const defaultCategory = agencyCategoryById(DEFAULT_AGENCY_CATEGORY_ID);
+  // renderUnitTypeOptions() preserves whatever the user has selected.
+  if (DEFAULT_UNIT_TYPE_ID) {
+    unitTypeSelect.value = String(DEFAULT_UNIT_TYPE_ID);
+    renderUnitOptions();
+    const defaultCategory = unitTypeById(DEFAULT_UNIT_TYPE_ID);
     if (defaultCategory && defaultCategory.allowsFreeText) {
-      agencyUnitText.value = DEFAULT_AGENCY_UNIT_TEXT;
-    } else if (DEFAULT_AGENCY_UNIT_ID) {
-      agencyUnitSelect.value = String(DEFAULT_AGENCY_UNIT_ID);
+      unitText.value = DEFAULT_UNIT_TEXT;
+    } else if (DEFAULT_UNIT_ID) {
+      unitSelect.value = String(DEFAULT_UNIT_ID);
     }
   }
 
@@ -917,7 +921,7 @@
   const requestForm = document.getElementById("request-form");
 
   // ---------- Edit mode: re-open a submitted request pre-filled ----------
-  // Name/phone/agency are already filled by the same defaults mechanism the
+  // Name/phone/unit are already filled by the same defaults mechanism the
   // profile uses (the route passes the request's own values as the
   // defaults); everything else is applied here through the form's own
   // inputs, then the same render functions run once so the dependent UI
@@ -942,6 +946,7 @@
 
     finishingMethodInputs.forEach(function (input) { input.checked = f.finishingMethods.indexOf(input.value) !== -1; });
     document.querySelector('textarea[name="itemList"]').value = f.itemList;
+    updateItemListCount();
     originalPagesInput.value = f.originalPages;
     copiesInput.value = f.copies;
 
@@ -1064,6 +1069,17 @@
     submitBtn.disabled = true;
     submitBtn.textContent = t(EDIT_PREFILL ? "btn.saving" : "btn.submitting");
   });
+
+  // "45/120" under the item list. The cap keeps the printed form on one page.
+  function updateItemListCount() {
+    const box = document.querySelector('textarea[name="itemList"]');
+    const out = document.getElementById("itemlist-count");
+    const max = Number(box.getAttribute("maxlength"));
+    out.textContent = box.value.length + "/" + max;
+    out.classList.toggle("is-full", box.value.length >= max);
+  }
+  document.querySelector('textarea[name="itemList"]').addEventListener("input", updateItemListCount);
+  updateItemListCount();
 </script>
 </body>
 </html>

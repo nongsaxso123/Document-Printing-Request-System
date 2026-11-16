@@ -1,0 +1,585 @@
+<%- include("../partials/head", { title: "แบบประเมินความพึงพอใจ | ฝ่ายทะเบียน มฟล." }) %>
+<%- include("../partials/sidebar", { user, active }) %>
+<%- include("../partials/header", { user, crumbKey: "crumb.adminEvaluationForm", crumbFallback: "แบบประเมิน / <strong>แก้ไข</strong>" }) %>
+
+  <main class="app-main">
+    <div class="ef-page-head">
+      <div>
+        <h1 class="page-title" data-i18n="evalForm.title">แบบประเมินความพึงพอใจ</h1>
+        <p class="page-subtitle" data-i18n="evalForm.subtitle">กำหนดหัวข้อและคำถามที่ผู้ขอต้องตอบหลังรับเอกสาร และระยะเวลาที่ยังประเมินได้</p>
+      </div>
+      <a class="btn btn-primary ef-preview-btn" href="/admin/evaluation-form/preview" target="_blank" rel="noopener">
+        <span class="icon" data-icon="eye"><%- icon('eye') %></span>
+        <span data-i18n="evalForm.preview">ดูตัวอย่างหน้าประเมิน</span>
+      </a>
+    </div>
+
+    <!-- ---------- time window ---------- -->
+    <div class="card admin-card">
+      <div class="card-header"><span data-i18n="evalForm.windowTitle">ระยะเวลาที่ให้ประเมิน</span></div>
+      <form id="window-form" novalidate>
+        <div class="card-body ef-window">
+          <!-- 1. limited or not -->
+          <div class="radio-group ef-window-mode">
+            <label class="radio-option"><input type="radio" name="window-mode" value="limited"> <span data-i18n="evalForm.windowLimited">กำหนดระยะเวลา</span></label>
+            <label class="radio-option"><input type="radio" name="window-mode" value="unlimited" id="window-unlimited"> <span data-i18n="evalForm.windowUnlimited">ไม่จำกัดเวลา</span></label>
+          </div>
+
+          <!-- 2. how long (only while limited) -->
+          <div class="ef-window-amount" id="window-amount">
+            <span class="ef-window-text" data-i18n="evalForm.windowLead">ผู้ขอประเมินได้ภายใน</span>
+            <div class="field ef-window-field" id="field-window-value">
+              <div class="ef-input-group">
+                <input type="number" id="window-value" min="1" max="100000" inputmode="numeric" aria-label="Amount">
+                <select id="window-unit" aria-label="Unit"></select>
+              </div>
+            </div>
+            <span class="ef-window-text" data-i18n="evalForm.windowTail">หลังรับเอกสาร</span>
+          </div>
+
+          <!-- 3. what that means, in plain words -->
+          <div class="ef-window-example" id="window-example"></div>
+          <p class="ef-window-hint">
+            <span class="icon" data-icon="info"><%- icon('info') %></span>
+            <span data-i18n="evalForm.windowHint">เลยกำหนดแล้ว ระบบจะไม่ขอให้ประเมินคำขอนั้นอีก และไม่บังคับประเมินก่อนส่งคำขอใหม่</span>
+          </p>
+        </div>
+        <div class="ef-card-foot" id="window-foot">
+          <button type="submit" class="btn btn-primary" id="window-save-btn" data-i18n="evalForm.save" disabled>บันทึก</button>
+          <button type="button" class="btn btn-secondary" id="window-discard-btn" data-i18n="evalForm.discard" hidden>ยกเลิกการเปลี่ยนแปลง</button>
+          <span class="ef-unsaved" id="window-unsaved" hidden>
+            <span class="icon" data-icon="alert-triangle"><%- icon('alert-triangle') %></span>
+            <span data-i18n="evalForm.unsaved">มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</span>
+          </span>
+        </div>
+      </form>
+    </div>
+
+    <!-- ---------- sections + questions (rendered by render()) ---------- -->
+    <div class="ef-guide">
+      <span class="icon" data-icon="info"><%- icon('info') %></span>
+      <div>
+        <strong data-i18n="evalForm.guideTitle">รายงานผลประเมินแยกเป็นรายปี</strong>
+        <span data-i18n="evalForm.guideBody">แต่ละปีแสดงเฉพาะคำถามที่มีคนตอบในปีนั้น ถ้าเพิ่มหรือลบคำถามกลางปี รายงานจะบอกว่ามีคนตอบข้อนั้นกี่คนจากทั้งหมด และเริ่มใช้หรือใช้ถึงวันไหน</span>
+      </div>
+    </div>
+    <div id="ef-sections"></div>
+
+    <div class="ef-add-section-row">
+      <button type="button" class="btn btn-secondary" id="add-section-btn">
+        <span class="icon" data-icon="file-plus"><%- icon('file-plus') %></span>
+        <span data-i18n="evalForm.addSection">เพิ่มหัวข้อ</span>
+      </button>
+    </div>
+  </main>
+
+<%- include("../partials/foot") %>
+<script>
+  // Admin editor for the satisfaction form (src/evaluationForm.js). Section
+  // and question editors open in place, right where they were clicked.
+  const TYPES = ["rating", "single", "multi", "text"];
+  const UNITS = ["minute", "hour", "day", "week", "month"];
+  let form = { sections: [], window: { value: 30, unit: "day" } };
+  // What is being edited: { kind: "section"|"question", id|null, sectionId }
+  let editing = null;
+  let draftOptions = [];
+  let flash = null; // { kind, id } to highlight after the next render
+
+  const byId = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function pick(th, en) { return getLang() === "en" && en ? en : th; }
+
+  async function postJson(url, body) {
+    try {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+      const data = await res.json().catch(function () { return {}; });
+      return { ok: res.ok, data: data };
+    } catch (e) {
+      return { ok: false, data: { error: "network" } };
+    }
+  }
+
+  async function load() {
+    const res = await fetch("/api/admin/evaluation-form");
+    form = await res.json();
+  }
+
+  // ---------------------------------------------------------------- window
+  function fillUnitSelect() {
+    const sel = byId("window-unit");
+    const prev = sel.value || form.window.unit;
+    sel.innerHTML = UNITS.map(function (u) { return '<option value="' + u + '">' + esc(t("evalForm.unit." + u)) + '</option>'; }).join("");
+    sel.value = prev;
+  }
+  function renderWindow() {
+    fillUnitSelect();
+    const unlimited = form.window.value == null;
+    document.querySelector('input[name="window-mode"][value="' + (unlimited ? "unlimited" : "limited") + '"]').checked = true;
+    byId("window-value").value = unlimited ? "" : form.window.value;
+    byId("window-unit").value = form.window.unit;
+    syncWindowInputs();
+    updateWindowDirty();
+  }
+
+  // ---------------------------------------------------------------- unsaved changes
+  // The window card is "dirty" when its inputs differ from what is saved.
+  function windowInputsState() {
+    const unlimited = byId("window-unlimited").checked;
+    return unlimited
+      ? { value: null, unit: byId("window-unit").value }
+      : { value: parseInt(byId("window-value").value, 10) || 0, unit: byId("window-unit").value };
+  }
+  function isWindowDirty() {
+    const now = windowInputsState();
+    const saved = form.window;
+    if ((now.value == null) !== (saved.value == null)) return true;
+    if (now.value == null) return false; // both unlimited: the unit does not matter
+    return now.value !== saved.value || now.unit !== saved.unit;
+  }
+  function updateWindowDirty() {
+    const dirty = isWindowDirty();
+    byId("window-save-btn").disabled = !dirty;
+    byId("window-discard-btn").hidden = !dirty;
+    byId("window-unsaved").hidden = !dirty;
+  }
+  byId("window-discard-btn").addEventListener("click", function () {
+    clearMark("field-window-value");
+    renderWindow();
+  });
+  byId("window-form").addEventListener("input", updateWindowDirty);
+  byId("window-form").addEventListener("change", updateWindowDirty);
+
+  // Leaving with unsaved changes asks first (see guardUnsavedChanges in app.js).
+  guardUnsavedChanges(isWindowDirty, "evalForm.leaveTitle");
+
+  // Same rule as evaluationForm.deadlineFor (months are calendar months).
+  function addWindow(from, value, unit) {
+    const d = new Date(from);
+    const ms = { minute: 6e4, hour: 36e5, day: 864e5, week: 6048e5 }[unit];
+    if (unit === "month") { d.setMonth(d.getMonth() + value); return d; }
+    return new Date(d.getTime() + value * ms);
+  }
+  function renderWindowExample() {
+    const box = byId("window-example");
+    const lang = getLang();
+    if (byId("window-unlimited").checked) {
+      box.textContent = t("evalForm.windowExampleNone");
+      return;
+    }
+    const value = parseInt(byId("window-value").value, 10);
+    if (!(value >= 1)) { box.textContent = ""; return; }
+    const now = new Date();
+    box.textContent = t("evalForm.windowExample")
+      .replace("{from}", formatDateTime(now, lang))
+      .replace("{to}", formatDateTime(addWindow(now, value, byId("window-unit").value), lang));
+  }
+  function syncWindowInputs() {
+    const off = byId("window-unlimited").checked;
+    byId("window-amount").classList.toggle("is-off", off);
+    byId("window-value").disabled = off;
+    byId("window-unit").disabled = off;
+    if (off) clearMark("field-window-value");
+    if (!off && !byId("window-value").value) byId("window-value").value = 30;
+    renderWindowExample();
+  }
+  document.querySelectorAll('input[name="window-mode"]').forEach(function (r) { r.addEventListener("change", syncWindowInputs); });
+  byId("window-unit").addEventListener("change", renderWindowExample);
+  byId("window-value").addEventListener("input", function () { clearMark("field-window-value"); renderWindowExample(); });
+  byId("window-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const unlimited = byId("window-unlimited").checked;
+    const value = parseInt(byId("window-value").value, 10);
+    if (!unlimited && !(value >= 1)) return markMissing(["field-window-value"], "evalForm.err.windowValue");
+    const result = await postJson("/api/admin/evaluation-form/window", { unlimited: unlimited, value: value, unit: byId("window-unit").value });
+    if (!result.ok) return showActionResult(false, t("evalForm.err.generic"));
+    form.window = unlimited ? { value: null, unit: byId("window-unit").value } : { value: value, unit: byId("window-unit").value };
+    updateWindowDirty();
+    showActionResult(true, t("evalForm.saved.window"));
+  });
+
+  // ---------------------------------------------------------------- field marks
+  function clearMark(id) {
+    const field = byId(id);
+    if (!field) return;
+    field.classList.remove("invalid");
+    const msg = field.querySelector(".loc-field-msg");
+    if (msg) msg.remove();
+  }
+  // Red outline + message under each listed field; jump to the first one.
+  function markMissing(ids, messageKey) {
+    ids.forEach(function (id, i) {
+      const field = byId(id);
+      if (!field) return;
+      clearMark(id);
+      field.classList.add("invalid");
+      const msg = document.createElement("span");
+      msg.className = "field-error loc-field-msg";
+      msg.setAttribute("role", "alert");
+      msg.innerHTML = '<span class="icon">' + ICONS["alert-circle"] + '</span><span></span>';
+      msg.lastElementChild.textContent = t(i === 0 && messageKey ? messageKey : "evalForm.err.fillThis");
+      field.appendChild(msg);
+    });
+    const first = byId(ids[0]);
+    if (first) {
+      first.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = first.querySelector("input, select, textarea");
+      if (input) input.focus({ preventScroll: true });
+    }
+  }
+
+  // ---------------------------------------------------------------- rendering
+  function typeBadge(type) {
+    return '<span class="ef-type ef-type-' + type + '">' + esc(t("evalForm.type." + type)) + '</span>';
+  }
+  function moveButtons(kind, id, index, count) {
+    return '<button type="button" class="btn btn-secondary ef-move" data-move="up" data-kind="' + kind + '" data-id="' + id + '" title="' + esc(t("evalForm.moveUp")) + '"' + (index === 0 ? " disabled" : "") + '>↑</button>' +
+      '<button type="button" class="btn btn-secondary ef-move" data-move="down" data-kind="' + kind + '" data-id="' + id + '" title="' + esc(t("evalForm.moveDown")) + '"' + (index === count - 1 ? " disabled" : "") + '>↓</button>';
+  }
+
+  function questionRow(q, index, count) {
+    if (editing && editing.kind === "question" && editing.id === q.id) return questionEditor();
+    const opts = (q.type === "single" || q.type === "multi")
+      ? '<div class="ef-q-options">' + q.options.map(function (o) { return '<span class="ef-opt">' + esc(pick(o.th, o.en)) + '</span>'; }).join("") + '</div>'
+      : "";
+    return '<div class="ef-q" data-row="question-' + q.id + '">' +
+        '<div class="ef-q-move">' + moveButtons("question", q.id, index, count) + '</div>' +
+        '<div class="ef-q-main">' +
+          '<div class="ef-q-text">' + esc(pick(q.textTh, q.textEn)) +
+            (q.required ? ' <span class="req">*</span>' : ' <span class="ef-optional">' + esc(t("evalForm.optional")) + '</span>') + '</div>' +
+          '<div class="ef-q-meta">' + typeBadge(q.type) +
+'</div>' +
+          opts +
+        '</div>' +
+        '<div class="ef-q-actions">' +
+          '<button type="button" class="ef-link" data-edit-question="' + q.id + '">' + esc(t("evalForm.edit")) + '</button>' +
+          '<button type="button" class="ef-link ef-link-danger" data-delete-question="' + q.id + '">' + esc(t("evalForm.delete")) + '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function sectionCard(s, index, count) {
+    const editingThis = editing && editing.kind === "section" && editing.id === s.id;
+    const header = editingThis
+      ? '<div class="card-body ef-editor-wrap">' + sectionEditor() + '</div>'
+      : '<div class="card-header ef-section-header">' +
+          '<div class="ef-section-title">' +
+            '<span class="ef-section-name">' + esc(pick(s.titleTh, s.titleEn)) + '</span>' +
+            '<span class="ef-section-count">' + esc(t("evalForm.questionCount").replace("{n}", s.questions.length)) + '</span>' +
+          '</div>' +
+          '<div class="ef-section-actions">' +
+            moveButtons("section", s.id, index, count) +
+            '<button type="button" class="ef-link" data-edit-section="' + s.id + '">' + esc(t("evalForm.edit")) + '</button>' +
+'<button type="button" class="ef-link ef-link-danger" data-delete-section="' + s.id + '">' + esc(t("evalForm.delete")) + '</button>' +
+          '</div>' +
+        '</div>';
+    const addingHere = editing && editing.kind === "question" && editing.id == null && editing.sectionId === s.id;
+    const questions = s.questions.length
+      ? s.questions.map(function (q, i) { return questionRow(q, i, s.questions.length); }).join("")
+      : (addingHere ? "" : '<div class="ef-empty">' + esc(t("evalForm.noQuestions")) + '</div>');
+    return '<div class="card admin-card ef-section" data-row="section-' + s.id + '">' + header +
+        '<div class="ef-questions">' + questions + (addingHere ? questionEditor() : "") + '</div>' +
+        (addingHere ? "" :
+          '<div class="ef-section-foot"><button type="button" class="btn btn-secondary ef-add-q" data-add-question="' + s.id + '">' +
+            '<span class="icon">' + ICONS["file-plus"] + '</span><span>' + esc(t("evalForm.addQuestion")) + '</span></button></div>') +
+      '</div>';
+  }
+
+  function render() {
+    const list = byId("ef-sections");
+    const addingSection = editing && editing.kind === "section" && editing.id == null;
+    if (!form.sections.length && !addingSection) {
+      list.innerHTML = '<div class="card admin-card"><div class="card-body ef-empty">' + esc(t("evalForm.noSections")) + '</div></div>';
+    } else {
+      list.innerHTML = form.sections.map(function (s, i) { return sectionCard(s, i, form.sections.length); }).join("") +
+        (addingSection ? '<div class="card admin-card ef-section"><div class="card-body ef-editor-wrap">' + sectionEditor() + '</div></div>' : "");
+    }
+    byId("add-section-btn").hidden = !!addingSection;
+    if (editing) wireEditor();
+    if (flash) {
+      const row = list.querySelector('[data-row="' + flash.kind + '-' + flash.id + '"]');
+      if (row) {
+        row.classList.remove("ef-flash"); void row.offsetWidth; row.classList.add("ef-flash");
+        const r = row.getBoundingClientRect();
+        if (r.top < 64 || r.bottom > window.innerHeight) row.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      flash = null;
+    }
+  }
+
+  // ---------------------------------------------------------------- section editor
+  function sectionEditor() {
+    const s = editing.id != null ? form.sections.find(function (x) { return x.id === editing.id; }) : null;
+    return '<form class="ef-editor" id="ef-editor" novalidate>' +
+        '<div class="ef-editor-title">' + esc(t(s ? "evalForm.editSection" : "evalForm.newSection")) + '</div>' +
+        '<div class="form-grid">' +
+          '<div class="field" id="field-sec-th"><label>' + esc(t("evalForm.sectionTh")) + ' <span class="req">*</span></label><input type="text" id="sec-th" value="' + esc(s ? s.titleTh : "") + '" placeholder="' + esc(t("evalForm.sectionThPh")) + '"></div>' +
+          '<div class="field" id="field-sec-en"><label>' + esc(t("evalForm.sectionEn")) + ' <span class="req">*</span></label><input type="text" id="sec-en" value="' + esc(s ? s.titleEn : "") + '" placeholder="' + esc(t("evalForm.sectionEnPh")) + '"></div>' +
+        '</div>' +
+        editorActions() +
+      '</form>';
+  }
+
+  function editorActions() {
+    return '<div class="ef-editor-actions">' +
+        '<button type="submit" class="btn btn-primary">' + esc(t("evalForm.save")) + '</button>' +
+        '<button type="button" class="btn btn-secondary" id="ef-cancel">' + esc(t("btn.cancel")) + '</button>' +
+      '</div>';
+  }
+
+  // ---------------------------------------------------------------- question editor
+  function questionEditor() {
+    const q = editing.id != null ? findQuestion(editing.id) : null;
+    const type = editing.type;
+    const typeChoices = TYPES.map(function (ty) {
+      return '<label class="radio-option"><input type="radio" name="ef-type" value="' + ty + '"' + (ty === type ? " checked" : "") + '> <span>' + esc(t("evalForm.type." + ty)) + '</span></label>';
+    }).join("");
+    const sectionSelect = q
+      ? '<div class="field"><label>' + esc(t("evalForm.inSection")) + '</label><select id="q-section">' +
+          form.sections.map(function (s) { return '<option value="' + s.id + '"' + (s.id === editing.sectionId ? " selected" : "") + '>' + esc(pick(s.titleTh, s.titleEn)) + '</option>'; }).join("") +
+        '</select></div>'
+      : "";
+    return '<form class="ef-editor ef-q-editor" id="ef-editor" novalidate>' +
+        '<div class="ef-editor-title">' + esc(t(q ? "evalForm.editQuestion" : "evalForm.newQuestion")) + '</div>' +
+        '<div class="field"><label>' + esc(t("evalForm.qType")) + '</label><div class="radio-group">' + typeChoices + '</div></div>' +
+        '<div class="form-grid">' +
+          '<div class="field" id="field-q-th"><label>' + esc(t("evalForm.qTh")) + ' <span class="req">*</span></label><input type="text" id="q-th" value="' + esc(q ? q.textTh : "") + '" placeholder="' + esc(t("evalForm.qThPh")) + '"></div>' +
+          '<div class="field" id="field-q-en"><label>' + esc(t("evalForm.qEn")) + ' <span class="req">*</span></label><input type="text" id="q-en" value="' + esc(q ? q.textEn : "") + '" placeholder="' + esc(t("evalForm.qEnPh")) + '"></div>' +
+        '</div>' +
+        '<div class="field ef-options" id="field-options"' + (type === "single" || type === "multi" ? "" : " hidden") + '>' +
+          '<label>' + esc(t("evalForm.options")) + ' <span class="req">*</span></label>' +
+          '<div id="ef-option-list"></div>' +
+          '<button type="button" class="ef-link" id="ef-add-option">+ ' + esc(t("evalForm.addOption")) + '</button>' +
+        '</div>' +
+        // Settings row: same label-above-control layout as the fields above,
+        // so "In section" and "Required" line up as two columns.
+        '<div class="form-grid ef-q-settings">' +
+          sectionSelect +
+          '<div class="field"><label>' + esc(t("evalForm.answerRule")) + '</label>' +
+            '<label class="check-option ef-required-opt"><input type="checkbox" id="q-required"' + (!q || q.required ? " checked" : "") + '> <span>' + esc(t("evalForm.required")) + '</span></label>' +
+          '</div>' +
+        '</div>' +
+        editorActions() +
+      '</form>';
+  }
+
+  function renderOptionRows() {
+    const box = byId("ef-option-list");
+    if (!box) return;
+    box.innerHTML = draftOptions.map(function (o, i) {
+      return '<div class="ef-option-row" data-i="' + i + '">' +
+          '<span class="ef-option-num">' + (i + 1) + '.</span>' +
+          '<input type="text" class="ef-opt-th" value="' + esc(o.th) + '" placeholder="' + esc(t("evalForm.optionThPh")) + '">' +
+          '<input type="text" class="ef-opt-en" value="' + esc(o.en) + '" placeholder="' + esc(t("evalForm.optionEnPh")) + '">' +
+          '<button type="button" class="ef-link ef-link-danger" data-remove-option="' + i + '"' + (draftOptions.length <= 2 ? " disabled" : "") + '>' + esc(t("evalForm.removeOption")) + '</button>' +
+        '</div>';
+    }).join("");
+  }
+
+  function findQuestion(id) {
+    for (const s of form.sections) for (const q of s.questions) if (q.id === id) return q;
+    return null;
+  }
+
+  function wireEditor() {
+    const editor = byId("ef-editor");
+    if (!editor) return;
+    editor.addEventListener("input", function (e) {
+      const field = e.target.closest(".field");
+      if (field && field.id) clearMark(field.id);
+      const row = e.target.closest(".ef-option-row");
+      if (row) {
+        const i = Number(row.getAttribute("data-i"));
+        draftOptions[i][e.target.classList.contains("ef-opt-th") ? "th" : "en"] = e.target.value;
+        row.classList.remove("invalid");
+      }
+    });
+    byId("ef-cancel").addEventListener("click", function () {
+      const back = editing.id != null ? { kind: editing.kind, id: editing.id } : null;
+      editing = null;
+      render();
+      if (back) {
+        const row = byId("ef-sections").querySelector('[data-row="' + back.kind + '-' + back.id + '"]');
+        if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+    if (editing.kind === "question") {
+      renderOptionRows();
+      editor.querySelectorAll('input[name="ef-type"]').forEach(function (r) {
+        r.addEventListener("change", function () {
+          editing.type = this.value;
+          byId("field-options").hidden = !(editing.type === "single" || editing.type === "multi");
+          while (draftOptions.length < 2) draftOptions.push({ th: "", en: "" });
+          renderOptionRows();
+        });
+      });
+      byId("ef-add-option").addEventListener("click", function () {
+        draftOptions.push({ th: "", en: "" });
+        renderOptionRows();
+        const rows = byId("ef-option-list").querySelectorAll(".ef-opt-th");
+        rows[rows.length - 1].focus();
+      });
+      byId("ef-option-list").addEventListener("click", function (e) {
+        const btn = e.target.closest("[data-remove-option]");
+        if (!btn || btn.disabled) return;
+        draftOptions.splice(Number(btn.getAttribute("data-remove-option")), 1);
+        renderOptionRows();
+      });
+    }
+    editor.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (editing.kind === "section") saveSection(); else saveQuestion();
+    });
+    const first = editor.querySelector('input[type="text"]');
+    editor.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function openSectionEditor(id) {
+    editing = { kind: "section", id: id };
+    render();
+  }
+  function openQuestionEditor(id, sectionId) {
+    const q = id != null ? findQuestion(id) : null;
+    editing = { kind: "question", id: id, sectionId: q ? q.sectionId : sectionId, type: q ? q.type : "rating" };
+    draftOptions = q && q.options.length ? q.options.map(function (o) { return { key: o.key, th: o.th, en: o.en }; }) : [{ th: "", en: "" }, { th: "", en: "" }];
+    render();
+  }
+
+  // ---------------------------------------------------------------- saving
+  async function saveSection() {
+    const titleTh = byId("sec-th").value.trim();
+    const titleEn = byId("sec-en").value.trim();
+    const missing = [];
+    if (!titleTh) missing.push("field-sec-th");
+    if (!titleEn) missing.push("field-sec-en");
+    if (missing.length) return markMissing(missing);
+    const id = editing.id;
+    const result = await postJson(id != null ? "/api/admin/evaluation-form/sections/" + id : "/api/admin/evaluation-form/sections", { titleTh: titleTh, titleEn: titleEn });
+    if (!result.ok) return showActionResult(false, t("evalForm.err.generic"));
+    editing = null;
+    await load();
+    flash = { kind: "section", id: id != null ? id : form.sections[form.sections.length - 1].id };
+    render();
+  }
+
+  async function saveQuestion() {
+    const textTh = byId("q-th").value.trim();
+    const textEn = byId("q-en").value.trim();
+    const hasOptions = editing.type === "single" || editing.type === "multi";
+    const missing = [];
+    if (!textTh) missing.push("field-q-th");
+    if (!textEn) missing.push("field-q-en");
+    let optionsBad = false;
+    const options = hasOptions ? draftOptions.filter(function (o) { return o.th.trim() || o.en.trim(); }) : [];
+    if (hasOptions) {
+      byId("ef-option-list").querySelectorAll(".ef-option-row").forEach(function (row) {
+        const o = draftOptions[Number(row.getAttribute("data-i"))];
+        const half = (!!o.th.trim()) !== (!!o.en.trim());
+        row.classList.toggle("invalid", half);
+        if (half) optionsBad = true;
+      });
+      if (options.length < 2 || optionsBad) missing.push("field-options");
+    }
+    if (missing.length) {
+      return markMissing(missing, missing[0] === "field-options" ? (optionsBad ? "evalForm.err.optionHalf" : "evalForm.err.optionsFew") : null);
+    }
+    const sectionSel = byId("q-section");
+    const payload = {
+      type: editing.type, textTh: textTh, textEn: textEn,
+      required: byId("q-required").checked,
+      options: options,
+      sectionId: sectionSel ? Number(sectionSel.value) : editing.sectionId
+    };
+    const id = editing.id;
+    const result = await postJson(id != null ? "/api/admin/evaluation-form/questions/" + id : "/api/admin/evaluation-form/questions", payload);
+    if (!result.ok) return showActionResult(false, t("evalForm.err.generic"));
+    const sectionId = payload.sectionId;
+    editing = null;
+    await load();
+    let newId = id;
+    if (newId == null) {
+      const s = form.sections.find(function (x) { return x.id === sectionId; });
+      newId = s && s.questions.length ? s.questions[s.questions.length - 1].id : null;
+    }
+    flash = newId != null ? { kind: "question", id: newId } : null;
+    render();
+  }
+
+  // ---------------------------------------------------------------- list actions
+  byId("ef-sections").addEventListener("click", async function (e) {
+    const btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+    if (editing && !btn.closest("#ef-editor")) {
+      // One editor at a time: finish or cancel the open one first.
+      const open = byId("ef-editor");
+      if (open) open.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (btn.hasAttribute("data-move")) {
+      const kind = btn.getAttribute("data-kind");
+      const id = Number(btn.getAttribute("data-id"));
+      await postJson("/api/admin/evaluation-form/" + (kind === "section" ? "sections/" : "questions/") + id + "/move", { direction: btn.getAttribute("data-move") });
+      await load();
+      flash = { kind: kind, id: id };
+      return render();
+    }
+    if (btn.hasAttribute("data-edit-section")) return openSectionEditor(Number(btn.getAttribute("data-edit-section")));
+    if (btn.hasAttribute("data-edit-question")) return openQuestionEditor(Number(btn.getAttribute("data-edit-question")));
+    if (btn.hasAttribute("data-add-question")) return openQuestionEditor(null, Number(btn.getAttribute("data-add-question")));
+    if (btn.hasAttribute("data-delete-section")) {
+      const s = form.sections.find(function (x) { return x.id === Number(btn.getAttribute("data-delete-section")); });
+      return showConfirmModal({
+        title: t("evalForm.deleteSectionTitle"),
+        message: t("evalForm.deleteSectionMsg").replace("{name}", pick(s.titleTh, s.titleEn)).replace("{n}", s.questions.length),
+        confirmText: t("evalForm.delete"), danger: true,
+        onConfirm: async function () {
+          const r = await postJson("/api/admin/evaluation-form/sections/" + s.id + "/delete");
+          if (!r.ok) return showActionResult(false, t("evalForm.err.generic"));
+          await load(); render();
+        }
+      });
+    }
+    if (btn.hasAttribute("data-delete-question")) {
+      const q = findQuestion(Number(btn.getAttribute("data-delete-question")));
+      return showConfirmModal({
+        title: t("evalForm.deleteQuestionTitle"),
+        message: t("evalForm.deleteQuestionMsg").replace("{name}", pick(q.textTh, q.textEn)),
+        confirmText: t("evalForm.delete"), danger: true,
+        onConfirm: async function () {
+          const r = await postJson("/api/admin/evaluation-form/questions/" + q.id + "/delete");
+          if (!r.ok) return showActionResult(false, t("evalForm.err.generic"));
+          await load(); render();
+        }
+      });
+    }
+  });
+
+  byId("add-section-btn").addEventListener("click", function () {
+    if (editing) {
+      const open = byId("ef-editor");
+      if (open) open.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    openSectionEditor(null);
+  });
+
+  // An open editor is rebuilt on a language switch; keep what was typed.
+  document.addEventListener("odprs:langchange", function () {
+    const keep = {};
+    ["sec-th", "sec-en", "q-th", "q-en"].forEach(function (id) { const el = byId(id); if (el) keep[id] = el.value; });
+    const req = byId("q-required");
+    fillUnitSelect();
+    renderWindowExample();
+    render();
+    Object.keys(keep).forEach(function (id) { const el = byId(id); if (el) el.value = keep[id]; });
+    if (req && byId("q-required")) byId("q-required").checked = req.checked;
+  });
+
+  load().then(function () { renderWindow(); render(); });
+</script>
+</body>
+</html>

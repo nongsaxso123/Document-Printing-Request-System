@@ -8,6 +8,16 @@
 
     <div class="card filter-panel">
       <div class="card-body">
+        <div class="filter-top">
+          <span class="filter-top-title" data-i18n="auditLog.filterHint">กรองตามหมวด ผู้แก้ไข การดำเนินการ หรือช่วงวันที่</span>
+          <button type="button" class="btn btn-secondary filter-toggle" id="audit-filter-toggle" aria-expanded="false" aria-controls="audit-filter-body">
+              <span data-i18n="filter.toggle">ตัวกรอง</span>
+              <span class="filter-toggle-count" id="audit-filter-count" hidden></span>
+              <span class="icon filter-toggle-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+            </button>
+        </div>
+        <div class="filter-collapse" id="audit-filter-body">
+        <div class="filter-collapse-inner">
         <div class="filter-row">
           <div class="filter-group">
             <div class="filter-head"><span class="filter-label" data-i18n="filter.category">หมวด</span></div>
@@ -40,6 +50,8 @@
               <button type="button" id="filter-clear-btn" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
             </div>
           </div>
+        </div>
+        </div>
         </div>
       </div>
     </div>
@@ -87,12 +99,13 @@
     { id: "officer", types: "officer", label: "auditLog.type.officer" },
     { id: "settings", types: "settings", label: "auditLog.type.settings" },
     { id: "location", types: "location", label: "auditLog.type.location" },
-    { id: "agency", types: "agency_category,agency_unit", label: "auditLog.type.agency" },
+    { id: "unit", types: "unit_type,unit", label: "auditLog.type.unit" },
+    { id: "evaluation_form", types: "evaluation_form", label: "auditLog.type.evaluationForm" },
     { id: "system", types: "system", label: "auditLog.type.system" }
   ];
   const TYPE_LABEL = {
     officer: "auditLog.type.officer", settings: "auditLog.type.settings",
-    location: "auditLog.type.location", agency_category: "auditLog.type.agencyCategory", agency_unit: "auditLog.type.agency",
+    location: "auditLog.type.location", unit_type: "auditLog.type.unitType", unit: "auditLog.type.unit", evaluation_form: "auditLog.type.evaluationForm",
     system: "auditLog.type.system"
   };
 
@@ -108,16 +121,23 @@
     "location.archive": ["location", "auditLog.action.locationArchive"],
     "location.restore": ["location", "auditLog.action.locationRestore"],
     "location.delete": ["location", "auditLog.action.locationDelete"],
-    "agency_category.create": ["agency", "auditLog.action.agencyCategoryCreate"],
-    "agency_category.update": ["agency", "auditLog.action.agencyCategoryUpdate"],
-    "agency_category.archive": ["agency", "auditLog.action.agencyCategoryArchive"],
-    "agency_category.restore": ["agency", "auditLog.action.agencyCategoryRestore"],
-    "agency_category.delete": ["agency", "auditLog.action.agencyCategoryDelete"],
-    "agency_unit.create": ["agency", "auditLog.action.agencyUnitCreate"],
-    "agency_unit.update": ["agency", "auditLog.action.agencyUnitUpdate"],
-    "agency_unit.archive": ["agency", "auditLog.action.agencyUnitArchive"],
-    "agency_unit.restore": ["agency", "auditLog.action.agencyUnitRestore"],
-    "agency_unit.delete": ["agency", "auditLog.action.agencyUnitDelete"],
+    "unit_type.create": ["unit", "auditLog.action.unitTypeCreate"],
+    "unit_type.update": ["unit", "auditLog.action.unitTypeUpdate"],
+    "unit_type.archive": ["unit", "auditLog.action.unitTypeArchive"],
+    "unit_type.restore": ["unit", "auditLog.action.unitTypeRestore"],
+    "unit_type.delete": ["unit", "auditLog.action.unitTypeDelete"],
+    "unit.create": ["unit", "auditLog.action.unitCreate"],
+    "unit.update": ["unit", "auditLog.action.unitUpdate"],
+    "unit.archive": ["unit", "auditLog.action.unitArchive"],
+    "unit.restore": ["unit", "auditLog.action.unitRestore"],
+    "unit.delete": ["unit", "auditLog.action.unitDelete"],
+    "evaluation_form.window": ["evaluation_form", "auditLog.action.evalWindow"],
+    "evaluation_form.section_create": ["evaluation_form", "auditLog.action.evalSectionCreate"],
+    "evaluation_form.section_update": ["evaluation_form", "auditLog.action.evalSectionUpdate"],
+    "evaluation_form.section_delete": ["evaluation_form", "auditLog.action.evalSectionDelete"],
+    "evaluation_form.question_create": ["evaluation_form", "auditLog.action.evalQuestionCreate"],
+    "evaluation_form.question_update": ["evaluation_form", "auditLog.action.evalQuestionUpdate"],
+    "evaluation_form.question_delete": ["evaluation_form", "auditLog.action.evalQuestionDelete"],
     "backupSnapshot": ["system", "auditLog.action.backupSnapshot"],
     "backupUpload": ["system", "auditLog.action.backupUpload"],
     "backupRestore": ["system", "auditLog.action.backupRestore"],
@@ -140,11 +160,11 @@
       mapUrl: function () { return t("adminLocations.form.mapUrl"); },
       acceptsDropoff: function () { return t("adminLocations.form.acceptsDropoff"); },
       acceptsPickup: function () { return t("adminLocations.form.acceptsPickup"); },
-      isDefaultDropoff: function () { return t("adminLocations.badge.dropoff") + " · " + t("adminLocations.badge.default"); },
-      isDefaultPickup: function () { return t("adminLocations.badge.pickup") + " · " + t("adminLocations.badge.default"); },
+      isDefaultDropoff: function () { return t("adminLocations.badge.default") + " (" + t("adminLocations.badge.dropoff") + ")"; },
+      isDefaultPickup: function () { return t("adminLocations.badge.default") + " (" + t("adminLocations.badge.pickup") + ")"; },
       isActive: function () { return t("auditLog.field.isActive"); }
     },
-    agency: {
+    unit: {
       nameTh: function () { return t("auditLog.field.name") + " (TH)"; },
       nameEn: function () { return t("auditLog.field.name") + " (EN)"; },
       allowsFreeText: function () { return t("auditLog.field.allowsFreeText"); },
@@ -169,7 +189,7 @@
     system: {}
   };
   function fieldGroup(entityType) {
-    return entityType === "agency_category" || entityType === "agency_unit" ? "agency" : entityType;
+    return entityType === "unit_type" || entityType === "unit" ? "unit" : entityType;
   }
 
   const typeFilter = document.getElementById("type-filter");
@@ -197,7 +217,8 @@
   function fillActionOptions() {
     const keep = actionFilter.value;
     const cat = typeFilter.value;
-    const actions = Object.keys(ACTIONS).filter(function (a) { return !cat || ACTIONS[a][0] === cat; });
+    // backup* labels stay in ACTIONS for old log rows, but the feature is gone.
+    const actions = Object.keys(ACTIONS).filter(function (a) { return a.indexOf("backup") !== 0 && (!cat || ACTIONS[a][0] === cat); });
     actionFilter.innerHTML = '<option value="">' + escHtml(t("auditLog.filterAction.all")) + "</option>" +
       actions.map(function (a) { return '<option value="' + a + '">' + escHtml(t(ACTIONS[a][1])) + "</option>"; }).join("");
     actionFilter.value = actions.indexOf(keep) >= 0 ? keep : "";
@@ -333,6 +354,19 @@
   fromDateInput.addEventListener("change", onFilterChange);
   toDateInput.addEventListener("change", onFilterChange);
   document.getElementById("filter-clear-btn").addEventListener("click", clearFilters);
+
+  // Collapsible filter panel (initFilterCollapse in app.js).
+  initFilterCollapse({
+    toggle: "audit-filter-toggle", body: "audit-filter-body", badge: "audit-filter-count", key: "auditLog",
+    count: function () {
+      let n = 0;
+      if (typeFilter.value) n++;
+      if (actorFilter.value) n++;
+      if (actionFilter.value) n++;
+      if (document.getElementById("from-date").value || document.getElementById("to-date").value) n++;
+      return n;
+    }
+  });
   pageSizeSelect.addEventListener("change", onFilterChange);
   prevPageBtn.addEventListener("click", function () { currentPage--; loadAuditLog(); });
   nextPageBtn.addEventListener("click", function () { currentPage++; loadAuditLog(); });

@@ -1,11 +1,15 @@
 /**
  * Wipes all existing `requests`/`counters` rows and replaces them with
- * synthetic data spanning the last 3 calendar years up to today (partial
- * for the current year), capped at roughly 10,000 requests/year, to give
- * the officer dashboard a realistic multi-year dataset to render against.
+ * synthetic data spanning the last N calendar years up to today (partial
+ * for the current year, N = 3 unless --years=N is given), capped at roughly
+ * 10,000 requests/year, to give the officer dashboard a realistic multi-year
+ * dataset to render against. Older years get gradually fewer requests so a
+ * long span shows a trend.
  *
  * Does NOT touch the `officers` table.
- * Run: node scripts/generate-demo-data.js
+ * Run: node scripts/generate-demo-data.js [--years=20] [--keep]
+ *   --keep: delete nothing; only fill years that have no requests yet
+ *           (existing requests, evaluations and counters stay as they are).
  */
 
 const prisma = require("../src/prisma");
@@ -13,9 +17,9 @@ const businessDays = require("../src/businessDays");
 
 // ---------- static reference data ----------
 
-// Mirrors AGENCY_DATA in public/assets/js/app.js (kept in sync manually —
+// Mirrors UNIT_DATA in public/assets/js/app.js (kept in sync manually —
 // see file.md Appendix; this is demo-data-only, not read by the app itself).
-const AGENCY_DATA = {
+const UNIT_DATA = {
   "สำนักวิชา": [
     "สำนักวิชาศิลปศาสตร์ (School of Liberal Arts)",
     "สำนักวิชาวิทยาศาสตร์ (School of Science)",
@@ -90,7 +94,7 @@ const AGENCY_DATA = {
   ]
 };
 
-// Relative request-volume weight per agency category (sums to 100) — Schools
+// Relative request-volume weight per unit type (sums to 100) — Schools
 // and Academic Affairs realistically generate the most print jobs.
 const CATEGORY_WEIGHTS = [
   ["สำนักวิชา", 30],
@@ -204,21 +208,21 @@ function randomBusinessDayInRange(start, end) {
   return d;
 }
 
-// Populated once in main() from the real agency_categories/agency_units
-// tables (src/agencies.js) before any record is generated, so every
-// generated request gets real ids — not just the strings AGENCY_DATA above
-// mirrors — the same as a real submission through resolveAgency() would.
+// Populated once in main() from the real unit_types/units
+// tables (src/units.js) before any record is generated, so every
+// generated request gets real ids — not just the strings UNIT_DATA above
+// mirrors — the same as a real submission through resolveUnit() would.
 // Keyed exactly like the migration's own backfill: category by its Thai
 // name, unit by "<category>||<name_th> (<name_en>)" (the same concatenation
-// AGENCY_DATA already uses, so a lookup miss only happens for the
+// UNIT_DATA already uses, so a lookup miss only happens for the
 // "หน่วยงานอื่นๆ" free-text category, which has no real unit rows at all —
-// same as a real free-text submission, its agencyUnitId is correctly null).
+// same as a real free-text submission, its unitId is correctly null).
 let CATEGORY_ID_BY_NAME = {};
 let UNIT_ID_BY_NAME = {};
 
-async function loadAgencyIds() {
-  const categories = await prisma.agencyCategory.findMany();
-  const units = await prisma.agencyUnit.findMany();
+async function loadUnitIds() {
+  const categories = await prisma.unitType.findMany();
+  const units = await prisma.unit.findMany();
   const categoryNameById = {};
   categories.forEach((c) => {
     CATEGORY_ID_BY_NAME[c.nameTh] = c.id;
@@ -230,9 +234,9 @@ async function loadAgencyIds() {
   });
 }
 
-function pickAgency() {
+function pickUnit() {
   const category = weightedPick(CATEGORY_WEIGHTS);
-  const unit = pick(AGENCY_DATA[category]);
+  const unit = pick(UNIT_DATA[category]);
   return {
     category, unit,
     categoryId: CATEGORY_ID_BY_NAME[category] || null,
@@ -321,7 +325,7 @@ function fullYearTarget() {
 // ---------- record generation ----------
 
 function generateRecord(submissionDate, now) {
-  const { category, unit, categoryId, unitId } = pickAgency();
+  const { category, unit, categoryId, unitId } = pickUnit();
   const documentType = pickDocumentType(category);
   const paperSource = pickPaperSource(documentType);
   const originalPages = pickPages();
@@ -341,7 +345,7 @@ function generateRecord(submissionDate, now) {
 
   const record = {
     requesterEmail, requesterName, requesterTel,
-    agencyCategory: category, agencyUnit: unit, agencyCategoryId: categoryId, agencyUnitId: unitId,
+    unitType: category, unit: unit, unitTypeId: categoryId, unitId: unitId,
     paperSize, colorMode, printSide, finishingMethods,
     documentType, paperSource,
     copyLabelEnabled: false, copyLabelMode: null, copyLabelPrefix: null, copyLabelStart: null, copyLabelManual: [],
@@ -355,6 +359,8 @@ function generateRecord(submissionDate, now) {
     rejectionReason: null,
     receiverName: null, receiverPosition: null, receiverWorkplace: null, receiverWorkPhone: null,
     completedTimestamp: null,
+    rejectedAt: null, cancelledAt: null, readyAt: null,
+    markedReadyByOfficerEmail: null, markedReadyByOfficerName: null,
     _needsRunNumber: false
   };
 
@@ -363,6 +369,7 @@ function generateRecord(submissionDate, now) {
     record.reviewedByOfficerEmail = officer.email;
     record.reviewedByOfficerName = officer.name;
     record.rejectionReason = pick(REJECTION_REASONS);
+    record.rejectedAt = new Date(submissionDate.getTime() + randomInt(1, 6) * 3600 * 1000);
     return record;
   }
 
@@ -376,6 +383,18 @@ function generateRecord(submissionDate, now) {
   record.originalDocReceivedTimestamp = new Date(submissionDate.getTime() + randomInt(1, 6) * 3600 * 1000);
   record.appointmentDateConfirmed = appointmentDateProposed;
   record._needsRunNumber = true;
+
+  if (status === "READY_FOR_PICKUP" || status === "COMPLETED") {
+    // Printed the business day before the appointment, never before approval.
+    const ready = new Date(record.appointmentDateConfirmed);
+    ready.setDate(ready.getDate() - 1);
+    ready.setHours(randomInt(10, 15), randomInt(0, 59), 0, 0);
+    record.readyAt = ready > record.originalDocReceivedTimestamp
+      ? ready : new Date(record.originalDocReceivedTimestamp.getTime() + 2 * 3600 * 1000);
+    const printer = pickOfficer();
+    record.markedReadyByOfficerEmail = printer.email;
+    record.markedReadyByOfficerName = printer.name;
+  }
 
   if (status === "COMPLETED") {
     const handoverOfficer = pickOfficer();
@@ -398,20 +417,32 @@ function generateRecord(submissionDate, now) {
 async function main() {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const years = [currentYear - 2, currentYear - 1, currentYear];
+  const arg = process.argv.find((a) => a.startsWith("--years="));
+  const span = Math.min(50, Math.max(1, Number(arg ? arg.slice(8) : 3) || 3));
+  let years = Array.from({ length: span }, (_, i) => currentYear - span + 1 + i);
+  const keep = process.argv.includes("--keep");
 
-  await loadAgencyIds();
+  await loadUnitIds();
 
-  console.log("Deleting existing requests/counters...");
-  await prisma.request.deleteMany({});
-  await prisma.counter.deleteMany({});
+  if (keep) {
+    const have = await prisma.$queryRaw`SELECT DISTINCT EXTRACT(YEAR FROM submission_date)::int AS y FROM requests`;
+    const taken = new Set(have.map((x) => Number(x.y)));
+    years = years.filter((y) => !taken.has(y));
+    console.log(`Keeping existing requests (years ${Array.from(taken).sort().join(", ") || "none"}); filling ${years.join(", ") || "nothing"}.`);
+  } else {
+    console.log("Deleting existing requests/counters...");
+    await prisma.request.deleteMany({});
+    await prisma.counter.deleteMany({});
+  }
 
   const records = [];
   for (const year of years) {
     const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
     const yearEnd = year === currentYear ? now : new Date(year, 11, 31, 23, 59, 59, 999);
     const elapsedFraction = year === currentYear ? dayOfYear(now) / 365 : 1;
-    const target = Math.max(1, Math.round(fullYearTarget() * elapsedFraction));
+    // about 2.5% fewer requests per year back, never below half
+    const growth = Math.max(0.5, 1 - 0.025 * (currentYear - year));
+    const target = Math.max(1, Math.round(fullYearTarget() * growth * elapsedFraction));
 
     for (let i = 0; i < target; i++) {
       const submissionDate = randomBusinessDayInRange(yearStart, yearEnd);

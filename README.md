@@ -10,7 +10,7 @@ Requesters can submit a request, choose where to drop off the originals and wher
 
 Officers get a queue of requests to approve or reject, a printing jobs page, a handover page, history, and a dashboard that sums up paper usage for reporting. A kiosk page can be left open at the counter so people collecting documents can type in their claim code themselves.
 
-Admins manage officers, departments and pickup/drop-off locations from inside the app, can schedule a maintenance window in advance, see an audit log of who did what, and back up or restore all data on their own.
+Admins manage officers, departments and pickup/drop-off locations from inside the app, can schedule a maintenance window in advance and see an audit log of who did what.
 
 ## Built with
 
@@ -48,7 +48,7 @@ Go to http://localhost:3000. While developing, the server restarts by itself whe
 
 For sample data to look at on the dashboard, run `docker compose exec app node scripts/generate-demo-data.js`. Be careful: it deletes every existing request first.
 
-To change the database structure, edit `server/prisma/schema.prisma` and run `docker compose exec app npx prisma migrate dev --name <name>`. If you add a new table, also add it to `MODEL_ORDER` in `server/src/backup.js`, otherwise backups will refuse to run.
+To change the database structure, edit `server/prisma/schema.prisma` and run `docker compose exec app npx prisma migrate dev --name <name>`.
 
 ## Putting it on a server
 
@@ -56,6 +56,6 @@ It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough. Install 
 
 ## About the data
 
-Everything is stored in the database. PDFs aren't kept; they're generated again each time someone downloads one. Admins can back up and restore from the backup page. Backup files sit on the same server as the app, so it's a good idea to download a copy somewhere else every so often.
+Everything is stored in the database. PDFs aren't kept; they're generated again each time someone downloads one. University IT backs up the database daily; the app has no backup or restore page of its own.
 
-`server/.env` contains secrets. It isn't part of the backups and should never be committed to Git.
+`server/.env` contains secrets and should never be committed to Git.

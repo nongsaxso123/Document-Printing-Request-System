@@ -1,25 +1,20 @@
 /**
  * Factory defaults for the reference data the system can't run without:
- * agency categories/units (profile + request form), a drop-off/pickup place
+ * unit types/units (profile + request form), a drop-off/pickup place
  * (request form + "ready" step) and the system settings row.
  *
  * ensureDefaults() fills any of these that are *empty* and never touches a
  * table that already has rows — so whatever an Admin has edited stays
- * as it is. It runs:
- *   - right after "clear all data" (src/backup.js clearAll), so a cleared
- *     system is immediately usable again;
- *   - after a backup file is loaded, in case the file's tables were empty
- *     (e.g. a file made before these tables existed);
- *   - once at startup (src/app.js), for a brand-new empty database.
+ * as it is. It runs once at startup (src/app.js), for a brand-new empty database.
  *
- * The lists match what the add_agencies / add_locations migrations seeded
+ * The lists match what the add_units / add_locations migrations seeded
  * originally. Everything here is ordinary data afterwards — editable,
  * archivable and deletable from the admin pages like anything else.
  */
 
 const SETTINGS_ID = 1;
 
-const DEFAULT_AGENCY_CATEGORIES = [
+const DEFAULT_UNIT_TYPES = [
   {
     nameTh: "สำนักวิชา", nameEn: "School", allowsFreeText: false,
     units: [
@@ -153,23 +148,23 @@ const DEFAULT_SETTINGS = {
 };
 
 // Works with either the Prisma client or a transaction client. Returns the
-// names of the groups it filled, e.g. ["agencies", "locations"].
+// names of the groups it filled, e.g. ["units", "locations"].
 async function ensureDefaults(db) {
   const filled = [];
 
-  if ((await db.agencyCategory.count()) === 0) {
-    for (let i = 0; i < DEFAULT_AGENCY_CATEGORIES.length; i++) {
-      const c = DEFAULT_AGENCY_CATEGORIES[i];
-      const category = await db.agencyCategory.create({
+  if ((await db.unitType.count()) === 0) {
+    for (let i = 0; i < DEFAULT_UNIT_TYPES.length; i++) {
+      const c = DEFAULT_UNIT_TYPES[i];
+      const category = await db.unitType.create({
         data: { nameTh: c.nameTh, nameEn: c.nameEn, allowsFreeText: c.allowsFreeText, sortOrder: i + 1 }
       });
       if (c.units.length) {
-        await db.agencyUnit.createMany({
+        await db.unit.createMany({
           data: c.units.map(([nameTh, nameEn], j) => ({ categoryId: category.id, nameTh, nameEn, sortOrder: j + 1 }))
         });
       }
     }
-    filled.push("agencies");
+    filled.push("units");
   }
 
   if ((await db.location.count()) === 0) {
@@ -185,4 +180,4 @@ async function ensureDefaults(db) {
   return filled;
 }
 
-module.exports = { ensureDefaults, DEFAULT_AGENCY_CATEGORIES, DEFAULT_LOCATION };
+module.exports = { ensureDefaults, DEFAULT_UNIT_TYPES, DEFAULT_LOCATION };

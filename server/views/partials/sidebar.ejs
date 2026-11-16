@@ -29,8 +29,11 @@
       <a class="nav-item <%= active === "adminLocations" ? "active" : "" %>" href="/admin/locations">
         <span class="icon" data-icon="map-pin"><%- icon('map-pin') %></span> <span data-i18n="nav.adminLocations">สถานที่รับ-ส่งเอกสาร</span>
       </a>
-      <a class="nav-item <%= active === "adminAgencies" ? "active" : "" %>" href="/admin/agencies">
-        <span class="icon" data-icon="package"><%- icon('package') %></span> <span data-i18n="nav.adminAgencies">หน่วยงาน</span>
+      <a class="nav-item <%= active === "adminUnits" ? "active" : "" %>" href="/admin/units">
+        <span class="icon" data-icon="package"><%- icon('package') %></span> <span data-i18n="nav.adminUnits">หน่วยงาน</span>
+      </a>
+      <a class="nav-item <%= active === "adminEvaluationForm" ? "active" : "" %>" href="/admin/evaluation-form">
+        <span class="icon" data-icon="star"><%- icon('star') %></span> <span data-i18n="nav.adminEvaluationForm">แบบประเมิน</span>
       </a>
       <a class="nav-item <%= active === "adminManuals" ? "active" : "" %>" href="/admin/manuals">
         <span class="icon" data-icon="book-open"><%- icon('book-open') %></span> <span data-i18n="nav.adminManuals">คู่มือการใช้งาน</span>
@@ -86,11 +89,16 @@
   </div>
   <% } %>
 
-  <% if (user.role === "Admin") { %>
-  <div class="nav-footer">
-    <a class="nav-item <%= active === "adminBackup" ? "active" : "" %>" href="/admin/backup">
-      <span class="icon" data-icon="database"><%- icon('database') %></span> <span data-i18n="nav.adminBackup">สำรองและกู้คืนข้อมูล</span>
-    </a>
+
+  <%# Where the floating manuals button goes when hidden: one ordinary nav
+      row (so the icon-only rail handles it like any other item). It opens
+      #manual-dock-pop (partials/header.ejs) beside the sidebar. Shown only
+      while <html> has .manual-fab-docked — see initManualFab in app.js. %>
+  <% if (typeof sidebarManuals !== "undefined" && sidebarManuals.length) { %>
+  <div class="nav-manual-dock">
+    <button type="button" class="nav-item nav-manual-dock-btn" id="nav-manual-dock-btn" aria-haspopup="true" aria-expanded="false" aria-controls="manual-dock-pop" data-i18n-title="nav.manuals" title="คู่มือการใช้งาน">
+      <span class="icon" data-icon="book-open"><%- icon('book-open') %></span> <span data-i18n="nav.manuals">คู่มือการใช้งาน</span>
+    </button>
   </div>
   <% } %>
 </aside>

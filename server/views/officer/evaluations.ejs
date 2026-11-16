@@ -22,31 +22,30 @@
     </div>
 
     <div id="tab-panel-overview">
-      <div class="stat-grid">
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="evalReport.kpi.totalEvaluated">จำนวนที่ได้รับการประเมิน</div>
-            <div class="stat-value" id="kpi-total-evaluated">—</div>
+      <!-- Row 1: headline (core question) + the three counts -->
+      <div class="er-top">
+        <div class="card er-hero" id="er-hero"></div>
+        <div class="card er-kpis">
+          <div class="er-kpi">
+            <span class="er-kpi-label" data-i18n="evalReport.kpi.totalEvaluated">จำนวนที่ได้รับการประเมิน</span>
+            <span class="er-kpi-value" id="kpi-total-evaluated">—</span>
           </div>
-        </div>
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="evalReport.kpi.totalCompleted">จำนวนคำขอที่เสร็จสมบูรณ์</div>
-            <div class="stat-value" id="kpi-total-completed">—</div>
+          <div class="er-kpi">
+            <span class="er-kpi-label" data-i18n="evalReport.kpi.totalCompleted">จำนวนคำขอที่เสร็จสมบูรณ์</span>
+            <span class="er-kpi-value" id="kpi-total-completed">—</span>
           </div>
-        </div>
-        <div class="card stat-tile">
-          <div class="card-body">
-            <div class="stat-label" data-i18n="evalReport.kpi.totalWithComments">จำนวนที่มีความคิดเห็น</div>
-            <div class="stat-value" id="kpi-total-with-comments">—</div>
+          <div class="er-kpi">
+            <span class="er-kpi-label" data-i18n="evalReport.kpi.totalWithComments">จำนวนที่มีความคิดเห็น</span>
+            <span class="er-kpi-value" id="kpi-total-with-comments">—</span>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><span data-i18n="evalReport.scoresTitle">คะแนนเฉลี่ยแยกตามหัวข้อ (เต็ม 5)</span></div>
+      <!-- Row 2: every question of the form, grouped by section -->
+      <div class="card er-results">
+        <div class="card-header"><span data-i18n="evalReport.resultsTitle">ผลการประเมินแยกตามหัวข้อ</span></div>
         <div class="card-body">
-          <div class="stat-grid scores-grid" id="scores-grid"></div>
+          <div id="scores-grid"></div>
         </div>
       </div>
 
@@ -80,17 +79,39 @@
     <div id="tab-panel-list" hidden>
       <div class="card filter-panel">
         <div class="card-body">
-          <div class="filter-search">
-            <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
-            <input type="text" id="eval-search-input" data-i18n-placeholder="evalReport.searchPlaceholder"
-                   placeholder="เลขอ้างอิง, ชื่อผู้ขอ, หรือคำในความคิดเห็น">
+          <div class="filter-top">
+            <div class="filter-search">
+              <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+              <input type="text" id="eval-search-input" data-i18n-placeholder="evalReport.searchPlaceholder"
+                     placeholder="เลขอ้างอิง, ชื่อผู้ขอ, หรือคำในความคิดเห็น">
+            </div>
+            <button type="button" class="btn btn-secondary filter-toggle" id="eval-filter-toggle" aria-expanded="false" aria-controls="eval-filter-body">
+              <span data-i18n="filter.toggle">ตัวกรอง</span>
+              <span class="filter-toggle-count" id="eval-filter-count" hidden></span>
+              <span class="icon filter-toggle-chevron" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+            </button>
           </div>
 
+          <!-- Filters slide open/closed under the search (filterPanel in the script). -->
+          <div class="filter-collapse" id="eval-filter-body">
+          <div class="filter-collapse-inner">
           <div class="filter-row">
             <div class="filter-group">
-              <div class="filter-head"><span class="filter-label" data-i18n="filter.month">เดือน</span></div>
-              <div class="filter-controls">
+              <div class="filter-head">
+                <span class="filter-label" data-i18n="dashboard.filter.period">ช่วงเวลา</span>
+                <label class="filter-switch">
+                  <input type="checkbox" id="eval-range-toggle">
+                  <span data-i18n="dashboard.dateMode.custom">กำหนดช่วงวันที่เอง</span>
+                </label>
+              </div>
+              <div id="eval-month-fields" class="filter-controls">
                 <select id="eval-month-filter" class="toolbar-select"></select>
+              </div>
+              <div id="eval-range-fields" class="filter-controls" hidden>
+                <input type="date" id="eval-from-date" class="toolbar-select" aria-label="From">
+                <span class="filter-to" data-i18n="dashboard.dateMode.rangeTo">ถึง</span>
+                <input type="date" id="eval-to-date" class="toolbar-select" aria-label="To">
+                <button type="button" id="eval-range-clear" class="filter-clear" data-i18n="dashboard.dateMode.clear">ล้าง</button>
               </div>
             </div>
 
@@ -113,6 +134,8 @@
                 </label>
               </div>
             </div>
+          </div>
+          </div>
           </div>
         </div>
       </div>
@@ -161,13 +184,13 @@
   // Same server-side aggregation/pagination philosophy as dashboard.ejs and
   // history.ejs — the browser only ever handles a KPI summary object or one
   // page's worth of feedback rows, never every evaluation row at once.
-  const RATING_DIMENSIONS = [
-    { field: "ratingStaffService", labelKey: "evaluate.q.staffService", icon: "user-check" },
-    { field: "ratingSystemEase", labelKey: "evaluate.q.systemEase", icon: "clipboard" },
-    { field: "ratingSpeed", labelKey: "evaluate.q.speed", icon: "clock" },
-    { field: "ratingPrintQuality", labelKey: "evaluate.q.printQuality", icon: "printer" },
-    { field: "ratingOverall", labelKey: "evaluate.q.overall", icon: "star" }
-  ];
+  // The questions come from the admin's form (/admin/evaluation-form), so
+  // everything below is built from the summary/records the API returns.
+  function pick(th, en) { return getLang() === "en" && en ? en : th; }
+  function fmtAvg(v) { return v == null ? "—" : Number(v).toFixed(1); }
+  // Each evaluation's score: the average of its 1-5 answers.
+  function coreOf(r) { return r.averageRating; }
+  function fmtScore(v) { return v == null ? "—" : (Number.isInteger(v) ? String(v) : Number(v).toFixed(1)); }
 
   // Green/amber/red tiers on the score bar give an at-a-glance read on which
   // dimensions need attention, without requiring the officer to compare raw
@@ -253,7 +276,152 @@
     document.getElementById("kpi-total-with-comments").textContent = formatNumber(summary.totalWithComments);
   }
 
+  // Plain-words label for a 1-5 average, matching the colour tiers.
+  function tierLabel(v) {
+    if (v >= 4.5) return t("evalReport.tier.excellent");
+    if (v >= 4) return t("evalReport.tier.good");
+    if (v >= 3) return t("evalReport.tier.fair");
+    return t("evalReport.tier.low");
+  }
+
+  function starsHtml(v) {
+    let html = "";
+    for (let i = 1; i <= 5; i++) {
+      const fill = Math.max(0, Math.min(1, v - (i - 1)));
+      html += '<span class="er-star"><span class="er-star-fill" style="width:' + Math.round(fill * 100) + '%">★</span>★</span>';
+    }
+    return html;
+  }
+
+  // Headline card: average satisfaction of the period (each respondent's own
+  // average, averaged), with the spread of every 1-5 answer given.
+  function renderHero() {
+    const box = document.getElementById("er-hero");
+    const core = summary.overall;
+    if (!core || !core.count) {
+      box.innerHTML = '<div class="card-body er-hero-empty">' +
+        '<div class="er-hero-label">' + escapeHtml(t("evalReport.overallTitle")) + '</div>' +
+        '<div class="empty-state">' + escapeHtml(t("evalReport.noData")) + '</div></div>';
+      return;
+    }
+    const spread = core.spread || [0, 0, 0, 0, 0];
+    const answers = spread.reduce(function (a, b) { return a + b; }, 0);
+    const bars = [5, 4, 3, 2, 1].map(function (n) {
+      const c = spread[n - 1];
+      const pct = answers ? Math.round((c / answers) * 100) : 0;
+      return '<div class="er-dist-row">' +
+        '<span class="er-dist-n">' + n + ' ★</span>' +
+        '<span class="er-dist-track"><span class="er-dist-fill er-dist-' + n + '" style="width:' + pct + '%"></span></span>' +
+        '<span class="er-dist-num">' + pct + '%</span>' +
+        '</div>';
+    }).join("");
+    box.innerHTML = '<div class="card-body er-hero-body">' +
+      '<div class="er-hero-score ' + scoreTier(core.average) + '">' +
+        '<div class="er-hero-label">' + escapeHtml(t("evalReport.overallTitle")) + '</div>' +
+        '<div class="er-hero-num">' + core.average.toFixed(1) + '<span class="er-hero-of">/ 5</span></div>' +
+        '<div class="er-stars" aria-hidden="true">' + starsHtml(core.average) + '</div>' +
+        '<div class="er-hero-tier"><span class="er-tier-pill">' + escapeHtml(tierLabel(core.average)) + '</span>' +
+          '<span>' + escapeHtml(t("evalReport.peopleCount").replace("{n}", formatNumber(core.count))) + '</span></div>' +
+      '</div>' +
+      '<div class="er-dist">' + bars + '</div>' +
+      '</div>';
+  }
+
+  // "120 of 300 people", plus when the question was added or removed during
+  // the period (so a smaller count isn't mistaken for low interest).
+  // Only shown when it tells something: when not everyone answered this
+  // question (optional, or added/removed during the period). A question
+  // everybody answered gets no extra line, so the list stays clean.
+  function reachLine(q) {
+    const lang = getLang();
+    const everyone = q.count >= summary.totalEvaluated && !q.addedAt && !q.removedAt;
+    if (everyone) return "";
+    const parts = ['<span>' + escapeHtml(t("evalReport.reach").replace("{n}", formatNumber(q.count)).replace("{total}", formatNumber(summary.totalEvaluated))) + '</span>'];
+    if (q.addedAt) parts.push('<span class="er-change">' + escapeHtml(t("evalReport.addedOn").replace("{date}", lang === "en" ? formatDateEn(new Date(q.addedAt)) : formatDateThai(new Date(q.addedAt)))) + '</span>');
+    if (q.removedAt) parts.push('<span class="er-change">' + escapeHtml(t("evalReport.removedOn").replace("{date}", lang === "en" ? formatDateEn(new Date(q.removedAt)) : formatDateThai(new Date(q.removedAt)))) + '</span>');
+    return '<span class="er-row-count">' + parts.join("") + '</span>';
+  }
+
+  // One row per rating question: label | stacked bar | average. The bar is
+  // the whole group of people who answered, split 1 → 5 from left to right
+  // (red, gray, blue); each part's width is its share. Hovering a part names it.
+  function likertSegment(n, c, total) {
+    if (!total || !c) return "";
+    const share = c / total;
+    const pct = Math.round(share * 100);
+    const tip = t("evalReport.likert." + n) + ": " + t("evalReport.likertTip").replace("{n}", formatNumber(c)).replace("{pct}", pct);
+    return '<span class="lk lk-' + n + '" style="flex-grow:' + c + '" title="' + escapeHtml(tip) + '"></span>';
+  }
+  function likertBar(q) {
+    const sp = q.spread || [0, 0, 0, 0, 0];
+    const total = sp.reduce(function (a, b) { return a + b; }, 0);
+    const happy = total ? Math.round(((sp[3] + sp[4]) / total) * 100) : 0;
+    const label = t("evalReport.likertAria").replace("{pct}", happy);
+    return '<div class="er-likert" role="img" aria-label="' + escapeHtml(label) + '">' +
+      [1, 2, 3, 4, 5].map(function (n) { return likertSegment(n, sp[n - 1], total); }).join("") +
+      '</div>';
+  }
+
+  function ratingRow(q) {
+    return '<div class="er-row">' +
+      '<div class="er-row-label">' + escapeHtml(pick(q.textTh, q.textEn)) + reachLine(q) + '</div>' +
+      likertBar(q) +
+      '<div class="er-row-score">' + (q.count ? q.average.toFixed(1) : "—") + '</div>' +
+      '</div>';
+  }
+
+  // Legend + side captions, once above all rating rows.
+  function likertLegend() {
+    const items = [1, 2, 3, 4, 5].map(function (n) {
+      return '<span class="er-legend-item"><span class="lk-swatch lk-' + n + '"></span>' + escapeHtml(n + " " + t("evalReport.likert." + n)) + '</span>';
+    }).join("");
+    return '<div class="er-likert-head">' +
+      '<div class="er-legend">' + items + '</div>' +
+      '<div class="er-row er-row-captions"><span></span>' +
+        '<div class="er-likert-captions"><span>' + escapeHtml(t("evalReport.likertLow")) + '</span><span>' + escapeHtml(t("evalReport.likertHigh")) + '</span></div>' +
+        '<span class="er-row-score-cap">' + escapeHtml(t("evalReport.avgShort")) + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // Single/multi: one bar per choice, against the number of people who
+  // answered the question (multi can add up to more than 100%).
+  function choiceBlock(q) {
+    const total = q.count || 0;
+    const rows = (q.options || []).map(function (o) {
+      const pct = total ? Math.round((o.count / total) * 100) : 0;
+      return '<div class="er-opt">' +
+        '<span class="er-opt-label">' + escapeHtml(pick(o.th, o.en)) + (o.removed ? ' <span class="er-removed">' + escapeHtml(t("evalReport.removedOption")) + '</span>' : "") + '</span>' +
+        '<span class="er-opt-track"><span class="er-opt-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="er-opt-num">' + formatNumber(o.count) + ' <small>(' + pct + '%)</small></span>' +
+        '</div>';
+    }).join("");
+    return '<div class="er-block">' +
+      '<div class="er-block-head"><span class="er-block-title">' + escapeHtml(pick(q.textTh, q.textEn)) + '</span>' +
+      '<span class="er-block-meta"><span class="er-type-pill">' + escapeHtml(t("evalForm.type." + q.type)) + '</span>' + reachLine(q) + '</span></div>' +
+      rows + '</div>';
+  }
+
+  function textBlock(q) {
+    return '<div class="er-block er-block-text">' +
+      '<div><span class="er-block-title">' + escapeHtml(pick(q.textTh, q.textEn)) + '</span>' +
+      '<span class="er-block-meta">' + reachLine(q) + '</span></div>' +
+      (q.count ? '<button type="button" class="er-read-btn" data-read-comments>' + escapeHtml(t("evalReport.readAnswers")) + ' ›</button>' : "") +
+      '</div>';
+  }
+
+  function sectionResults(title, questions) {
+    const ratings = questions.filter(function (q) { return q.type === "rating"; });
+    const others = questions.filter(function (q) { return q.type !== "rating"; });
+    return '<section class="er-section">' +
+      (title ? '<h3 class="er-section-title">' + escapeHtml(title) + '</h3>' : "") +
+      (ratings.length ? '<div class="er-rows">' + ratings.map(ratingRow).join("") + '</div>' : "") +
+      others.map(function (q) { return q.type === "text" ? textBlock(q) : choiceBlock(q); }).join("") +
+      '</section>';
+  }
+
   function renderScoresGrid() {
+    renderHero();
     const container = document.getElementById("scores-grid");
 
     if (summary.totalEvaluated === 0) {
@@ -261,18 +429,18 @@
       return;
     }
 
-    container.innerHTML = RATING_DIMENSIONS.map(function (dim) {
-      const value = summary.averages[dim.field];
-      const label = t(dim.labelKey).replace(" *", "");
-      const pct = Math.round((value / 5) * 100);
-      return '<div class="card stat-tile ' + scoreTier(value) + '">' +
-        '<div class="card-body">' +
-        '<div class="score-card-header"><span class="icon" data-icon="' + dim.icon + '"></span><span class="stat-label" style="margin-bottom:0;">' + label + '</span></div>' +
-        '<div class="stat-value">' + value.toFixed(1) + ' / 5.0</div>' +
-        '<div class="score-card-bar-track"><div class="score-card-bar-fill" style="width:' + pct + '%"></div></div>' +
-        '</div></div>';
+    const anyRating = (summary.sections || []).some(function (sec) { return sec.questions.some(function (q) { return q.type === "rating"; }); });
+    let html = (anyRating ? likertLegend() : "") + (summary.sections || []).filter(function (sec) { return sec.questions.length; }).map(function (sec) {
+      return sectionResults(pick(sec.titleTh, sec.titleEn), sec.questions);
     }).join("");
-
+    // Questions deleted from the form but answered in this period.
+    if ((summary.removed || []).length) {
+      html += '<details class="er-removed-group"><summary>' + escapeHtml(t("evalReport.removedQuestions").replace("{n}", summary.removed.length)) + '</summary>' +
+        sectionResults("", summary.removed.map(function (q) {
+          return Object.assign({}, q, { textTh: q.sectionTitleTh + " › " + q.textTh, textEn: (q.sectionTitleEn || q.sectionTitleTh) + " › " + (q.textEn || q.textTh) });
+        })) + '</details>';
+    }
+    container.innerHTML = html || '<div class="empty-state">' + t("evalReport.noData") + '</div>';
     applyIcons();
   }
 
@@ -332,11 +500,9 @@
       const submitted = new Date(r.submittedAt);
       // Only the sub-scores that were rated low (1-3) — the ones that explain
       // the comment. A clean 4-5 across the board shows no chips at all.
-      const lowDims = RATING_DIMENSIONS.filter(function (dim) {
-        return dim.field !== "ratingOverall" && r[dim.field] <= 3;
-      }).map(function (dim) {
-        return '<span class="feed-dim ' + scoreTier(r[dim.field]) + '">' + escapeHtml(t(dim.labelKey).replace(" *", "")) +
-          ' <strong>' + r[dim.field] + '/5</strong></span>';
+      const lowDims = (r.ratings || []).filter(function (a) { return a.rating <= 3; }).map(function (a) {
+        return '<span class="feed-dim ' + scoreTier(a.rating) + '">' + escapeHtml(pick(a.th, a.en)) +
+          ' <strong>' + a.rating + '/5</strong></span>';
       }).join("");
 
       return '<article class="feed-item">' +
@@ -354,9 +520,9 @@
             lowDims +
           '</div>' +
         '</div>' +
-        '<div class="feed-score ' + scoreTier(r.ratingOverall) + '" title="' + escapeHtml(t("evaluate.q.overall")) + '">' +
+        '<div class="feed-score ' + scoreTier(coreOf(r) || 0) + '" title="' + escapeHtml(t("evalReport.th.overall")) + '">' +
           '<span class="feed-score-star">★</span>' +
-          '<span class="feed-score-num">' + r.ratingOverall + '</span>' +
+          '<span class="feed-score-num">' + fmtScore(coreOf(r)) + '</span>' +
           '<span class="feed-score-max">/5</span>' +
         '</div>' +
       '</article>';
@@ -388,8 +554,7 @@
     const pageSize = Number(pageSizeSelect.value);
 
     const params = new URLSearchParams();
-    if (yearFilter.value) params.set("year", yearFilter.value);
-    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    addPeriodParams(params);
     if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
     if (hasCommentFilter.checked) params.set("hasComment", "1");
     if (sortFilter.value === "lowest") params.set("sort", "lowest");
@@ -425,9 +590,9 @@
 
     tbody.innerHTML = data.records.map(function (r) {
       const idLabel = r.runNumber ? (r.runNumber + " / " + r.referenceNo) : r.referenceNo;
-      const breakdown = RATING_DIMENSIONS.map(function (dim) {
-        return t(dim.labelKey).replace(" *", "") + ": " + r[dim.field];
-      }).join("\n");
+      const breakdown = (r.ratings || []).map(function (a) {
+        return pick(a.th, a.en) + ": " + a.rating;
+      }).concat(r.averageRating != null ? [t("evalReport.avgAll") + ": " + fmtAvg(r.averageRating)] : []).join("\n");
       // Requester-typed text — escaped before it goes into innerHTML.
       const comment = r.comment ? escapeHtml(r.comment) : ('<span class="hint">' + t("evalReport.noComment") + '</span>');
       const officerLabel = escapeHtml(r.officerName || "—");
@@ -437,7 +602,7 @@
         '<td>' + escapeHtml(r.requesterName) + '</td>' +
         '<td>' + escapeHtml(r.itemList) + '</td>' +
         '<td>' + officerLabel + '</td>' +
-        '<td title="' + escapeHtml(breakdown) + '">' + r.ratingOverall + ' / 5</td>' +
+        '<td title="' + escapeHtml(breakdown) + '"><span class="er-cell-score ' + scoreTier(coreOf(r) || 0) + '">' + fmtScore(coreOf(r)) + '</span> <span class="hint">/ 5</span></td>' +
         '<td>' + comment + '</td>' +
         '<td>' + formatDateTime(new Date(r.submittedAt), lang) + '</td>' +
         '</tr>';
@@ -448,6 +613,56 @@
     currentPage = 1;
     renderTable();
   }
+
+  // Period for the list and the Excel export: a custom from/to range when
+  // the switch is on (then the year above and the month are ignored),
+  // otherwise the year above + month.
+  const rangeToggle = document.getElementById("eval-range-toggle");
+  const fromDateInput = document.getElementById("eval-from-date");
+  const toDateInput = document.getElementById("eval-to-date");
+  function addPeriodParams(params) {
+    if (rangeToggle.checked && (fromDateInput.value || toDateInput.value)) {
+      if (fromDateInput.value) params.set("fromDate", fromDateInput.value);
+      if (toDateInput.value) params.set("toDate", toDateInput.value);
+      return;
+    }
+    if (yearFilter.value) params.set("year", yearFilter.value);
+    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+  }
+  function onRangeToggle() {
+    document.getElementById("eval-month-fields").hidden = rangeToggle.checked;
+    document.getElementById("eval-range-fields").hidden = !rangeToggle.checked;
+    onFilterChange();
+  }
+  rangeToggle.addEventListener("change", onRangeToggle);
+
+  // ---- collapsible filter panel ----
+  // Closed by default; the button shows how many filters are on so a closed
+  // panel never hides the fact that the list is filtered.
+  const filterPanel = initFilterCollapse({
+    toggle: "eval-filter-toggle", body: "eval-filter-body", badge: "eval-filter-count", key: "evaluations",
+    count: function () {
+      let n = 0;
+      if (rangeToggle.checked ? (fromDateInput.value || toDateInput.value) : monthFilter.value !== "") n++;
+      if (sortFilter.value !== "recent") n++;
+      if (hasCommentFilter.checked) n++;
+      return n;
+    }
+  });
+  function syncFilterCount() { filterPanel.sync(); }
+  fromDateInput.addEventListener("change", function () {
+    if (toDateInput.value && fromDateInput.value > toDateInput.value) toDateInput.value = fromDateInput.value;
+    toDateInput.min = fromDateInput.value;
+    onFilterChange();
+  });
+  toDateInput.addEventListener("change", onFilterChange);
+  document.getElementById("eval-range-clear").addEventListener("click", function () {
+    fromDateInput.value = "";
+    toDateInput.value = "";
+    toDateInput.min = "";
+    rangeToggle.checked = false;
+    onRangeToggle();
+  });
 
   async function onYearChange() {
     currentPage = 1;
@@ -461,8 +676,7 @@
   // search / month / sort / comment filters on the list tab.
   document.getElementById("eval-export-btn").addEventListener("click", function () {
     const params = new URLSearchParams();
-    if (yearFilter.value) params.set("year", yearFilter.value);
-    if (monthFilter.value !== "") params.set("month", monthFilter.value);
+    addPeriodParams(params);
     if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
     if (hasCommentFilter.checked) params.set("hasComment", "1");
     if (sortFilter.value === "lowest") params.set("sort", "lowest");
@@ -486,6 +700,8 @@
   });
 
   document.addEventListener("odprs:langchange", function () {
+    // The page's own first load may not have arrived yet.
+    if (!summary) { renderMonthFilterOptions(); positionTabThumb(true); return; }
     renderYearFilterOptions();
     renderMonthFilterOptions();
     renderKpis();
@@ -540,9 +756,18 @@
 
   activateTab(window.location.hash.replace("#", "") || "overview", true);
 
+  document.getElementById("scores-grid").addEventListener("click", function (e) {
+    if (!e.target.closest("[data-read-comments]")) return;
+    hasCommentFilter.checked = true;
+    syncFilterCount();
+    activateTab("list");
+    onFilterChange();
+  });
+
   document.getElementById("view-all-comments-btn").addEventListener("click", function () {
     hasCommentFilter.checked = true;
     sortFilter.value = commentsFeedSort; // carry the feed's current order over
+    syncFilterCount();
     activateTab("list");
     onFilterChange();
   });

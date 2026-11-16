@@ -7,8 +7,8 @@ const ENG_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 const BUSINESS_HOUR_START = 9;
 const BUSINESS_HOUR_END = 15;
 
-/** English label for each Thai agency-category key in AGENCY_DATA (sub-unit strings already include an English name). */
-const AGENCY_CATEGORY_EN = {
+/** English label for each Thai unit-type key in UNIT_DATA (sub-unit strings already include an English name). */
+const UNIT_TYPE_EN = {
   "สำนักวิชา": "School",
   "ศูนย์": "Centre",
   "สถาบัน": "Institute",
@@ -24,7 +24,7 @@ const AGENCY_CATEGORY_EN = {
 };
 
 /** หน่วยงาน/สังกัด: ประเภทหน่วยงาน -> รายชื่อหน่วยงานย่อย (ตามโครงสร้าง มฟล.) */
-const AGENCY_DATA = {
+const UNIT_DATA = {
   "สำนักวิชา": [
     "สำนักวิชาศิลปศาสตร์ (School of Liberal Arts)",
     "สำนักวิชาวิทยาศาสตร์ (School of Science)",
@@ -294,11 +294,11 @@ function paperResponsibilityText(paperSource, totalSheets, lang) {
   const sheets = Number(totalSheets) || 0;
 
   if (paperSource === PAPER_SOURCE_OFFICE_TH) {
-    return t("newRequest.calc.responsibility.office").replace("{n}", sheets.toLocaleString(numFmt));
+    return tLang("newRequest.calc.responsibility.office", lang).replace("{n}", sheets.toLocaleString(numFmt));
   }
 
   const buffered = Math.ceil(sheets * (1 + PAPER_WASTE_BUFFER_RATIO));
-  return t("newRequest.calc.responsibility.requester")
+  return tLang("newRequest.calc.responsibility.requester", lang)
     .replace("{n}", sheets.toLocaleString(numFmt))
     .replace("{buffered}", buffered.toLocaleString(numFmt));
 }
@@ -328,30 +328,71 @@ function copyLabelDisplayText(record) {
  * Officer/Receiver signoff cells, which mix a bold state label with plain
  * detail lines (never raw record text as markup, to avoid HTML injection). */
 function setCellNodes(el, nodes) {
-  el.replaceChildren(...nodes);
+  nodes = nodes.filter(Boolean);
+  if (!nodes.length) { el.replaceChildren(); return; }
+  // Laid out as a two-column grid (label | value) by .pf-lines CSS.
+  const wrap = document.createElement("div");
+  wrap.className = "pf-lines";
+  wrap.append(...nodes);
+  el.replaceChildren(wrap);
 }
 
 /** One line in the Officer/Receiver signoff cells: a small muted label
  * followed by the value, each on its own row (.pf-line/.pf-line-label CSS)
  * so a 4-5 line cell reads as a scannable list instead of a run-on
  * paragraph of same-weight text. */
-function boldLine(text) {
+function boldLine(th, en) {
   const div = document.createElement("div");
-  div.className = "pf-line";
+  div.className = "pf-line pf-line-head";
   const strong = document.createElement("strong");
-  strong.textContent = text;
+  strong.append(...pfNodes(pickLang(th, en), bilingual(th, en)));
   div.appendChild(strong);
   return div;
 }
 
-function detailLine(label, value) {
+/** labelKey is a TRANSLATIONS key; valuePrint defaults to value (free text). */
+function detailLine(labelKey, value, valuePrint) {
   const div = document.createElement("div");
   div.className = "pf-line";
   const labelSpan = document.createElement("span");
   labelSpan.className = "pf-line-label";
-  labelSpan.textContent = label + ":";
-  div.append(labelSpan, document.createTextNode(" " + value));
+  labelSpan.append(...pfNodes(t(labelKey), pfBilingualKey(labelKey)));
+  const valueSpan = document.createElement("span");
+  valueSpan.className = "pf-line-value";
+  valueSpan.append(...pfNodes(value, valuePrint === undefined ? value : valuePrint));
+  div.append(labelSpan, valueSpan);
   return div;
+}
+
+/* The Request Form has two faces (see print-form.ejs): the screen follows
+ * the TH/EN toggle, print/PDF is "Thai (English)". pfNodes() returns the
+ * text once when both faces agree, else a .pf-screen + .pf-print pair that
+ * CSS switches between. */
+function pfNodes(screenText, printText) {
+  screenText = screenText == null ? "" : String(screenText);
+  printText = printText == null ? "" : String(printText);
+  if (screenText === printText) return [document.createTextNode(screenText)];
+  const scr = document.createElement("span");
+  scr.className = "pf-screen";
+  scr.textContent = screenText;
+  const prt = document.createElement("span");
+  prt.className = "pf-print";
+  prt.textContent = printText;
+  return [scr, prt];
+}
+
+function pfSet(el, screenText, printText) {
+  el.replaceChildren(...pfNodes(screenText, printText));
+}
+
+/** Thai/English value pair: one language on screen, "Thai (English)" on paper. */
+function pfSetBi(el, th, en) {
+  pfSet(el, pickLang(th, en), bilingual(th, en));
+}
+
+function pfBilingualKey(key) {
+  const e = TRANSLATIONS[key];
+  return e ? bilingual(e.th, e.en) : key;
 }
 
 /** Same lookup as translateValue(), but always resolves to English regardless
@@ -398,11 +439,24 @@ function formatLocation(loc, lang) {
  * requester/request-submitted.ejs so the two parties always see the same document —
  * the printed form is conceptually one sheet the Requester fills and hands to the Officer,
  * not two independently maintained views. Structure mirrors the wireframe at
- * ref and logos/wireframes/printing-request-form-redesign.html. Always bilingual
- * (Thai primary, English in parentheses) regardless of the app's TH/EN toggle —
- * see the comment atop print-form.ejs.
+ * ref and logos/wireframes/printing-request-form-redesign.html. On screen it
+ * follows the TH/EN toggle; print/PDF stays bilingual (Thai primary, English
+ * in parentheses). See the comment atop print-form.ejs.
  */
 function renderPrintForm(record) {
+  const lang = getLang();
+
+  // Static labels: the hardcoded text in print-form.ejs is the print
+  // wording (kept once in data-pf-print), the i18n key the screen wording.
+  document.querySelectorAll(".print-doc [data-pf-label]").forEach(function (el) {
+    if (el.dataset.pfPrint === undefined) el.dataset.pfPrint = el.textContent.trim();
+    pfSet(el, t(el.dataset.pfLabel), el.dataset.pfPrint);
+  });
+  // Phone layout shows each item cell's label via CSS attr(data-label) (screen only).
+  document.querySelectorAll(".print-doc [data-pf-cell]").forEach(function (el) {
+    el.setAttribute("data-label", t(el.dataset.pfCell));
+  });
+
   document.getElementById("pf-refno").textContent = record.referenceNo;
   const runnoEl = document.getElementById("pf-runno");
   if (record.runNumber) {
@@ -414,20 +468,33 @@ function renderPrintForm(record) {
 
   document.getElementById("pf-name").textContent = record.requesterName;
   document.getElementById("pf-tel").textContent = record.tel;
-  document.getElementById("pf-agency-unit").textContent = record.agencyUnit;
-  document.getElementById("pf-agency-category").textContent = bilingual(record.agencyCategory, record.agencyCategoryNameEn || AGENCY_CATEGORY_EN[record.agencyCategory]);
+  document.getElementById("pf-unit").textContent = record.unit;
+  pfSetBi(document.getElementById("pf-unit-type"), record.unitType, record.unitTypeNameEn || UNIT_TYPE_EN[record.unitType]);
 
-  document.getElementById("pf-documenttype").textContent = bilingual(record.documentType, translateValueEn(record.documentType));
-  document.getElementById("pf-papersize").textContent = bilingual(record.paperSize, translateValueEn(record.paperSize));
-  document.getElementById("pf-colormode").textContent = bilingual(record.colorMode, translateValueEn(record.colorMode));
-  document.getElementById("pf-printside").textContent = bilingual(record.printSide, translateValueEn(record.printSide));
-  document.getElementById("pf-finishing").textContent = (record.finishing && record.finishing.length)
-    ? record.finishing.map(v => bilingual(v, translateValueEn(v))).join(", ")
-    : "ไม่มี (None)";
+  pfSetBi(document.getElementById("pf-documenttype"), record.documentType, translateValueEn(record.documentType));
+  pfSetBi(document.getElementById("pf-papersize"), record.paperSize, translateValueEn(record.paperSize));
+  pfSetBi(document.getElementById("pf-colormode"), record.colorMode, translateValueEn(record.colorMode));
+  pfSetBi(document.getElementById("pf-printside"), record.printSide, translateValueEn(record.printSide));
+  const finishing = record.finishing || [];
+  if (finishing.length) {
+    pfSet(document.getElementById("pf-finishing"),
+      finishing.map(v => pickLang(v, translateValueEn(v), lang)).join(", "),
+      finishing.map(v => bilingual(v, translateValueEn(v))).join(", "));
+  } else {
+    pfSet(document.getElementById("pf-finishing"), t("pf.none"), pfBilingualKey("pf.none"));
+  }
   const totalSheets = computeTotalSheets(record.originalPages, record.copies, record.printSide);
-  document.getElementById("pf-paperresponsibility").textContent =
-    bilingual(paperResponsibilityText(record.paperSource, totalSheets, "th"), paperResponsibilityText(record.paperSource, totalSheets, "en"));
-  document.getElementById("pf-copylabel").textContent = copyLabelDisplayText(record) || "ไม่มี (None)";
+  // Screen: the full sentence (with the ~5% spare-paper tip). Print/PDF:
+  // just who supplies how many sheets, so the cell stays one line.
+  const shortKey = record.paperSource === PAPER_SOURCE_OFFICE_TH
+    ? "newRequest.calc.responsibility.office" : "pf.paperRequesterShort";
+  const sheetsFor = (lang) => totalSheets.toLocaleString(lang === "en" ? "en-US" : "th-TH");
+  pfSet(document.getElementById("pf-paperresponsibility"),
+    paperResponsibilityText(record.paperSource, totalSheets, lang),
+    bilingual(tLang(shortKey, "th").replace("{n}", sheetsFor("th")), tLang(shortKey, "en").replace("{n}", sheetsFor("en"))));
+  const copyLabel = copyLabelDisplayText(record);
+  if (copyLabel) document.getElementById("pf-copylabel").textContent = copyLabel;
+  else pfSet(document.getElementById("pf-copylabel"), t("pf.none"), pfBilingualKey("pf.none"));
 
   document.getElementById("pf-itemlist").textContent = record.itemList;
   document.getElementById("pf-pages").textContent = record.originalPages;
@@ -435,54 +502,76 @@ function renderPrintForm(record) {
   document.getElementById("pf-totalpages").textContent = String(Number(record.originalPages) * Number(record.copies));
   document.getElementById("pf-totalsheets").textContent = String(totalSheets);
 
+  // Dates: UI language on screen, Thai on paper (as before).
+  const when = (d, withTime) => {
+    const date = new Date(d);
+    return withTime
+      ? [formatDateTime(date, lang), formatDateTime(date, "th")]
+      : [formatDate(date, lang), formatDate(date, "th")];
+  };
+
   document.getElementById("pf-requester-name").textContent = record.requesterName;
-  document.getElementById("pf-submitted").textContent = formatDateTime(new Date(record.submissionDate), "th");
-  const receivedWrapEl = document.getElementById("pf-received-wrap");
-  if (record.originalDocReceivedTimestamp) {
-    receivedWrapEl.style.display = "";
-    document.getElementById("pf-received").textContent = formatDateTime(new Date(record.originalDocReceivedTimestamp), "th");
-  } else {
-    receivedWrapEl.style.display = "none";
-  }
-
+  pfSet(document.getElementById("pf-submitted"), ...when(record.submissionDate, true));
+  // Sign-off cells: every step lists who did it and when (a line is left
+  // out when its value was never recorded, e.g. requests from before the
+  // step times were stored).
+  const bold = (key) => boldLine(TRANSLATIONS[key].th, TRANSLATIONS[key].en);
+  const at = (key, iso) => iso ? detailLine(key, ...when(iso, true)) : null;
+  // A step that did happen always gets its time line, even when the time
+  // itself was never stored.
+  const atStep = (key, iso) => iso ? at(key, iso) : detailLine(key, t("pf.notRecorded"), pfBilingualKey("pf.notRecorded"));
+  const by = (key, name) => name ? detailLine(key, name) : null;
   const officerEl = document.getElementById("pf-signoff-officer");
-  if (record.statusCode === "awaiting") {
+  const receiverEl = document.getElementById("pf-signoff-receiver");
+  const status = record.statusCode;
+
+  if (status === "awaiting") {
     setCellNodes(officerEl, []);
-  } else if (record.statusCode === "rejected") {
+  } else if (status === "rejected") {
     setCellNodes(officerEl, [
-      boldLine("ถูกปฏิเสธ (Rejected)"),
-      detailLine("เหตุผล (Reason)", record.rejectionReason),
-      detailLine("ปฏิเสธโดย (Rejected By)", record.reviewedByOfficer)
+      bold("pf.rejected"),
+      by("pf.reason", record.rejectionReason),
+      by("pf.rejectedBy", record.reviewedByOfficer),
+      atStep("pf.rejectedAt", record.rejectedAt)
     ]);
-  } else if (record.statusCode === "cancelled") {
+  } else if (status === "cancelled") {
     setCellNodes(officerEl, [
-      boldLine("ยกเลิกโดยผู้ขอ (Cancelled by Requester)")
+      bold("pf.cancelled"),
+      atStep("pf.cancelledAt", record.cancelledAt)
     ]);
   } else {
+    const appt = record.completionDateConfirmed ? when(record.completionDateConfirmed + "T00:00:00", false) : null;
     setCellNodes(officerEl, [
-      boldLine("อนุมัติแล้ว (Approved)"),
-      detailLine("วันนัดรับเอกสาร (Appointment Date)", formatDate(new Date(record.completionDateConfirmed + "T00:00:00"), "th")),
-      detailLine("อนุมัติโดย (Approved By)", record.reviewedByOfficer)
+      bold("pf.approved"),
+      by("pf.approvedBy", record.reviewedByOfficer),
+      atStep("pf.originalReceivedAt", record.originalDocReceivedTimestamp),
+      appt ? detailLine("pf.appointment", appt[0], appt[1]) : null,
+      status === "ready" || status === "completed" ? atStep("pf.readyAt", record.readyAt) : null,
+      by("pf.readyBy", record.markedReadyByOfficer),
+      at("pf.pickupFrom", record.pickupAvailableFrom)
     ]);
   }
 
-  const receiverEl = document.getElementById("pf-signoff-receiver");
   if (record.receiverName) {
     setCellNodes(receiverEl, [
       boldLine(record.receiverName),
-      detailLine("ตำแหน่ง (Position)", record.receiverPosition),
-      detailLine("ที่ทำงาน (Workplace)", record.receiverWorkplace),
-      detailLine("เบอร์โทรศัพท์ที่ทำงาน (Work Phone)", record.receiverWorkPhone),
-      detailLine("เวลาที่มารับ (Received At)", formatDateTime(new Date(record.completedTimestamp), "th"))
+      by("pf.position", record.receiverPosition),
+      by("pf.workplace", record.receiverWorkplace),
+      by("pf.workPhone", record.receiverWorkPhone),
+      atStep("pf.receivedAt", record.completedTimestamp),
+      by("pf.handedOverBy", record.handedOverByOfficer)
     ]);
+  } else if (status === "rejected" || status === "cancelled") {
+    // Nothing will be collected.
+    setCellNodes(receiverEl, []);
   } else {
     const em = document.createElement("em");
-    em.textContent = "รอรับเอกสาร (Awaiting Pickup)";
+    em.append(...pfNodes(t("pf.awaitingPickup"), pfBilingualKey("pf.awaitingPickup")));
     setCellNodes(receiverEl, [em]);
   }
 
-  document.getElementById("pf-footnote").textContent = (record.claimCode ? `Claim Code: ${record.claimCode} · ` : "")
-    + "เอกสารนี้สร้างโดยระบบ ODPRS (This document was generated by the ODPRS system)";
+  const claim = record.claimCode ? `Claim Code: ${record.claimCode}   ` : "";
+  pfSet(document.getElementById("pf-footnote"), claim + t("pf.generated"), claim + pfBilingualKey("pf.generated"));
 }
 
 /* =====================================================================
@@ -490,7 +579,7 @@ function renderPrintForm(record) {
    Elements opt in with data-i18n="key" (textContent) or
    data-i18n-placeholder="key" (placeholder attribute). Preference is
    stored in localStorage so it carries across page navigation. Pages
-   with dynamically computed text (dates, agency dropdown, etc.) should
+   with dynamically computed text (dates, unit dropdown, etc.) should
    listen for the "odprs:langchange" event and re-render themselves.
    ===================================================================== */
 
@@ -498,11 +587,64 @@ const TRANSLATIONS = {
   "brand.tagline": { th: "ระบบขอพิมพ์เอกสารออนไลน์", en: "Online Document Printing" },
   "brand.sub": { th: "ฝ่ายทะเบียน มฟล.", en: "Registrar Division, MFU" },
 
+  // Request Form on screen (print/PDF keeps the bilingual text in print-form.ejs)
+  "pf.org": { th: "ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง", en: "Registrar Division, Mae Fah Luang University" },
+  "pf.title": { th: "ใบคำขอพิมพ์เอกสาร", en: "Document Printing Request Form" },
+  "pf.salutation": { th: "เรียน หัวหน้าฝ่ายทะเบียน", en: "To Head of the Registrar Division" },
+  "pf.sec.requester": { th: "ข้อมูลผู้ขอ", en: "Requester Information" },
+  "pf.sec.print": { th: "ข้อมูลการพิมพ์", en: "Print Specification" },
+  "pf.sec.items": { th: "รายการที่ขอผลิต", en: "Items Requested" },
+  "pf.name": { th: "ชื่อผู้ขอ", en: "Name" },
+  "pf.tel": { th: "เบอร์โทรศัพท์", en: "Tel." },
+  "pf.unit": { th: "หน่วยงาน", en: "Unit" },
+  "pf.unitType": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "pf.documentType": { th: "ประเภทเอกสาร", en: "Document Type" },
+  "pf.paperSize": { th: "ขนาดกระดาษ", en: "Paper Size" },
+  "pf.colorMode": { th: "โหมดสี", en: "Color Mode" },
+  "pf.printSide": { th: "รูปแบบการพิมพ์", en: "Print Side" },
+  "pf.finishing": { th: "งานตกแต่ง / การเข้าเล่ม", en: "Finishing / Binding" },
+  "pf.paperSource": { th: "การจัดเตรียมกระดาษ", en: "Paper Source" },
+  "pf.copyLabel": { th: "เลขรันประจำชุด", en: "Copy Label" },
+  "pf.ref": { th: "เลขอ้างอิง / RUN NUMBER", en: "Reference / RUN NUMBER" },
+  "pf.items": { th: "รายการเอกสาร", en: "Items" },
+  "pf.pages": { th: "หน้าต้นฉบับ", en: "Orig. Pages" },
+  "pf.copies": { th: "จำนวนชุด", en: "Copies" },
+  "pf.totalPages": { th: "รวมหน้าพิมพ์", en: "Total Pages" },
+  "pf.totalSheets": { th: "รวมแผ่นกระดาษ", en: "Total Sheets" },
+  "pf.requester": { th: "ผู้ขอ", en: "Requester" },
+  "pf.submitted": { th: "ส่งเมื่อ", en: "Submitted" },
+  "pf.officer": { th: "เจ้าหน้าที่", en: "Officer" },
+  "pf.receiver": { th: "ผู้รับเอกสาร", en: "Receiver" },
+  "pf.none": { th: "ไม่มี", en: "None" },
+  "pf.rejected": { th: "ถูกปฏิเสธ", en: "Rejected" },
+  "pf.reason": { th: "เหตุผล", en: "Reason" },
+  "pf.rejectedBy": { th: "ปฏิเสธโดย", en: "Rejected By" },
+  "pf.cancelled": { th: "ยกเลิกโดยผู้ขอ", en: "Cancelled by Requester" },
+  "pf.approved": { th: "อนุมัติแล้ว", en: "Approved" },
+  "pf.appointment": { th: "วันนัดรับเอกสาร", en: "Appointment Date" },
+  "pf.approvedBy": { th: "อนุมัติโดย", en: "Approved By" },
+  "pf.position": { th: "ตำแหน่ง", en: "Position" },
+  "pf.workplace": { th: "ที่ทำงาน", en: "Workplace" },
+  "pf.workPhone": { th: "เบอร์โทรศัพท์ที่ทำงาน", en: "Work Phone" },
+  "pf.receivedAt": { th: "มารับเอกสารเมื่อ", en: "Picked Up At" },
+  "pf.paperRequesterShort": { th: "ผู้ขอต้องเตรียมกระดาษมาเอง {n} แผ่น", en: "Requester must bring {n} sheets" },
+  "pf.notRecorded": { th: "ไม่ได้บันทึกเวลา", en: "Not recorded" },
+  "pf.handedOverBy": { th: "ส่งมอบโดย", en: "Handed Over By" },
+  "pf.rejectedAt": { th: "ปฏิเสธเมื่อ", en: "Rejected At" },
+  "pf.cancelledAt": { th: "ยกเลิกเมื่อ", en: "Cancelled At" },
+  "pf.originalReceivedAt": { th: "รับต้นฉบับเมื่อ", en: "Original Received At" },
+  "pf.readyAt": { th: "พิมพ์เสร็จเมื่อ", en: "Printed At" },
+  "pf.readyBy": { th: "พิมพ์เสร็จโดย", en: "Printed By" },
+  "pf.pickupFrom": { th: "รับได้ตั้งแต่", en: "Pickup From" },
+  "pf.awaitingPickup": { th: "รอรับเอกสาร", en: "Awaiting Pickup" },
+  "pf.generated": { th: "เอกสารนี้สร้างโดยระบบ ODPRS", en: "This document was generated by the ODPRS system" },
+
+
   "login.title": { th: "ระบบขอพิมพ์เอกสารออนไลน์", en: "Online Document Printing Request System" },
   "login.subtitle": { th: "ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง", en: "Registrar Division, Mae Fah Luang University" },
   "login.hint": { th: "เข้าสู่ระบบด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th)", en: "Sign in with your university Google account (@mfu.ac.th)" },
   "login.btn": { th: "เข้าสู่ระบบด้วย Google", en: "Log in with Google" },
-  "login.deniedNotice": { th: "เข้าสู่ระบบไม่สำเร็จ — บัญชีนี้ต้องใช้อีเมลที่ลงท้ายด้วย {domain} เท่านั้น", en: "Login failed — this account must use an email ending in {domain}." },
+  "login.deniedNotice": { th: "กรุณาเข้าสู่ระบบด้วยอีเมล {domain}", en: "Please sign in with an {domain} email." },
   "login.staffOnly": { th: "สำหรับเจ้าหน้าที่เท่านั้น", en: "Officers only" },
   "login.kioskBtn": { th: "เปิดหน้าจอจุดรับเอกสาร", en: "Open Pickup Station" },
   "login.manual": { th: "คู่มือการใช้งาน", en: "User manual" },
@@ -518,8 +660,11 @@ const TRANSLATIONS = {
   "auditLog.field.contactPhone": { th: "เบอร์ติดต่อ (หน้าเข้าสู่ระบบ)", en: "Contact phone (login page)" },
   "auditLog.field.contactEmail": { th: "อีเมลติดต่อ (หน้าเข้าสู่ระบบ)", en: "Contact email (login page)" },
   "manuals.title": { th: "คู่มือการใช้งาน", en: "User Manuals" },
-  "manuals.subtitle": { th: "อัปโหลดคู่มือการใช้งานสำหรับผู้ขอ (ไฟล์ PDF) ผู้ใช้เปิดอ่านได้จากหน้าเข้าสู่ระบบ ตามภาษาที่เลือก", en: "Upload the requester user manual (PDF). Users can open it from the login page in the language they choose." },
+  "manuals.subtitle": { th: "อัปโหลดคู่มือการใช้งาน (ไฟล์ PDF) แยกตามผู้ใช้แต่ละกลุ่ม ผู้ใช้เปิดอ่านได้ตามภาษาที่เลือก", en: "Upload user manuals (PDF) for each group of users. People open the one in their chosen language." },
   "manuals.requester": { th: "คู่มือสำหรับผู้ขอ", en: "Requester manual" },
+  "manuals.officer": { th: "คู่มือสำหรับเจ้าหน้าที่", en: "Officer manual" },
+  "manuals.admin": { th: "คู่มือสำหรับผู้ดูแลระบบ", en: "Admin manual" },
+  "manuals.th.manual": { th: "คู่มือ", en: "Manual" },
   "manuals.lang.th": { th: "ภาษาไทย", en: "Thai" },
   "manuals.lang.en": { th: "ภาษาอังกฤษ", en: "English" },
   "manuals.empty": { th: "ยังไม่ได้อัปโหลด", en: "Not uploaded yet" },
@@ -531,12 +676,12 @@ const TRANSLATIONS = {
   "manuals.deleteBtn": { th: "ลบ", en: "Delete" },
   "manuals.uploading": { th: "กำลังอัปโหลด…", en: "Uploading…" },
   "manuals.rule": { th: "รับเฉพาะไฟล์ PDF ขนาดไม่เกิน {mb} MB อัปโหลดใหม่จะแทนที่ไฟล์เดิมทันที", en: "PDF only, up to {mb} MB. A new upload replaces the current file immediately." },
-  "manuals.result.uploaded": { th: "อัปโหลดคู่มือ ({lang}) เรียบร้อยแล้ว", en: "Manual ({lang}) uploaded." },
-  "manuals.result.deleted": { th: "ลบคู่มือ ({lang}) เรียบร้อยแล้ว", en: "Manual ({lang}) deleted." },
+  "manuals.result.uploaded": { th: "อัปโหลด{lang} เรียบร้อยแล้ว", en: "{lang} uploaded." },
+  "manuals.result.deleted": { th: "ลบ{lang} เรียบร้อยแล้ว", en: "{lang} deleted." },
   "manuals.error.notPdf": { th: "ไฟล์นี้ไม่ใช่ PDF กรุณาเลือกไฟล์ .pdf", en: "This is not a PDF file. Please choose a .pdf file." },
   "manuals.error.tooLarge": { th: "ไฟล์ใหญ่เกิน {mb} MB", en: "The file is larger than {mb} MB." },
   "manuals.deleteTitle": { th: "ยืนยันการลบคู่มือ", en: "Delete this manual?" },
-  "manuals.deleteMessage": { th: "ลบคู่มือ {lang} “{name}” ผู้ใช้จะเปิดไฟล์นี้จากหน้าเข้าสู่ระบบไม่ได้อีก", en: "Delete the {lang} manual “{name}”? Users will no longer be able to open it from the login page." },
+  "manuals.deleteMessage": { th: "ลบ{lang} “{name}” ผู้ใช้จะเปิดไฟล์นี้ไม่ได้อีก", en: "Delete {lang} “{name}”? People will no longer be able to open it." },
   "user.name": { th: "ดร. สมชาย ใจดี", en: "Dr. Somchai Jaidee" },
   "user.role.requester": { th: "ผู้ขอ", en: "Requester" },
   "user.name.officer": { th: "คุณสรวิศ ธนะขว้าง", en: "Sorrawit Thanakhwang" },
@@ -557,10 +702,89 @@ const TRANSLATIONS = {
   "nav.adminOfficers": { th: "จัดการบัญชีเจ้าหน้าที่", en: "Officer Accounts" },
   "nav.adminSettings": { th: "จัดการระบบ", en: "System Settings" },
   "nav.adminLocations": { th: "สถานที่รับ-ส่งเอกสาร", en: "Drop-off & Pickup Locations" },
-  "nav.adminAgencies": { th: "หน่วยงาน", en: "Agencies" },
+  "nav.adminUnits": { th: "หน่วยงาน", en: "Units" },
+  "nav.adminEvaluationForm": { th: "แบบประเมิน", en: "Evaluation form" },
+  "evalForm.title": { th: "แบบประเมินความพึงพอใจ", en: "Satisfaction Evaluation Form" },
+  "evalForm.preview": { th: "ดูตัวอย่างหน้าประเมิน", en: "Preview the form" },
+  "evalForm.subtitle": { th: "กำหนดหัวข้อและคำถามที่ผู้ขอต้องตอบหลังรับเอกสาร และระยะเวลาที่ยังประเมินได้", en: "Set the sections and questions requesters answer after pickup, and how long they can still evaluate." },
+  "evalForm.windowTitle": { th: "ระยะเวลาที่ให้ประเมิน", en: "Time to evaluate" },
+  "evalForm.windowLead": { th: "ผู้ขอประเมินได้ภายใน", en: "Requesters can evaluate within" },
+  "evalForm.windowTail": { th: "หลังรับเอกสาร", en: "after pickup" },
+  "evalForm.windowUnlimited": { th: "ไม่จำกัดเวลา", en: "No time limit" },
+  "evalForm.windowLimited": { th: "กำหนดระยะเวลา", en: "Set a time limit" },
+  "evalForm.windowExample": { th: "ตัวอย่าง: รับเอกสาร {from} → ประเมินได้ถึง {to}", en: "Example: picked up {from} → can evaluate until {to}" },
+  "evalForm.windowExampleNone": { th: "ผู้ขอประเมินคำขอที่รับเอกสารแล้วได้ตลอด ไม่มีวันหมดอายุ", en: "Requesters can always evaluate a picked-up request. It never expires." },
+  "evalForm.windowHint": { th: "เลยกำหนดแล้ว ระบบจะไม่ขอให้ประเมินคำขอนั้นอีก และไม่บังคับประเมินก่อนส่งคำขอใหม่", en: "After that the request is no longer asked to be evaluated, and doesn't block a new request." },
+  "evalForm.unit.minute": { th: "นาที", en: "minutes" },
+  "evalForm.unit.hour": { th: "ชั่วโมง", en: "hours" },
+  "evalForm.unit.day": { th: "วัน", en: "days" },
+  "evalForm.unit.week": { th: "สัปดาห์", en: "weeks" },
+  "evalForm.unit.month": { th: "เดือน", en: "months" },
+  "evalForm.save": { th: "บันทึก", en: "Save" },
+  "evalForm.discard": { th: "ยกเลิกการเปลี่ยนแปลง", en: "Discard changes" },
+  "evalForm.unsaved": { th: "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก", en: "You have unsaved changes" },
+  "evalForm.leaveTitle": { th: "ยังไม่ได้บันทึกระยะเวลาที่ให้ประเมิน", en: "Evaluation period not saved" },
+  "unsaved.leaveTitle": { th: "ยังไม่ได้บันทึกการเปลี่ยนแปลง", en: "Changes not saved" },
+  "unsaved.leaveMessage": { th: "ถ้าออกจากหน้านี้ การเปลี่ยนแปลงจะหายไป", en: "If you leave this page, your changes will be lost." },
+  "unsaved.leaveConfirm": { th: "ออกโดยไม่บันทึก", en: "Leave without saving" },
+  "unsaved.leaveStay": { th: "อยู่หน้านี้ต่อ", en: "Stay on this page" },
+  "settings.leaveTitle": { th: "ยังไม่ได้บันทึกการตั้งค่า", en: "Settings not saved" },
+  "evalForm.edit": { th: "แก้ไข", en: "Edit" },
+  "evalForm.delete": { th: "ลบ", en: "Delete" },
+  "evalForm.moveUp": { th: "เลื่อนขึ้น", en: "Move up" },
+  "evalForm.moveDown": { th: "เลื่อนลง", en: "Move down" },
+  "evalForm.addSection": { th: "เพิ่มหัวข้อ", en: "Add section" },
+  "evalForm.addQuestion": { th: "เพิ่มคำถาม", en: "Add question" },
+  "evalForm.noSections": { th: "ยังไม่มีหัวข้อ ระบบจะไม่ขอให้ผู้ขอประเมินจนกว่าจะมีคำถามอย่างน้อย 1 ข้อ", en: "No sections yet. Requesters won't be asked to evaluate until there is at least one question." },
+  "evalForm.noQuestions": { th: "ยังไม่มีคำถามในหัวข้อนี้", en: "No questions in this section yet." },
+  "evalForm.questionCount": { th: "{n} คำถาม", en: "{n} questions" },
+  "evalForm.optional": { th: "(ไม่บังคับ)", en: "(optional)" },
+  "evalForm.type.rating": { th: "คะแนน 1-5", en: "Rating 1-5" },
+  "evalForm.type.single": { th: "เลือก 1 คำตอบ", en: "Pick one" },
+  "evalForm.type.multi": { th: "เลือกได้หลายคำตอบ", en: "Pick any" },
+  "evalForm.type.text": { th: "ข้อความ", en: "Text" },
+  "evalForm.newSection": { th: "หัวข้อใหม่", en: "New section" },
+  "evalForm.editSection": { th: "แก้ไขหัวข้อ", en: "Edit section" },
+  "evalForm.sectionTh": { th: "ชื่อหัวข้อ (ไทย)", en: "Section title (Thai)" },
+  "evalForm.sectionEn": { th: "ชื่อหัวข้อ (อังกฤษ)", en: "Section title (English)" },
+  "evalForm.sectionThPh": { th: "เช่น ความพึงพอใจต่อระบบ", en: "e.g. ความพึงพอใจต่อระบบ" },
+  "evalForm.sectionEnPh": { th: "e.g. System satisfaction", en: "e.g. System satisfaction" },
+  "evalForm.newQuestion": { th: "คำถามใหม่", en: "New question" },
+  "evalForm.editQuestion": { th: "แก้ไขคำถาม", en: "Edit question" },
+  "evalForm.qType": { th: "รูปแบบคำตอบ", en: "Answer type" },
+  "evalForm.qTh": { th: "คำถาม (ไทย)", en: "Question (Thai)" },
+  "evalForm.qEn": { th: "คำถาม (อังกฤษ)", en: "Question (English)" },
+  "evalForm.qThPh": { th: "เช่น ความง่ายในการใช้งาน", en: "e.g. ความง่ายในการใช้งาน" },
+  "evalForm.qEnPh": { th: "e.g. Ease of use", en: "e.g. Ease of use" },
+  "evalForm.options": { th: "ตัวเลือก (อย่างน้อย 2 ข้อ)", en: "Choices (at least 2)" },
+  "evalForm.optionThPh": { th: "ตัวเลือก (ไทย)", en: "Choice (Thai)" },
+  "evalForm.optionEnPh": { th: "ตัวเลือก (อังกฤษ)", en: "Choice (English)" },
+  "evalForm.addOption": { th: "เพิ่มตัวเลือก", en: "Add choice" },
+  "evalForm.removeOption": { th: "ลบ", en: "Remove" },
+  "evalForm.required": { th: "บังคับตอบ", en: "Required" },
+  "evalForm.guideTitle": { th: "รายงานผลประเมินแยกเป็นรายปี", en: "The evaluation report is yearly" },
+  "evalForm.guideBody": { th: "แต่ละปีแสดงเฉพาะคำถามที่มีคนตอบในปีนั้น ถ้าเพิ่มหรือลบคำถามกลางปี รายงานจะบอกว่ามีคนตอบข้อนั้นกี่คนจากทั้งหมด และเริ่มใช้หรือใช้ถึงวันไหน", en: "Each year shows only the questions answered that year. If you add or remove a question mid-year, the report shows how many people answered it out of all, and when it started or stopped." },
+  "evalForm.answerRule": { th: "การตอบ", en: "Answering" },
+  "evalForm.inSection": { th: "อยู่ในหัวข้อ", en: "In section" },
+  "evalForm.deleteSectionTitle": { th: "ลบหัวข้อนี้?", en: "Delete this section?" },
+  "evalForm.deleteSectionMsg": { th: "ลบ “{name}” พร้อมคำถาม {n} ข้อในหัวข้อนี้ คำตอบที่เคยได้รับยังเก็บไว้ในรายงาน", en: "Delete “{name}” and its {n} questions? Answers already received stay in the report." },
+  "evalForm.deleteQuestionTitle": { th: "ลบคำถามนี้?", en: "Delete this question?" },
+  "evalForm.deleteQuestionMsg": { th: "ลบ “{name}” คำตอบที่เคยได้รับยังเก็บไว้ในรายงาน", en: "Delete “{name}”? Answers already received stay in the report." },
+  "evalForm.saved.window": { th: "บันทึกระยะเวลาที่ให้ประเมินแล้ว", en: "Evaluation time limit saved." },
+  "evalForm.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
+  "evalForm.err.fillThis": { th: "กรุณากรอกช่องนี้", en: "Please fill this in" },
+  "evalForm.err.windowValue": { th: "กรุณาใส่ตัวเลขตั้งแต่ 1 ขึ้นไป", en: "Enter a number of 1 or more" },
+  "evalForm.err.optionsFew": { th: "ต้องมีตัวเลือกอย่างน้อย 2 ข้อ", en: "Add at least 2 choices" },
+  "evalForm.err.optionHalf": { th: "กรอกตัวเลือกให้ครบทั้งภาษาไทยและอังกฤษ", en: "Fill in each choice in both Thai and English" },
   "nav.adminAuditLog": { th: "ประวัติการแก้ไข", en: "Change History" },
-  "nav.adminBackup": { th: "สำรองและกู้คืนข้อมูล", en: "Backup & Restore" },
   "nav.adminManuals": { th: "คู่มือการใช้งาน", en: "User Manuals" },
+  "nav.manuals": { th: "คู่มือการใช้งาน", en: "User manuals" },
+  "nav.manual.requester": { th: "คู่มือผู้ขอ", en: "Requester manual" },
+  "nav.manual.officer": { th: "คู่มือเจ้าหน้าที่", en: "Officer manual" },
+  "nav.manual.admin": { th: "คู่มือผู้ดูแลระบบ", en: "Admin manual" },
+  "manualFab.title": { th: "คู่มือการใช้งาน (ลากเพื่อย้ายได้)", en: "User manuals (drag to move)" },
+  "manualFab.hide": { th: "ซ่อนปุ่มนี้ (ย้ายไปไว้ที่เมนูข้าง)", en: "Hide this button (move it to the sidebar)" },
+  "manualFab.show": { th: "แสดงปุ่มลอยอีกครั้ง", en: "Show the floating button again" },
   "nav.group.system": { th: "บัญชีและระบบ", en: "Accounts & System" },
   "nav.group.reference": { th: "ข้อมูลพื้นฐาน", en: "Reference Data" },
   "nav.menu": { th: "เมนู", en: "Menu" },
@@ -611,6 +835,19 @@ const TRANSLATIONS = {
   "evaluate.error.invalidRating.body": { th: "กรุณาเลือกคะแนน 1-5 ให้ครบทุกหัวข้อก่อนส่งแบบประเมิน", en: "Please select a 1-5 rating for every item before submitting." },
   "evaluate.error.alreadyEvaluated": { th: "คำขอนี้ถูกประเมินไปแล้ว", en: "This request has already been evaluated." },
   "evaluate.error.generic": { th: "ไม่สามารถบันทึกแบบประเมินได้", en: "Couldn't save your survey response." },
+  "evaluate.deadline": { th: "ประเมินได้ถึง", en: "Evaluate by" },
+  "evaluate.error.missing": { th: "กรุณาตอบคำถามให้ครบ", en: "Please answer every required question" },
+  "evaluate.error.missing.body": { th: "คำถามที่ยังไม่ได้ตอบหรือคำตอบไม่ถูกต้องมีกรอบสีแดงด้านล่าง", en: "Unanswered or invalid questions are outlined in red below." },
+  "evaluate.error.required": { th: "กรุณาตอบคำถามนี้", en: "Please answer this question" },
+  "evaluate.error.invalid": { th: "คำตอบไม่ถูกต้อง", en: "This answer isn't valid" },
+  "evaluate.optional": { th: "(ไม่บังคับ)", en: "(optional)" },
+  "evaluate.multiHint": { th: "เลือกได้มากกว่า 1 ข้อ", en: "You can choose more than one" },
+  "evaluate.textPlaceholder": { th: "พิมพ์คำตอบของคุณ", en: "Type your answer" },
+  "evaluate.preview.title": { th: "ตัวอย่างหน้าที่ผู้ขอจะเห็น", en: "Preview of what requesters see" },
+  "evaluate.preview.body": { th: "ทดลองตอบและกดส่งได้ ระบบจะตรวจคำตอบเหมือนของจริงแต่ไม่บันทึก ข้อมูลคำขอด้านล่างเป็นตัวอย่าง", en: "Try answering and submitting. Answers are checked like the real page but nothing is saved. The request details are a sample." },
+  "evaluate.preview.back": { th: "กลับไปแก้ไขแบบประเมิน", en: "Back to the form editor" },
+  "evaluate.preview.empty": { th: "ยังไม่มีคำถามในแบบประเมิน ผู้ขอจะไม่ถูกขอให้ประเมิน", en: "The form has no questions yet, so requesters won't be asked to evaluate." },
+  "evaluate.preview.ok": { th: "ตอบครบถ้วนแล้ว (นี่คือตัวอย่าง ระบบไม่ได้บันทึกคำตอบ)", en: "All required questions answered (this is a preview, nothing was saved)." },
 
   "row1.item": { th: "เอกสารประมวลรายวิชา (60 ชุด)", en: "Course syllabus (60 copies)" },
   "row1.submitted": { th: "20 ก.ค. 2569, 09:15", en: "20 Jul 2026, 09:15" },
@@ -656,13 +893,13 @@ const TRANSLATIONS = {
   "newRequest.error.missingField.body": { th: "กรุณาเลือกโหมดสี รูปแบบการพิมพ์ ประเภทเอกสาร และผู้จัดเตรียมกระดาษ (ถ้าเป็นข้อสอบ) ให้ครบก่อนส่งคำขอ", en: "Please choose Color Mode, Print Side, Document Type, and Paper Source (if Exam) before submitting." },
 
   "field.requesterName": { th: "ชื่อผู้ขอ *", en: "Requester Name *" },
-  "field.requesterName.hint": { th: 'ดึงจากโปรไฟล์ของคุณให้อัตโนมัติ (หรือบัญชีที่ล็อกอิน หากยังไม่ได้ตั้งค่าโปรไฟล์) แก้ไขได้ทุกครั้ง — ไปตั้งค่าถาวรได้ที่ <a href="/profile">โปรไฟล์ของฉัน</a>', en: 'Auto-filled from your Profile (or your login account, if you haven\'t set one up yet) — you can still edit it each time. Set it permanently at <a href="/profile">My Profile</a>.' },
+  "field.requesterName.hint": { th: 'ดึงจากโปรไฟล์ของคุณให้อัตโนมัติ (หรือบัญชีที่ล็อกอิน หากยังไม่ได้ตั้งค่าโปรไฟล์) แก้ไขได้ทุกครั้ง ตั้งค่าถาวรได้ที่ <a href="/profile">โปรไฟล์ของฉัน</a>', en: 'Auto-filled from your Profile (or your login account, if you haven\'t set one up yet). You can still edit it each time. Set it permanently at <a href="/profile">My Profile</a>.' },
   "field.tel": { th: "เบอร์โทรศัพท์ *", en: "Phone Number *" },
   "field.tel.placeholder": { th: "08X-XXX-XXXX", en: "08X-XXX-XXXX" },
-  "field.tel.hint": { th: "ใช้เบอร์มือถือส่วนตัวหรือเบอร์สำนักงานก็ได้ ดึงจากโปรไฟล์ของคุณให้อัตโนมัติถ้าตั้งค่าไว้", en: "A personal mobile number or an office/workplace number — auto-filled from your Profile if you've set one." },
-  "field.agencyCategory": { th: "ประเภทหน่วยงาน *", en: "Agency Category *" },
-  "field.agencyUnit": { th: "หน่วยงาน *", en: "Agency/Unit *" },
-  "field.agencyUnit.placeholder": { th: "พิมพ์ชื่อหน่วยงาน", en: "Type the agency/unit name" },
+  "field.tel.hint": { th: "ใช้เบอร์มือถือส่วนตัวหรือเบอร์สำนักงานก็ได้ ดึงจากโปรไฟล์ของคุณให้อัตโนมัติถ้าตั้งค่าไว้", en: "A personal mobile number or an office/workplace number. Auto-filled from your Profile if you've set one." },
+  "field.unitType": { th: "ประเภทหน่วยงาน *", en: "Unit Type *" },
+  "field.unit": { th: "หน่วยงาน *", en: "Unit *" },
+  "field.unit.placeholder": { th: "พิมพ์ชื่อหน่วยงาน", en: "Type the unit name" },
   "field.dropoffLocation": { th: "สถานที่ส่งเอกสารต้นฉบับ *", en: "Original Document Drop-off Location *" },
   "location.hours": { th: "เวลาทำการ:", en: "Hours:" },
   "location.phone": { th: "โทร:", en: "Phone:" },
@@ -671,6 +908,8 @@ const TRANSLATIONS = {
   "field.paperSize.other.placeholder": { th: "ระบุขนาดกระดาษ เช่น B5, Letter, F4", en: "Specify paper size, e.g. B5, Letter, F4" },
   "field.finishingMethod": { th: "งานตกแต่ง / การเข้าเล่ม", en: "Finishing / Binding" },
   "field.itemList": { th: "รายการเอกสารที่ต้องการพิมพ์ *", en: "Items to be Printed *" },
+  "newRequest.error.itemListTooLong": { th: "รายการเอกสารยาวเกินไป", en: "Item list is too long" },
+  "newRequest.error.itemListTooLong.body": { th: "พิมพ์ได้ไม่เกิน 120 ตัวอักษร เพื่อให้ใบคำขออยู่ในกระดาษหน้าเดียว", en: "Use up to 120 characters so the request form fits on one page." },
   "field.itemList.placeholder": { th: "เช่น เอกสารประมวลรายวิชา บทที่ 1-5, ใบปะหน้า", en: "e.g. Course syllabus chapters 1-5, cover sheet" },
   "field.originalPages": { th: "จำนวนหน้าต้นฉบับ *", en: "Original Page Count *" },
   "field.copies": { th: "จำนวนชุดที่ต้องการ *", en: "Number of Copies *" },
@@ -678,7 +917,7 @@ const TRANSLATIONS = {
   "field.completionDate": { th: "วันที่ต้องการรับเอกสาร *", en: "Requested Completion Date *" },
   "field.completionDate.placeholder": { th: "เลือกวันที่", en: "Select a date" },
   "field.completionDate.error": { th: "กรุณาเลือกวันที่ห่างจากวันนี้อย่างน้อย 3 วันทำการ", en: "Please choose a date at least 3 business days from today." },
-  "field.completionDate.weekendError": { th: "วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ — กรุณาเลือกวันทำการ (จันทร์-ศุกร์)", en: "The selected date falls on a Saturday or Sunday — please choose a business day (Mon-Fri)." },
+  "field.completionDate.weekendError": { th: "วันที่เลือกตรงกับวันเสาร์หรืออาทิตย์ กรุณาเลือกวันทำการ (จันทร์ถึงศุกร์)", en: "The selected date falls on a Saturday or Sunday. Please choose a business day (Monday to Friday)." },
 
   "newRequest.error.finishingNotAllowedForExam": { th: "ตัวเลือกงานตกแต่งไม่ถูกต้อง", en: "Invalid Finishing Selection" },
   "newRequest.error.finishingNotAllowedForExam.body": { th: "ข้อสอบเลือกได้เฉพาะ \"ไม่ต้องการ\" หรือ \"เย็บมุม\" เท่านั้น", en: "Exams may only use \"None\" or \"Corner Staple\"." },
@@ -695,7 +934,7 @@ const TRANSLATIONS = {
   "newRequest.error.dropoffLocation": { th: "สถานที่ส่งเอกสารไม่ถูกต้อง", en: "Invalid drop-off location" },
   "newRequest.error.dropoffLocation.body": { th: "สถานที่ที่เลือกไม่เปิดให้ส่งเอกสารแล้ว กรุณาเลือกสถานที่ใหม่", en: "The selected place no longer accepts drop-offs. Please choose another." },
   "field.finishingMethod.examLocked": { th: "ข้อสอบเลือกได้เฉพาะ \"ไม่ต้องการ\" หรือ \"เย็บมุม\"", en: "Exams may only use \"None\" or \"Corner Staple\"." },
-  "field.finishingMethod.saddleStitchForcesDouble": { th: "เย็บมุงหลังคาต้องพิมพ์สองหน้า ระบบเปลี่ยนรูปแบบการพิมพ์ให้อัตโนมัติ", en: "Saddle-stitch requires double-sided printing — Print Side was switched automatically." },
+  "field.finishingMethod.saddleStitchForcesDouble": { th: "เย็บมุงหลังคาต้องพิมพ์สองหน้า ระบบเปลี่ยนรูปแบบการพิมพ์ให้อัตโนมัติ", en: "Saddle-stitch requires double-sided printing. Print Side was switched automatically." },
   "field.finishingMethod.pageCount.saddleStitch": { th: "เย็บมุงหลังคา: จำนวนหน้าต้นฉบับต้องหารด้วย 4 ลงตัว และไม่เกิน 60 หน้า", en: "Saddle-stitch: original page count must be a multiple of 4, up to 60 pages." },
   "field.finishingMethod.pageCount.glue": { th: "เข้าเล่มสันกาว: จำนวนหน้าต้นฉบับต้องมีอย่างน้อย 20 หน้า เพื่อให้มีสันพอให้กาวยึด", en: "Glue binding: needs at least 20 original pages for the spine to hold." },
   "field.finishingMethod.pageCount.corner": { th: "เย็บมุม: จำนวนหน้าต้นฉบับต้องไม่เกิน 80 หน้า มิฉะนั้นลวดเย็บจะกดไม่ทะลุ", en: "Corner staple: original page count must not exceed 80 pages, or a standard stapler can't punch through." },
@@ -703,16 +942,16 @@ const TRANSLATIONS = {
   "field.colorMode": { th: "โหมดสี *", en: "Color Mode *" },
   "field.printSide": { th: "รูปแบบการพิมพ์ (หน้า) *", en: "Print Side *" },
   "field.documentType": { th: "ประเภทเอกสาร *", en: "Document Type *" },
-  "field.documentType.hint": { th: "เลือกได้ประเภทเดียวต่อคำขอ ถ้ามีทั้งสองประเภทให้แยกส่ง", en: "One type per request — submit separately if you have both." },
+  "field.documentType.hint": { th: "เลือกได้ประเภทเดียวต่อคำขอ ถ้ามีทั้งสองประเภทให้แยกส่ง", en: "One type per request. Submit separately if you have both." },
   "field.paperSource": { th: "ผู้จัดเตรียมกระดาษ *", en: "Paper Source *" },
-  "field.paperSource.fixedNotice": { th: "เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) — ไม่มีตัวเลือกอื่น", en: "General Document: paper is always Requester-provided — no choice offered." },
+  "field.paperSource.fixedNotice": { th: "เอกสารทั่วไป: ผู้ขอเป็นผู้จัดเตรียมกระดาษเอง (Requester-provided) ไม่มีตัวเลือกอื่น", en: "General Document: paper is always Requester-provided, no other choice." },
   "field.copyLabel.toggle": { th: "ต้องการเลขรันประจำชุด (Copy Label) หรือไม่", en: "Add a running number to each copy (Copy Label)" },
-  "field.copyLabel.toggle.hint": { th: "เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER", en: "Printed in the top-right corner of each copy's first page, for the Requester's own tracking — independent of the Request Reference No. and RUN NUMBER." },
+  "field.copyLabel.toggle.hint": { th: "เลขนี้จะพิมพ์ไว้ที่มุมขวาบนของหน้าแรกในแต่ละชุด เพื่อการติดตามของผู้ขอเอง ไม่เกี่ยวข้องกับเลขอ้างอิงคำขอหรือ RUN NUMBER", en: "Printed in the top-right corner of each copy's first page, for the Requester's own tracking. Independent of the Request Reference No. and RUN NUMBER." },
   "field.copyLabel.mode.auto": { th: "รันเลขอัตโนมัติ", en: "Auto-generate running number" },
   "field.copyLabel.mode.manual": { th: "กรอกเอง (ข้อความเดียวกันทุกชุด)", en: "Type it myself (same text for every copy)" },
   "field.copyLabel.auto.hint": { th: "ระบบจะรันเลขให้อัตโนมัติ (เช่น 001–050) ตามจำนวนชุดที่ต้องการ", en: "The system auto-generates the numbers (e.g. 001–050) based on the number of copies requested." },
   "field.copyLabel.preview": { th: "ตัวอย่างเลขที่จะพิมพ์: {range}", en: "Preview: {range}" },
-  "field.copyLabel.manual.hint": { th: "กรอกข้อความหรือเลขที่ต้องการ ระบบจะใช้ข้อความเดียวกันนี้กับทุกชุด", en: "Type the label you want — it will be used identically on every copy." },
+  "field.copyLabel.manual.hint": { th: "กรอกข้อความหรือเลขที่ต้องการ ระบบจะใช้ข้อความเดียวกันนี้กับทุกชุด", en: "Type the label you want. It will be used identically on every copy." },
   "field.copyLabel.manual.item": { th: "ข้อความที่ต้องการ (ใช้เหมือนกันทุกชุด) *", en: "Label text (same for every copy) *" },
   "field.copyLabel.manual.item.placeholder": { th: "เช่น ชุด A", en: "e.g. Set A" },
 
@@ -735,12 +974,12 @@ const TRANSLATIONS = {
   "newRequest.summary.date": { th: "วันที่ต้องการรับเอกสาร", en: "Requested pickup date" },
   "newRequest.calc.totalPages": { th: "จำนวนหน้าที่ต้องพิมพ์ทั้งหมด", en: "Total Pages to Print" },
   "newRequest.calc.totalSheets": { th: "จำนวนแผ่นกระดาษที่ต้องใช้ทั้งหมด", en: "Total Sheets to Print" },
-  "newRequest.calc.responsibility.requester": { th: "ผู้ขอต้องเตรียมกระดาษมาเอง {n} แผ่น (แนะนำให้เผื่อกระดาษเสียจากการพิมพ์ประมาณ 5% โดยเตรียมมาประมาณ {buffered} แผ่น)", en: "Requester must bring {n} sheets (recommend allowing ~5% for print waste — bring about {buffered} sheets)" },
+  "newRequest.calc.responsibility.requester": { th: "ผู้ขอต้องเตรียมกระดาษมาเอง {n} แผ่น (แนะนำให้เผื่อกระดาษเสียจากการพิมพ์ประมาณ 5% โดยเตรียมมาประมาณ {buffered} แผ่น)", en: "Requester must bring {n} sheets (recommend allowing ~5% for print waste. Bring about {buffered} sheets)" },
   "newRequest.calc.responsibility.office": { th: "ฝ่ายทะเบียนจะจัดเตรียมกระดาษให้ {n} แผ่น", en: "Registrar Division will supply {n} sheets" },
   "newRequest.calc.responsibility.pending": { th: "กรอกข้อมูลด้านบนให้ครบเพื่อคำนวณ", en: "Fill in the fields above to calculate" },
 
-  "option.select": { th: "— เลือก —", en: "— Select —" },
-  "option.selectCategoryFirst": { th: "— เลือกประเภทหน่วยงานก่อน —", en: "— Select an agency category first —" },
+  "option.select": { th: "เลือก", en: "Select" },
+  "option.selectCategoryFirst": { th: "เลือกประเภทหน่วยงานก่อน", en: "Select a unit type first" },
   "option.paperSize.a4": { th: "A4", en: "A4" },
   "option.paperSize.a3": { th: "A3", en: "A3" },
   "option.paperSize.a5": { th: "A5", en: "A5" },
@@ -768,6 +1007,11 @@ const TRANSLATIONS = {
   "submitted.officeLocation": { th: "สถานที่:", en: "Location:" },
   "submitted.officePhone": { th: "โทร:", en: "Phone:" },
   "submitted.deadline.received.label": { th: "รับเอกสารต้นฉบับแล้วเมื่อ", en: "Original documents received on" },
+  "submitted.deadline.ready.label": { th: "เอกสารพิมพ์เสร็จแล้ว รับได้ตั้งแต่", en: "Your copies are ready. Collect from" },
+  "submitted.deadline.ready.now": { th: "ตอนนี้", en: "Now" },
+  "submitted.deadline.ready.body": { th: "มารับได้ที่สถานที่ด้านล่างในเวลาทำการ", en: "Collect them at the place below during opening hours." },
+  "submitted.deadline.completed.label": { th: "รับเอกสารเรียบร้อยแล้วเมื่อ", en: "Copies collected on" },
+  "submitted.deadline.completed.body": { th: "ขอบคุณที่ใช้บริการ", en: "Thank you for using the service." },
   "submitted.deadline.received.body": { th: "เจ้าหน้าที่ตรวจรับเอกสารต้นฉบับของท่านเรียบร้อยแล้ว", en: "An Officer has confirmed receipt of your original documents." },
   "submitted.formCardTitle": { th: "ใบคำขอพิมพ์เอกสาร (สำหรับพิมพ์)", en: "Print Request Form (Printable)" },
   "submitted.printBtn": { th: "พิมพ์ใบคำขอ", en: "Print Request Form" },
@@ -781,7 +1025,7 @@ const TRANSLATIONS = {
   "submitted.cancelSuccessTitle": { th: "ยกเลิกคำขอเรียบร้อย", en: "Request Cancelled" },
   "submitted.cancelSuccessMessage": { th: "คำขอนี้ถูกยกเลิกแล้ว และถูกนำออกจากคิวของเจ้าหน้าที่ หากต้องการแก้ไขข้อมูล กรุณาส่งคำขอใหม่อีกครั้ง", en: "This request has been cancelled and removed from the Officer's queue. To make corrections, please submit a new request." },
   "submitted.cancelErrorTitle": { th: "ยกเลิกคำขอไม่สำเร็จ", en: "Couldn't Cancel Request" },
-  "submitted.cancelError": { th: "ไม่สามารถยกเลิกคำขอนี้ได้ เนื่องจากเจ้าหน้าที่เริ่มดำเนินการกับคำขอนี้ไปแล้ว กรุณารีเฟรชหน้าเพื่อตรวจสอบสถานะล่าสุด", en: "This request can no longer be cancelled — an Officer has already started processing it. Please refresh the page to see the latest status." },
+  "submitted.cancelError": { th: "ไม่สามารถยกเลิกคำขอนี้ได้ เนื่องจากเจ้าหน้าที่เริ่มดำเนินการกับคำขอนี้ไปแล้ว กรุณารีเฟรชหน้าเพื่อตรวจสอบสถานะล่าสุด", en: "This request can no longer be cancelled. An Officer has already started processing it. Please refresh the page to see the latest status." },
   "submitted.cancelErrorGeneric": { th: "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง", en: "A connection error occurred. Please try again." },
 
   "detail.rejectConfirmTitle": { th: "ยืนยันการปฏิเสธคำขอ", en: "Confirm Rejection" },
@@ -789,8 +1033,8 @@ const TRANSLATIONS = {
 
   "summary.refno": { th: "เลขอ้างอิงคำขอ", en: "Request Reference No." },
   "summary.name": { th: "ชื่อผู้ขอ", en: "Requester Name" },
-  "summary.agencyCategory": { th: "ประเภทหน่วยงาน", en: "Agency Category" },
-  "summary.agencyUnit": { th: "หน่วยงาน", en: "Agency/Unit" },
+  "summary.unitType": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "summary.unit": { th: "หน่วยงาน", en: "Unit" },
   "summary.tel": { th: "เบอร์โทรศัพท์", en: "Phone Number" },
   "summary.documentType": { th: "ประเภทเอกสาร", en: "Document Type" },
   "summary.paperSize": { th: "ขนาดกระดาษ", en: "Paper Size" },
@@ -820,12 +1064,12 @@ const TRANSLATIONS = {
   "officerQueue.title": { th: "คิวรอเอกสารต้นฉบับ", en: "Awaiting Original Queue" },
   "officerQueue.subtitle": { th: "รายการคำขอที่รอผู้ขอนำเอกสารต้นฉบับมาส่งที่เคาน์เตอร์", en: "Requests waiting for the Requester to hand-deliver the physical original documents." },
   "officerQueue.filterLabel": { th: "เฉพาะที่เลยกำหนดส่ง", en: "Overdue only" },
-  "officerQueue.searchPlaceholder": { th: "ค้นหาเลขอ้างอิง ชื่อผู้ขอ หรือหน่วยงาน", en: "Search by reference no., requester, or agency" },
+  "officerQueue.searchPlaceholder": { th: "ค้นหาเลขอ้างอิง ชื่อผู้ขอ หรือหน่วยงาน", en: "Search by reference no., requester, or unit" },
   "officerQueue.empty": { th: "ไม่มีคำขอในคิวขณะนี้", en: "No requests in the queue right now." },
   "officerQueue.overdue": { th: "เลยกำหนด", en: "Overdue" },
   "officerQueue.th.ref": { th: "เลขอ้างอิงคำขอ", en: "Reference No." },
   "officerQueue.th.requester": { th: "ผู้ขอ", en: "Requester" },
-  "officerQueue.th.agency": { th: "หน่วยงาน", en: "Agency" },
+  "officerQueue.th.unit": { th: "หน่วยงาน", en: "Unit" },
   "officerQueue.th.submitted": { th: "วันที่ส่งคำขอ", en: "Submitted" },
   "officerQueue.th.deadline": { th: "กำหนดส่งต้นฉบับ", en: "Drop-off Deadline" },
   "officerQueue.th.status": { th: "สถานะ", en: "Status" },
@@ -850,11 +1094,11 @@ const TRANSLATIONS = {
   "detail.rejectReasonPlaceholder": { th: "เช่น จำนวนหน้าต้นฉบับไม่ตรงกับที่ระบุไว้", en: "e.g. Original page count does not match what was submitted" },
   "detail.rejectReasonRequired": { th: "กรุณาระบุเหตุผลที่ปฏิเสธ", en: "Please provide a rejection reason." },
   "detail.rejectBtn": { th: "ปฏิเสธคำขอ", en: "Reject Request" },
-  "detail.approvedBand": { th: "อนุมัติแล้ว — รับต้นฉบับเรียบร้อย", en: "Approved — master received" },
+  "detail.approvedBand": { th: "อนุมัติแล้ว รับต้นฉบับเรียบร้อย", en: "Approved, master received" },
   "detail.approvedNote": { th: "ระบบจริงจะส่งอีเมล RUN NUMBER และ Claim Code นี้ให้ผู้ขอทันที", en: "The real system would email this RUN NUMBER and Claim Code to the Requester immediately." },
   "detail.rejectedBand": { th: "ปฏิเสธคำขอแล้ว", en: "Request rejected" },
   "detail.rejectedNote": { th: "ระบบจริงจะส่งอีเมลแจ้งเหตุผลให้ผู้ขอทันที", en: "The real system would email the reason to the Requester immediately." },
-  "detail.cancelledNotice": { th: "ผู้ขอยกเลิกคำขอนี้เอง ไม่ต้องดำเนินการต่อ", en: "The requester cancelled this request themselves — no action needed." },
+  "detail.cancelledNotice": { th: "ผู้ขอยกเลิกคำขอนี้เอง ไม่ต้องดำเนินการต่อ", en: "The requester cancelled this request themselves. No action needed." },
   "detail.runNumberLabel": { th: "RUN NUMBER", en: "RUN NUMBER" },
   "detail.claimCodeLabel": { th: "Claim Code", en: "Claim Code" },
   "detail.rejectionReasonLabel": { th: "เหตุผลที่ปฏิเสธ", en: "Rejection Reason" },
@@ -889,10 +1133,17 @@ const TRANSLATIONS = {
   "printingJobs.confirmReady.confirmBtn": { th: "ยืนยัน พร้อมส่งมอบ", en: "Confirm Ready" },
   "printingJobs.pickupLabel": { th: "สถานที่รับเอกสาร", en: "Pickup location" },
   "printingJobs.availableFromLabel": { th: "รับเอกสารได้ตั้งแต่", en: "Available for pickup from" },
-  "printingJobs.availableNow": { th: "ตอนนี้", en: "Now" },
+  "printingJobs.pickupDateLabel": { th: "วันที่รับเอกสาร", en: "Pickup date" },
+  "printingJobs.pickupTimeLabel": { th: "รับได้ตั้งแต่เวลา", en: "Available from" },
+  "printingJobs.pagesUnit": { th: "หน้า", en: "pages" },
+  "printingJobs.pagesBreakdownShort": { th: "{pages} หน้า × {copies} ชุด", en: "{pages} × {copies} copies" },
+  "timeWheel.unit.short": { th: "น.", en: "" },
+  "printingJobs.confirmReady.question": { th: "ปริ้นและแพ็กเอกสารครบแล้ว พร้อมส่งมอบให้ผู้ขอใช่ไหม", en: "Printing and packing are done and this job is ready for pickup?" },
+  "printingJobs.setTime": { th: "กำหนดเวลา", en: "Set a time" },
+  "printingJobs.hoursHint": { th: "ผู้ขอจะได้รับแจ้งเวลานี้ พร้อมเวลาทำการของสถานที่ ({hours} น.)", en: "The requester is told this time, together with the place's opening hours ({hours})." },
+  "printingJobs.availableNow": { th: "พร้อมรับทันที", en: "Available now" },
   "printingJobs.availableToday": { th: "วันนี้", en: "Today" },
   "printingJobs.availableHint": { th: "เลือกได้เฉพาะวันทำการ เวลา {hours} น. (ตามเวลาทำการของสถานที่นี้) ผู้ขอจะได้รับแจ้งเวลานี้ทางอีเมล", en: "Business days, {hours} only (this place's own hours). The Requester is told this time by email." },
-  "submitted.availableFrom": { th: "รับเอกสารได้ตั้งแต่:", en: "Available from:" },
   "handover.availableFrom": { th: "รับได้ตั้งแต่", en: "Available from" },
   "detail.availableFromLabel": { th: "รับเอกสารได้ตั้งแต่", en: "Available For Pickup From" },
   "printingJobs.readyError": { th: "บันทึกไม่สำเร็จ สถานที่รับที่เลือกอาจไม่พร้อมใช้งานแล้ว หรือคำขอถูกเปลี่ยนสถานะไปแล้ว กรุณาตรวจสอบและลองใหม่", en: "Couldn't save. The chosen pickup place may no longer be available, or the request has already changed status. Please check and try again." },
@@ -949,15 +1200,15 @@ const TRANSLATIONS = {
   "history.searchPlaceholder": { th: "RUN NUMBER, เลขอ้างอิง, ชื่อผู้ขอ/ผู้รับ, หรือ Claim Code", en: "RUN NUMBER, reference no., requester/receiver name, or Claim Code" },
   "history.filterStatus": { th: "สถานะ", en: "Status" },
   "history.filterStatus.all": { th: "ทุกสถานะ", en: "All statuses" },
-  "history.filterAgency": { th: "ประเภทหน่วยงาน", en: "Agency Category" },
-  "history.filterAgency.all": { th: "ทุกหน่วยงาน", en: "All agencies" },
+  "history.filterUnit": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "history.filterUnit.all": { th: "ทุกหน่วยงาน", en: "All units" },
   "history.filterYear": { th: "ปีที่ส่งคำขอ", en: "Submission Year" },
   "history.filterYear.all": { th: "ทุกปี", en: "All years" },
   "history.filterMonth": { th: "เดือนที่ส่งคำขอ", en: "Submission Month" },
   "history.filterMonth.all": { th: "ทุกเดือน", en: "All months" },
   "history.th.ref": { th: "เลขอ้างอิง / RUN NUMBER", en: "Reference No. / RUN NUMBER" },
   "history.th.requester": { th: "ผู้ขอ", en: "Requester" },
-  "history.th.agency": { th: "หน่วยงาน", en: "Agency" },
+  "history.th.unit": { th: "หน่วยงาน", en: "Unit" },
   "history.th.item": { th: "รายการ", en: "Item" },
   "history.th.submitted": { th: "วันที่ส่งคำขอ", en: "Submitted" },
   "history.th.status": { th: "สถานะ", en: "Status" },
@@ -1013,98 +1264,38 @@ const TRANSLATIONS = {
   "result.failure": { th: "ทำรายการไม่สำเร็จ", en: "Couldn't complete" },
   "result.network": { th: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง", en: "Couldn't reach the server. Check your connection and try again." },
   "result.generic": { th: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", en: "Something went wrong. Please try again." },
-  "result.formError": { th: "ยังส่งไม่ได้ กรุณาแก้ไขตามที่แจ้งไว้ในหน้านี้", en: "Not sent yet — please fix what's shown on this page." },
+  "result.formError": { th: "ยังส่งไม่ได้ กรุณาแก้ไขตามที่แจ้งไว้ในหน้านี้", en: "Not sent yet. Please fix what's shown on this page." },
   "result.msg.submitted": { th: "ส่งคำขอพิมพ์เอกสารเรียบร้อยแล้ว เลขที่คำขอและขั้นตอนต่อไปแสดงอยู่ในหน้านี้", en: "Your print request was submitted. The reference number and next steps are on this page." },
   "result.msg.edited": { th: "บันทึกการแก้ไขคำขอเรียบร้อยแล้ว", en: "Your changes to the request were saved." },
-  "result.err.notEditable": { th: "แก้ไขคำขอไม่ได้แล้ว เนื่องจากเจ้าหน้าที่ดำเนินการคำขอนี้ไปแล้ว การแก้ไขจึงไม่ถูกบันทึก", en: "This request can no longer be edited — an officer has already acted on it, so your changes weren't saved." },
-  "result.err.evaluationRequired": { th: "ยังสร้างคำขอใหม่ไม่ได้ กรุณาทำแบบประเมินความพึงพอใจของคำขอก่อนหน้าให้เสร็จก่อน", en: "You can't create a new request yet — please finish the satisfaction evaluation for your previous request first." },
+  "result.err.notEditable": { th: "แก้ไขคำขอไม่ได้แล้ว เนื่องจากเจ้าหน้าที่ดำเนินการคำขอนี้ไปแล้ว การแก้ไขจึงไม่ถูกบันทึก", en: "This request can no longer be edited. An officer has already acted on it, so your changes weren't saved." },
+  "result.err.evaluationRequired": { th: "ยังสร้างคำขอใหม่ไม่ได้ กรุณาทำแบบประเมินความพึงพอใจของคำขอก่อนหน้าให้เสร็จก่อน", en: "You can't create a new request yet. Please finish the satisfaction evaluation for your previous request first." },
   "profile.saveSuccess": { th: "บันทึกโปรไฟล์เรียบร้อยแล้ว", en: "Your profile was saved." },
-  "profile.saveError": { th: "บันทึกโปรไฟล์ไม่สำเร็จ ข้อมูลหน่วยงานที่เลือกอาจถูกเปลี่ยนไปแล้ว ระบบจะโหลดหน้าใหม่ กรุณาเลือกอีกครั้ง", en: "Your profile wasn't saved — the selected department may have changed. The page will reload; please choose again." },
+  "profile.saveError": { th: "บันทึกโปรไฟล์ไม่สำเร็จ ข้อมูลหน่วยงานที่เลือกอาจถูกเปลี่ยนไปแล้ว ระบบจะโหลดหน้าใหม่ กรุณาเลือกอีกครั้ง", en: "Your profile wasn't saved. The selected department may have changed. The page will reload; please choose again." },
   "detail.result.approved": { th: "อนุมัติคำขอ {ref} แล้ว นัดรับวันที่ {date} ระบบแจ้งผู้ขอให้ทราบแล้ว", en: "Request {ref} approved for {date}. The requester has been notified." },
   "detail.result.rejected": { th: "ปฏิเสธคำขอ {ref} แล้ว ระบบแจ้งผู้ขอพร้อมเหตุผลแล้ว", en: "Request {ref} rejected. The requester has been notified with the reason." },
-  "detail.result.notAwaiting": { th: "ดำเนินการคำขอ {ref} ไม่ได้ เนื่องจากคำขอนี้ถูกดำเนินการหรือยกเลิกไปแล้ว หน้านี้แสดงสถานะล่าสุดแล้ว", en: "Couldn't act on {ref} — it was already handled or cancelled. This page now shows its latest status." },
+  "detail.result.notAwaiting": { th: "ดำเนินการคำขอ {ref} ไม่ได้ เนื่องจากคำขอนี้ถูกดำเนินการหรือยกเลิกไปแล้ว หน้านี้แสดงสถานะล่าสุดแล้ว", en: "Couldn't act on {ref}. It was already handled or cancelled. This page now shows its latest status." },
   "printingJobs.readySuccess": { th: "บันทึกว่าคำขอ {ref} พิมพ์เสร็จพร้อมรับแล้ว ระบบแจ้งผู้ขอให้ทราบแล้ว", en: "{ref} marked ready for pickup. The requester has been notified." },
   "handover.result.done": { th: "ส่งมอบเอกสารคำขอ {ref} ให้ {name} เรียบร้อยแล้ว", en: "Request {ref} handed over to {name}." },
-  "handover.result.notReady": { th: "ส่งมอบคำขอ {ref} ไม่ได้ เนื่องจากคำขอนี้ไม่ได้อยู่ในสถานะพร้อมรับ (อาจส่งมอบไปแล้ว)", en: "Couldn't hand over {ref} — it isn't ready for pickup (it may already have been handed over)." },
+  "handover.result.notReady": { th: "ส่งมอบคำขอ {ref} ไม่ได้ เนื่องจากคำขอนี้ไม่ได้อยู่ในสถานะพร้อมรับ (อาจส่งมอบไปแล้ว)", en: "Couldn't hand over {ref}. It isn't ready for pickup (it may already have been handed over)." },
   "admin.result.added": { th: "เพิ่ม {name} ({email}) เป็นเจ้าหน้าที่แล้ว", en: "{name} ({email}) was added as an officer." },
   "admin.result.removed": { th: "ยกเลิกสิทธิ์เจ้าหน้าที่ของ {name} ({email}) แล้ว", en: "Officer access for {name} ({email}) was revoked." },
   "settings.savedMsgFull": { th: "บันทึกการตั้งค่าระบบเรียบร้อยแล้ว", en: "System settings saved." },
+  "settings.bar.clean": { th: "ไม่มีการเปลี่ยนแปลง", en: "No unsaved changes" },
+  "settings.bar.dirty": { th: "มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก", en: "You have unsaved changes" },
+  "settings.bar.saving": { th: "กำลังบันทึก…", en: "Saving…" },
+  "settings.bar.saved": { th: "บันทึกแล้ว", en: "Saved" },
+  "settings.bar.discard": { th: "ยกเลิกการเปลี่ยนแปลง", en: "Discard changes" },
   "result.msg.evaluated": { th: "ส่งแบบประเมินเรียบร้อยแล้ว ขอบคุณสำหรับความคิดเห็น", en: "Your evaluation was submitted. Thank you for the feedback." },
+  "result.err.evaluationExpired": { th: "หมดเวลาประเมินคำขอนี้แล้ว ไม่ต้องทำแบบประเมินสำหรับคำขอนี้", en: "The time to evaluate this request has passed. No evaluation is needed for it." },
   "admin.empty": { th: "ยังไม่มีเจ้าหน้าที่ในระบบ", en: "No officer accounts yet." },
 
   "crumb.systemSettings": { th: "จัดการระบบ / <strong>ภาพรวม</strong>", en: "System Settings / <strong>Overview</strong>" },
   "crumb.adminLocations": { th: "สถานที่รับ-ส่งเอกสาร / <strong>ภาพรวม</strong>", en: "Drop-off & Pickup Locations / <strong>Overview</strong>" },
   "crumb.adminAuditLog": { th: "ประวัติการแก้ไข / <strong>ภาพรวม</strong>", en: "Change History / <strong>Overview</strong>" },
-  "crumb.adminAgencies": { th: "หน่วยงาน / <strong>ภาพรวม</strong>", en: "Agencies / <strong>Overview</strong>" },
-  "crumb.adminBackup": { th: "สำรองและกู้คืนข้อมูล / <strong>ภาพรวม</strong>", en: "Backup & Restore / <strong>Overview</strong>" },
+  "crumb.adminUnits": { th: "หน่วยงาน / <strong>ภาพรวม</strong>", en: "Units / <strong>Overview</strong>" },
+  "crumb.adminEvaluationForm": { th: "แบบประเมิน / <strong>แก้ไข</strong>", en: "Evaluation form / <strong>Edit</strong>" },
+  "crumb.evaluationPreview": { th: "แบบประเมิน / <strong>ตัวอย่าง</strong>", en: "Evaluation form / <strong>Preview</strong>" },
   "crumb.adminManuals": { th: "คู่มือการใช้งาน / <strong>ภาพรวม</strong>", en: "User Manuals / <strong>Overview</strong>" },
-  "backup.title": { th: "สำรองและกู้คืนข้อมูล", en: "Backup & Restore" },
-  "backup.subtitle": { th: "เก็บข้อมูลทั้งหมดในระบบเป็นไฟล์ และเลือกไฟล์ที่ต้องการนำกลับมาใช้ได้ทุกเมื่อ", en: "Keep all system data as files, and bring any of them back whenever you need to." },
-  "backup.current.title": { th: "ข้อมูลในระบบตอนนี้", en: "Data in the system now" },
-  "backup.current.fromFile": { th: "มาจากไฟล์ “{name}”", en: "Loaded from “{name}”" },
-  "backup.current.loadedAt": { th: "นำเข้าเมื่อ {date} (หลังจากนั้นอาจมีการใช้งานเพิ่ม)", en: "Loaded on {date} (it may have been used since)" },
-  "backup.current.loadedAtDeleted": { th: "นำเข้าเมื่อ {date} — ไฟล์นี้ถูกลบออกจากรายการแล้ว แต่ข้อมูลในระบบยังอยู่ครบ", en: "Loaded on {date} — the file has since been deleted, the data is still here" },
-  "backup.current.cleared": { th: "ล้างข้อมูลแล้ว (ใช้ค่าเริ่มต้น)", en: "Cleared (using defaults)" },
-  "backup.current.clearedAt": { th: "ล้างเมื่อ {date}", en: "Cleared on {date}" },
-  "backup.current.live": { th: "ข้อมูลที่ใช้งานอยู่ในระบบ", en: "The system's own working data" },
-  "backup.current.liveHint": { th: "ยังไม่เคยนำไฟล์สำรองมาใช้", en: "No backup file has been loaded yet" },
-  "backup.current.total": { th: "รายการทั้งหมด", en: "Total records" },
-  "backup.current.saveBtn": { th: "บันทึกเป็นไฟล์ใหม่", en: "Save as new file" },
-  "backup.current.saving": { th: "กำลังบันทึกข้อมูลเป็นไฟล์…", en: "Saving data to a file…" },
-  "backup.current.clearBtn": { th: "ล้างข้อมูลทั้งหมด", en: "Clear all data" },
-  "backup.files.title": { th: "ไฟล์สำรองข้อมูล", en: "Backup files" },
-  "backup.files.desc": { th: "กด “ใช้ไฟล์นี้” เพื่อแทนที่ข้อมูลทั้งหมดในระบบด้วยข้อมูลในไฟล์ ก่อนทุกครั้งระบบจะสำรองข้อมูลปัจจุบันเก็บไว้ในรายการนี้ให้อัตโนมัติ จึงย้อนกลับได้เสมอ", en: "Press “Use this file” to replace all system data with the file's. The current data is always saved to this list automatically first, so you can go back." },
-  "backup.files.uploadBtn": { th: "อัปโหลดไฟล์", en: "Upload file" },
-  "backup.files.uploading": { th: "กำลังอัปโหลดและตรวจสอบไฟล์…", en: "Uploading and checking the file…" },
-  "backup.files.dropHint": { th: "วางไฟล์ที่นี่เพื่ออัปโหลด", en: "Drop the file here to upload" },
-  "backup.files.empty": { th: "ยังไม่มีไฟล์ — กด “บันทึกเป็นไฟล์ใหม่” หรือ “อัปโหลดไฟล์”", en: "No files yet — use “Save as new file” or “Upload file”" },
-  "backup.files.useBtn": { th: "ใช้ไฟล์นี้", en: "Use this file" },
-  "backup.files.downloadBtn": { th: "ดาวน์โหลด", en: "Download" },
-  "backup.files.deleteBtn": { th: "ลบไฟล์", en: "Delete file" },
-  "backup.files.activeBadge": { th: "ใช้อยู่", en: "In use" },
-  "backup.files.autoBadge": { th: "อัตโนมัติ", en: "Automatic" },
-  "backup.files.olderBadge": { th: "ระบบเวอร์ชันเก่า", en: "Older version" },
-  "backup.files.olderHint": { th: "ไฟล์นี้มาจากระบบเวอร์ชันก่อนหน้า ใช้ได้ตามปกติ ข้อมูลส่วนที่เพิ่มเข้ามาในเวอร์ชันใหม่จะเป็นค่าเริ่มต้น", en: "This file is from an earlier version of the system. It can be used; anything added in later versions gets its default value." },
-  "backup.files.newerBadge": { th: "ใช้ไม่ได้: มาจากระบบเวอร์ชันใหม่กว่า", en: "Can't use: from a newer version" },
-  "backup.files.dataAt": { th: "ข้อมูล ณ {date}", en: "Data as of {date}" },
-  "backup.files.requests": { th: "คำขอ {n} รายการ", en: "{n} requests" },
-  "backup.files.autoKeep": { th: "ไฟล์อัตโนมัติจะเก็บไว้ล่าสุด {n} ไฟล์ ส่วนไฟล์ที่บันทึกหรืออัปโหลดเองจะอยู่จนกว่าจะลบ", en: "The latest {n} automatic files are kept; files you save or upload stay until you delete them." },
-  "backup.kind.snapshot": { th: "สำรองข้อมูล {date}", en: "Backup {date}" },
-  "backup.kind.autoBeforeApply": { th: "สำรองอัตโนมัติ ก่อนใช้ไฟล์ “{name}”", en: "Auto backup before using “{name}”" },
-  "backup.kind.autoBeforeRestore": { th: "สำรองอัตโนมัติ ก่อนกู้คืน", en: "Auto backup before a restore" },
-  "backup.kind.autoBeforeClear": { th: "สำรองอัตโนมัติ ก่อนล้างข้อมูล", en: "Auto backup before clearing" },
-  "backup.apply.title": { th: "ใช้ไฟล์ “{name}”?", en: "Use “{name}”?" },
-  "backup.apply.message": { th: "ข้อมูลปัจจุบันทั้งหมดในระบบจะถูกแทนที่ด้วยข้อมูลในไฟล์ “{name}” ระบบจะสำรองข้อมูลปัจจุบันเก็บไว้ในรายการให้อัตโนมัติก่อน", en: "All current data will be replaced by the data in “{name}”. The current data is saved to the list automatically first." },
-  "backup.apply.messageFrom": { th: "ข้อมูลปัจจุบัน (จากไฟล์ “{current}”) จะถูกแทนที่ด้วยข้อมูลในไฟล์ “{name}” ระบบจะสำรองข้อมูลปัจจุบันเก็บไว้ในรายการให้อัตโนมัติก่อน", en: "The current data (from “{current}”) will be replaced by the data in “{name}”. The current data is saved to the list automatically first." },
-  "backup.apply.processing": { th: "กำลังนำข้อมูลจากไฟล์เข้าระบบ…", en: "Loading the file's data…" },
-  "backup.delete.title": { th: "ลบไฟล์ “{name}”?", en: "Delete “{name}”?" },
-  "backup.delete.message": { th: "ไฟล์จะถูกลบออกจากรายการถาวร ข้อมูลในระบบไม่เปลี่ยนแปลง", en: "The file is removed from the list for good. The data in the system doesn't change." },
-  "backup.delete.messageActive": { th: "ข้อมูลในระบบตอนนี้มาจากไฟล์นี้ — ลบไฟล์แล้วข้อมูลในระบบยังอยู่ครบ แต่จะใช้ไฟล์นี้ย้อนกลับไม่ได้อีก", en: "The current data came from this file — deleting it keeps the data, but you can no longer go back to this file." },
-  "backup.clear.title": { th: "ล้างข้อมูลทั้งหมด?", en: "Clear all data?" },
-  "backup.clear.message": { th: "ข้อมูลการใช้งานทั้งหมดจะถูกลบ (คำขอ ผู้ขอ บัญชีเจ้าหน้าที่ แจ้งเตือน ประวัติ) ส่วนหน่วยงาน สถานที่รับ-ส่งเอกสาร และการตั้งค่าระบบ จะกลับเป็นค่าเริ่มต้น เพื่อให้ระบบรับคำขอได้ทันที (แก้ไขต่อได้ตามปกติ) ค่าใน .env และสิทธิ์ Admin ไม่เปลี่ยน ระบบจะสำรองข้อมูลปัจจุบันเก็บไว้ในรายการให้อัตโนมัติก่อน", en: "All usage data is deleted (requests, requesters, officer accounts, notifications, history). Departments, drop-off/pickup places and system settings go back to their defaults so the system can take requests right away (still editable). .env values and Admin access don't change. The current data is saved to the list automatically first." },
-  "backup.clear.processing": { th: "กำลังล้างข้อมูล…", en: "Clearing data…" },
-  "backup.confirm.label": { th: "พิมพ์คำว่า", en: "Type" },
-  "backup.confirm.label2": { th: "เพื่อยืนยัน", en: "to confirm" },
-  "backup.compare.table": { th: "ข้อมูล", en: "Data" },
-  "backup.compare.current": { th: "ในระบบตอนนี้", en: "Now" },
-  "backup.compare.file": { th: "หลังใช้ไฟล์นี้", en: "After" },
-  "backup.flash.applied": { th: "นำข้อมูลจากไฟล์ “{name}” เข้าระบบแล้ว ข้อมูลก่อนหน้าถูกสำรองไว้เป็นไฟล์อัตโนมัติในรายการ", en: "Loaded “{name}”. The previous data was saved as an automatic file in the list." },
-  "backup.flash.cleared": { th: "ล้างข้อมูลทั้งหมดแล้ว หน่วยงาน สถานที่ และการตั้งค่ากลับเป็นค่าเริ่มต้น ข้อมูลก่อนล้างถูกสำรองไว้เป็นไฟล์อัตโนมัติในรายการ", en: "All data cleared; departments, places and settings are back to their defaults. The data from before was saved as an automatic file in the list." },
-  "backup.flash.saved": { th: "บันทึกข้อมูลปัจจุบันเป็นไฟล์ “{name}” แล้ว", en: "Saved the current data as “{name}”." },
-  "backup.flash.uploaded": { th: "อัปโหลดไฟล์ “{name}” แล้ว — ข้อมูลในระบบยังไม่เปลี่ยน จนกว่าจะกด “ใช้ไฟล์นี้”", en: "Uploaded “{name}” — the system's data doesn't change until you press “Use this file”." },
-  "backup.flash.deleted": { th: "ลบไฟล์แล้ว", en: "File deleted." },
-  "backup.history.title": { th: "ประวัติ", en: "History" },
-  "backup.history.hint": { th: "การสำรอง อัปโหลด ใช้ไฟล์ ล้าง และลบไฟล์ทั้งหมด เรียงจากล่าสุด", en: "Every save, upload, load, clear and delete, newest first" },
-  "backup.history.empty": { th: "ยังไม่มีประวัติ", en: "No history yet" },
-  "backup.history.more": { th: "แสดงเพิ่ม", en: "Show more" },
-  "backup.history.remaining": { th: "(เหลืออีก {n} รายการ)", en: "({n} more)" },
-  "backup.history.backupExport": { th: "ดาวน์โหลดไฟล์สำรอง", en: "Downloaded a backup" },
-  "backup.history.backupSnapshot": { th: "บันทึกเป็นไฟล์ใหม่", en: "Saved as new file" },
-  "backup.history.backupUpload": { th: "อัปโหลดไฟล์", en: "Uploaded a file" },
-  "backup.history.backupRestore": { th: "ใช้ไฟล์", en: "Used a file" },
-  "backup.history.backupRollback": { th: "ย้อนกลับข้อมูล", en: "Rolled back" },
-  "backup.history.backupClear": { th: "ล้างข้อมูลทั้งหมด", en: "Cleared all data" },
-  "backup.history.backupDelete": { th: "ลบไฟล์", en: "Deleted a file" },
   "auditLog.action.backupExport": { th: "ดาวน์โหลดไฟล์สำรอง", en: "Downloaded a backup" },
   "auditLog.action.backupSnapshot": { th: "บันทึกไฟล์สำรอง", en: "Saved a backup file" },
   "auditLog.action.backupUpload": { th: "อัปโหลดไฟล์สำรอง", en: "Uploaded a backup file" },
@@ -1114,31 +1305,6 @@ const TRANSLATIONS = {
   "auditLog.action.backupDelete": { th: "ลบไฟล์สำรอง", en: "Deleted a backup file" },
   "auditLog.action.manualUpload": { th: "อัปโหลดคู่มือการใช้งาน", en: "Uploaded a user manual" },
   "auditLog.action.manualDelete": { th: "ลบคู่มือการใช้งาน", en: "Deleted a user manual" },
-  "backup.table.Request": { th: "คำขอพิมพ์เอกสาร", en: "Print requests" },
-  "backup.table.Evaluation": { th: "ผลประเมินความพึงพอใจ", en: "Evaluations" },
-  "backup.table.Profile": { th: "โปรไฟล์ผู้ขอ", en: "Requester profiles" },
-  "backup.table.Officer": { th: "บัญชีเจ้าหน้าที่", en: "Officer accounts" },
-  "backup.table.AgencyCategory": { th: "ประเภทหน่วยงาน", en: "Agency categories" },
-  "backup.table.AgencyUnit": { th: "หน่วยงาน", en: "Departments" },
-  "backup.table.Location": { th: "สถานที่รับและส่งเอกสาร", en: "Locations" },
-  "backup.table.Notification": { th: "การแจ้งเตือน", en: "Notifications" },
-  "backup.table.AuditLog": { th: "ประวัติการแก้ไข", en: "Change history" },
-  "backup.table.Counter": { th: "ตัวนับเลขคำขอ", en: "Number counters" },
-  "backup.table.UserManual": { th: "คู่มือการใช้งาน", en: "User manuals" },
-  "backup.table.SystemSetting": { th: "การตั้งค่าระบบ", en: "System settings" },
-  "backup.error.generic": { th: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง", en: "Something went wrong. Please try again." },
-  "backup.error.empty": { th: "ไฟล์ว่างเปล่า", en: "The file is empty." },
-  "backup.error.unreadable": { th: "อ่านไฟล์ไม่ได้ กรุณาใช้ไฟล์ .json.gz ที่ได้จากหน้านี้", en: "Couldn't read this file. Use a .json.gz file downloaded from this page." },
-  "backup.error.notOdprs": { th: "ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของระบบนี้", en: "This isn't a backup file from this system." },
-  "backup.error.formatVersion": { th: "รูปแบบไฟล์ไม่รองรับ", en: "Unsupported backup file format." },
-  "backup.error.checksum": { th: "ไฟล์เสียหายหรือถูกแก้ไข จึงไม่สามารถใช้กู้คืนได้", en: "The file is damaged or was modified, so it can't be restored." },
-  "backup.error.missingTable": { th: "ข้อมูลในไฟล์ไม่ครบ", en: "The file is missing data." },
-  "backup.error.schemaNewer": { th: "ไฟล์นี้มาจากระบบเวอร์ชันที่ใหม่กว่าเครื่องนี้ กรุณาอัปเดตระบบบนเครื่องนี้ก่อน แล้วค่อยใช้ไฟล์", en: "This file is from a newer version of the system than this server. Update this server first, then use the file." },
-  "backup.error.incompatible": { th: "ไฟล์นี้เก่าเกินกว่าจะแปลงเข้ากับระบบเวอร์ชันนี้ได้ ข้อมูลในระบบไม่ถูกเปลี่ยนแปลง", en: "This file is too old to convert to this version of the system. Nothing was changed." },
-  "backup.error.notFound": { th: "ไม่พบไฟล์นี้แล้ว กรุณารีเฟรชหน้า", en: "That file no longer exists. Please refresh the page." },
-  "backup.error.tooLarge": { th: "ไฟล์ใหญ่เกินกว่าที่รองรับ", en: "The file is too large." },
-  "backup.error.confirmPhrase": { th: "คำยืนยันไม่ถูกต้อง", en: "The confirmation text doesn't match." },
-  "backup.error.busy": { th: "มีการนำเข้าหรือล้างข้อมูลกำลังดำเนินการอยู่ กรุณารอสักครู่", en: "Another load or clear is still running. Please wait." },
   "settings.title": { th: "จัดการระบบ", en: "System Settings" },
   "settings.subtitle": { th: "แจ้งเตือนอีเมลเจ้าหน้าที่ และเปิด/ปิดระบบสำหรับผู้ขอ", en: "Officer email alerts and Requester access." },
   "settings.notif.title": { th: "แจ้งเตือนเจ้าหน้าที่", en: "Officer Alerts" },
@@ -1148,42 +1314,37 @@ const TRANSLATIONS = {
   "adminLocations.title": { th: "สถานที่รับ-ส่งเอกสาร", en: "Drop-off & Pickup Locations" },
   "adminLocations.subtitle": { th: "กำหนดที่ส่งเอกสารต้นฉบับและที่รับเอกสารที่พิมพ์เสร็จ กรอกทั้งไทยและอังกฤษ", en: "Set where originals are dropped off and finished prints are picked up. Fill in both Thai and English." },
   "adminLocations.tableTitle": { th: "รายการสถานที่", en: "Locations" },
-  "adminLocations.editHint": { th: "การแก้ไขชื่อหรือรายละเอียดจะแสดงกับคำขอที่ยังค้างอยู่ทันที แต่อีเมลที่ส่งไปแล้วแก้ไม่ได้", en: "Edits show immediately on requests still in progress, but emails already sent can't be changed." },
   "adminLocations.form.addTitle": { th: "เพิ่มสถานที่ใหม่", en: "Add Location" },
   "adminLocations.form.editTitle": { th: "แก้ไขสถานที่", en: "Edit Location" },
   "adminLocations.form.phone": { th: "เบอร์โทรติดต่อ", en: "Contact phone" },
   "adminLocations.form.phonePlaceholder": { th: "เช่น 053-916xxx (ชื่อผู้ติดต่อ)", en: "e.g. 053-916xxx (Contact name)" },
   "adminLocations.form.mapUrl": { th: "ลิงก์แผนที่ (ถ้ามี)", en: "Map link (optional)" },
   "adminLocations.form.mapUrlPlaceholder": { th: "เช่น https://maps.app.goo.gl/...", en: "e.g. https://maps.app.goo.gl/..." },
-  "adminLocations.form.acceptsDropoff": { th: "เป็นจุดส่งเอกสารต้นฉบับ", en: "Drop-off point for original documents" },
-  "adminLocations.form.acceptsPickup": { th: "เป็นจุดรับเอกสารที่พิมพ์เสร็จ", en: "Pickup point for finished copies" },
-  "adminLocations.form.defaultDropoff": { th: "ใช้เป็นค่าเริ่มต้น", en: "Use as the default" },
-  "adminLocations.form.defaultPickup": { th: "ใช้เป็นค่าเริ่มต้น", en: "Use as the default" },
   "adminLocations.addBtn": { th: "เพิ่มสถานที่", en: "Add Location" },
   "adminLocations.form.basicInfo": { th: "ชื่อและรายละเอียด", en: "Name & details" },
   "adminLocations.form.colTh": { th: "ภาษาไทย", en: "Thai" },
   "adminLocations.form.colEn": { th: "ภาษาอังกฤษ", en: "English" },
   "adminLocations.form.rowName": { th: "ชื่อสถานที่ *", en: "Name *" },
-  "adminLocations.form.rowDetail": { th: "อาคาร / ชั้น / ห้อง", en: "Building / floor / room" },
+  "adminLocations.form.rowDetail": { th: "อาคาร / ชั้น / ห้อง *", en: "Building / floor / room *" },
   "adminLocations.form.hours": { th: "เวลาทำการ", en: "Opening hours" },
-  "adminLocations.form.hoursFrom": { th: "ตั้งแต่วัน", en: "From" },
-  "adminLocations.form.hoursTo": { th: "ถึงวัน", en: "to" },
-  "adminLocations.form.hoursOpen": { th: "เปิด", en: "Opens" },
-  "adminLocations.form.hoursClose": { th: "ปิด", en: "Closes" },
+  "adminLocations.form.defaultTip": { th: "ระบบจะเลือกสถานที่นี้ไว้ให้ก่อน ผู้ใช้เปลี่ยนได้", en: "The system pre-selects this place; it can still be changed." },
+  "adminLocations.form.makeDefault": { th: "ตั้งเป็นค่าเริ่มต้น", en: "Set as default" },
+  "adminLocations.form.isDefault": { th: "ค่าเริ่มต้น", en: "Default" },
+  "adminLocations.form.acceptsPickup": { th: "ผู้ขอมารับเอกสารที่พิมพ์เสร็จที่นี่", en: "Requesters collect finished copies here" },
+  "adminLocations.form.acceptsDropoff": { th: "ผู้ขอนำเอกสารต้นฉบับมาส่งที่นี่", en: "Requesters drop off originals here" },
+  "adminLocations.form.hoursUntil": { th: "ถึง", en: "to" },
   "adminLocations.form.hoursNone": { th: "ไม่ระบุ", en: "Not set" },
-  "adminLocations.form.hoursPreview": { th: "จะแสดงให้ผู้ใช้เห็นเป็น:", en: "Users will see:" },
-  "adminLocations.form.hoursHint": { th: "เว้นว่างทั้งหมดถ้าไม่ต้องการแสดงเวลาทำการ", en: "Leave all blank to show no opening hours." },
   "adminLocations.form.hoursLegacy": { th: "เวลาเดิมที่เคยพิมพ์ไว้:", en: "Existing hours (typed earlier):" },
-  "adminLocations.form.hoursLegacyHint": { th: "ระบบเปลี่ยนเป็นแบบเลือกแล้ว — ปล่อยว่างไว้เพื่อคงค่าเดิม หรือเลือกใหม่เพื่อแทนที่", en: "Hours are now picked from lists — leave blank to keep this, or choose new hours to replace it." },
+  "adminLocations.form.hoursLegacyHint": { th: "ถ้าไม่เลือกวัน ระบบจะคงค่าเดิมไว้ ถ้าเลือกวันและเวลาใหม่ จะใช้ค่าใหม่แทน", en: "Leave the days unset to keep this, or pick new days and times to replace it." },
   "adminLocations.form.contact": { th: "ติดต่อ", en: "Contact" },
-  "adminLocations.form.usage": { th: "ใช้งานเป็น", en: "Used as" },
+  "adminLocations.form.usage": { th: "สถานที่นี้ใช้ทำอะไร", en: "What is this place for?" },
   "adminLocations.form.editTitleNamed": { th: "แก้ไขสถานที่: {name}", en: "Edit Location: {name}" },
   "adminLocations.deleteBtn": { th: "ลบ", en: "Delete" },
   "adminLocations.deleteConfirmTitle": { th: "ลบสถานที่นี้ถาวร?", en: "Delete this location permanently?" },
-  "adminLocations.deleteConfirmMessage": { th: "“{name}” จะถูกลบถาวรและกู้คืนไม่ได้ ถ้าเคยมีคำขอใช้สถานที่นี้แล้วระบบจะไม่ให้ลบ ให้ใช้ “เก็บถาวร” แทน", en: "“{name}” will be deleted for good. If any request has used it, deletion is blocked — use “Archive” instead." },
-  "adminLocations.err.inUse": { th: "ลบไม่ได้: มีคำขอ {n} รายการเคยใช้สถานที่นี้ กรุณาใช้ “เก็บถาวร” แทน", en: "Can't delete: {n} request(s) have used this place. Use “Archive” instead." },
-  "adminLocations.err.hoursIncomplete": { th: "เวลาทำการไม่ครบ กรุณาเลือกทั้งวันเริ่ม วันสิ้นสุด เวลาเปิด และเวลาปิด หรือเว้นว่างทั้งหมด", en: "Opening hours are incomplete — choose both days and both times, or leave all blank." },
-  "adminLocations.err.hoursInvalid": { th: "เวลาทำการไม่ถูกต้อง เวลาปิดต้องอยู่หลังเวลาเปิด และวันสิ้นสุดต้องไม่มาก่อนวันเริ่ม", en: "Invalid hours — closing must be after opening, and the last day can't be before the first." },
+  "adminLocations.deleteConfirmMessage": { th: "“{name}” จะถูกลบถาวรและกู้คืนไม่ได้ คำขอที่เสร็จสิ้นแล้วยังแสดงชื่อสถานที่เดิมได้ตามปกติ แต่ถ้ายังมีคำขอที่ดำเนินการไม่เสร็จใช้สถานที่นี้อยู่ ระบบจะไม่ให้ลบ", en: "“{name}” will be deleted for good. Finished requests keep showing this place as before, but deletion is blocked while any unfinished request still uses it." },
+  "adminLocations.err.inUse": { th: "ลบไม่ได้: ยังมีคำขอที่ดำเนินการไม่เสร็จ {n} รายการใช้สถานที่นี้อยู่ กรุณารอให้เสร็จก่อน หรือใช้ “เก็บถาวร” เพื่อไม่ให้เลือกสถานที่นี้ได้อีก", en: "Can't delete: {n} unfinished request(s) still use this place. Wait until they're done, or use “Archive” so it can't be chosen any more." },
+  "adminLocations.err.hoursIncomplete": { th: "เวลาทำการไม่ครบ กรุณาเลือกทั้งวันเริ่ม วันสิ้นสุด เวลาเปิด และเวลาปิด หรือเว้นว่างทั้งหมด", en: "Opening hours are incomplete. Choose both days and both times, or leave all blank." },
+  "adminLocations.err.hoursInvalid": { th: "เวลาทำการไม่ถูกต้อง เวลาปิดต้องอยู่หลังเวลาเปิด และวันสิ้นสุดต้องไม่มาก่อนวันเริ่ม", en: "Invalid hours. Closing must be after opening, and the last day can't be before the first." },
   "adminLocations.banner.saved": { th: "บันทึกสถานที่ “{name}” เรียบร้อยแล้ว", en: "Saved “{name}”." },
   "adminLocations.banner.deleted": { th: "ลบสถานที่ “{name}” แล้ว", en: "Deleted “{name}”." },
   "adminLocations.banner.archived": { th: "เก็บถาวร “{name}” แล้ว", en: "Archived “{name}”." },
@@ -1196,7 +1357,7 @@ const TRANSLATIONS = {
   "adminLocations.th.action": { th: "การดำเนินการ", en: "Actions" },
   "adminLocations.badge.dropoff": { th: "ส่งเอกสาร", en: "Drop-off" },
   "adminLocations.badge.pickup": { th: "รับเอกสาร", en: "Pickup" },
-  "adminLocations.badge.default": { th: "เริ่มต้น", en: "Default" },
+  "adminLocations.badge.default": { th: "ค่าเริ่มต้น", en: "Default" },
   "adminLocations.badge.archived": { th: "เก็บถาวร", en: "Archived" },
   "adminLocations.badge.missingEn": { th: "ยังไม่มีชื่อภาษาอังกฤษ", en: "English name missing" },
   "adminLocations.badge.inFlight": { th: "คำขอค้างอยู่ {n} รายการ", en: "{n} pending request(s)" },
@@ -1208,31 +1369,42 @@ const TRANSLATIONS = {
   "adminLocations.archiveConfirmTitle": { th: "เก็บถาวรสถานที่นี้?", en: "Archive this location?" },
   "adminLocations.archiveConfirmMessage": { th: "“{name}” จะไม่แสดงเป็นตัวเลือกอีก คำขอที่เคยเลือกสถานที่นี้ยังคงเห็นชื่อเดิม", en: "“{name}” will no longer be offered as a choice. Requests that already use it keep showing its name." },
   "adminLocations.err.nameRequired": { th: "กรุณากรอกชื่อสถานที่ทั้งภาษาไทยและอังกฤษ", en: "Please enter the location name in both Thai and English." },
+  "adminLocations.err.missingFields": { th: "กรุณากรอกให้ครบ:", en: "Please fill in:" },
+  "adminLocations.err.fillThis": { th: "กรุณากรอกช่องนี้", en: "Please fill this in" },
+  "adminLocations.err.pickDays": { th: "กรุณาเลือกวันทำการ", en: "Please choose the opening days" },
+  "adminLocations.err.pickUsage": { th: "กรุณาเลือกอย่างน้อย 1 ข้อ", en: "Please tick at least one" },
+  "adminLocations.missing.nameTh": { th: "ชื่อสถานที่ (ไทย)", en: "Name (Thai)" },
+  "adminLocations.missing.nameEn": { th: "ชื่อสถานที่ (อังกฤษ)", en: "Name (English)" },
+  "adminLocations.missing.detailTh": { th: "อาคาร / ชั้น / ห้อง (ไทย)", en: "Building / floor / room (Thai)" },
+  "adminLocations.missing.detailEn": { th: "อาคาร / ชั้น / ห้อง (อังกฤษ)", en: "Building / floor / room (English)" },
+  "adminLocations.missing.hours": { th: "วันทำการ", en: "Opening days" },
+  "adminLocations.missing.phone": { th: "เบอร์โทรติดต่อ", en: "Contact phone" },
+  "adminLocations.missing.usage": { th: "สถานที่นี้ใช้ทำอะไร (เลือกอย่างน้อย 1 ข้อ)", en: "What this place is for (tick at least one)" },
   "adminLocations.err.purposeRequired": { th: "กรุณาเลือกอย่างน้อยหนึ่งอย่าง: ส่งเอกสารต้นฉบับ หรือ รับเอกสารที่พิมพ์เสร็จ", en: "Choose at least one: drop-off or pickup." },
-  "adminLocations.err.lastDropoff": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่ส่งเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive — this is the last active drop-off location." },
-  "adminLocations.err.lastPickup": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่รับเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive — this is the last active pickup location." },
+  "adminLocations.err.lastDropoff": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่ส่งเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive. This is the last active drop-off location." },
+  "adminLocations.err.lastPickup": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่รับเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive. This is the last active pickup location." },
   "adminLocations.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
   "adminLocations.empty": { th: "ยังไม่มีสถานที่", en: "No locations yet." },
-  "newRequest.error.agency": { th: "ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง", en: "Invalid agency category/unit" },
-  "newRequest.error.agency.body": { th: "กรุณาเลือกประเภทหน่วยงานและหน่วยงานใหม่อีกครั้ง", en: "Please choose the agency category and unit again." },
+  "newRequest.error.unit": { th: "ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง", en: "Invalid unit type/unit" },
+  "newRequest.error.unit.body": { th: "กรุณาเลือกประเภทหน่วยงานและหน่วยงานใหม่อีกครั้ง", en: "Please choose the unit type and unit again." },
   "adminLocations.movedModal.title": { th: "ยืนยันการแก้ไข", en: "Confirm this edit" },
   "adminLocations.movedModal.message": { th: "มีคำขอ {n} รายการที่ยังอ้างถึงสถานที่นี้อยู่ การแก้ไขนี้คือ...", en: "{n} request(s) still refer to this place. This edit is..." },
   "adminLocations.movedModal.optionTypo": { th: "แก้คำผิด/พิมพ์ตก (ไม่แจ้งใคร)", en: "Fixing a typo (no one is notified)" },
   "adminLocations.movedModal.optionMoved": { th: "ย้ายสถานที่จริง (แจ้งผู้ขอ {n} คน)", en: "An actual move ({n} requester(s) will be notified)" },
   "adminLocations.movedModal.confirmBtn": { th: "ยืนยันการแก้ไข", en: "Confirm edit" },
   "adminLocations.archiveReplaceModal.title": { th: "เลือกสถานที่ทดแทน", en: "Choose a replacement location" },
-  "adminLocations.archiveReplaceModal.message": { th: "“{name}” มีคำขอ {n} รายการที่ยังอ้างถึงอยู่ กรุณาเลือกสถานที่ทดแทน ระบบจะย้ายคำขอเหล่านี้ไปที่นั่นและแจ้งผู้ขอให้ทราบ", en: "“{name}” still has {n} request(s) pointing at it. Choose a replacement — those requests will move there and their requesters will be notified." },
+  "adminLocations.archiveReplaceModal.message": { th: "“{name}” มีคำขอ {n} รายการที่ยังอ้างถึงอยู่ กรุณาเลือกสถานที่ทดแทน ระบบจะย้ายคำขอเหล่านี้ไปที่นั่นและแจ้งผู้ขอให้ทราบ", en: "“{name}” still has {n} request(s) pointing at it. Choose a replacement. Those requests will move there and their requesters will be notified." },
   "adminLocations.archiveReplaceModal.selectLabel": { th: "สถานที่ทดแทน", en: "Replacement location" },
   "adminLocations.archiveReplaceModal.confirmBtn": { th: "เก็บถาวรและย้ายคำขอ", en: "Archive and move requests" },
   "adminLocations.archiveReplaceModal.noOptions": { th: "ไม่มีสถานที่อื่นที่ใช้งานอยู่และรองรับประเภทเดียวกัน กรุณาเพิ่มสถานที่ใหม่ก่อนเก็บถาวรที่นี่", en: "No other active location accepts the same purpose(s). Add a new location before archiving this one." },
   "adminLocations.banner.savedNotified": { th: "บันทึกสถานที่ “{name}” และแจ้งผู้ขอ {n} คนเรื่องการย้ายแล้ว", en: "Saved “{name}” and notified {n} requester(s) about the move." },
   "adminLocations.banner.archivedNotified": { th: "เก็บถาวร “{name}” และย้ายคำขอ {n} รายการไปสถานที่ทดแทนแล้ว", en: "Archived “{name}” and moved {n} request(s) to the replacement location." },
-  "adminLocations.err.replacementRequired": { th: "มีคำขอใหม่เข้ามาระหว่างนี้ กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง", en: "New requests came in meanwhile — please reload the page and try again." },
+  "adminLocations.err.replacementRequired": { th: "มีคำขอใหม่เข้ามาระหว่างนี้ กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง", en: "New requests came in meanwhile. Please reload the page and try again." },
   "adminLocations.err.replacementInvalid": { th: "สถานที่ทดแทนไม่ถูกต้องหรือไม่ได้ใช้งานอยู่", en: "The replacement location is invalid or inactive." },
   "adminLocations.err.replacementPurposeMismatch": { th: "สถานที่ทดแทนต้องรองรับประเภทเดียวกับที่มีคำขอค้างอยู่", en: "The replacement location must accept the same purpose(s) as the pending requests." },
 
   "auditLog.title": { th: "ประวัติการแก้ไข", en: "Change History" },
-  "auditLog.subtitle": { th: "บันทึกทุกการเปลี่ยนแปลงที่ผู้ดูแลระบบทำ เช่น สิทธิ์เจ้าหน้าที่ การตั้งค่าระบบ สถานที่ หน่วยงาน และการสำรองข้อมูล เรียงจากล่าสุด", en: "Every change made by admins: officer access, system settings, locations, units and backups, newest first." },
+  "auditLog.subtitle": { th: "บันทึกทุกการเปลี่ยนแปลงที่ผู้ดูแลระบบทำ เช่น สิทธิ์เจ้าหน้าที่ การตั้งค่าระบบ สถานที่ หน่วยงาน และคู่มือ เรียงจากล่าสุด", en: "Every change made by admins: officer access, system settings, locations, units and manuals, newest first." },
   "auditLog.tableTitle": { th: "รายการล่าสุด", en: "Recent changes" },
   "auditLog.th.time": { th: "เวลา", en: "Time" },
   "auditLog.th.actor": { th: "ผู้แก้ไข", en: "Changed by" },
@@ -1249,52 +1421,54 @@ const TRANSLATIONS = {
   "auditLog.deletedNote": { th: "ถูกลบ", en: "Deleted" },
   "auditLog.empty": { th: "ไม่พบประวัติที่ตรงกับเงื่อนไขที่เลือก", en: "No changes match the selected filters." },
 
-  "adminAgencies.title": { th: "หน่วยงาน", en: "Agencies" },
-  "adminAgencies.subtitle": { th: "กำหนดประเภทหน่วยงานและหน่วยงานย่อยที่ผู้ขอเลือกตอนส่งคำขอ กรอกทั้งภาษาไทยและอังกฤษ", en: "Set the agency categories and units Requesters pick from. Fill in both Thai and English." },
-  "adminAgencies.categoriesTitle": { th: "ประเภทหน่วยงาน", en: "Agency Categories" },
-  "adminAgencies.addCategoryBtn": { th: "เพิ่มประเภท", en: "Add Category" },
-  "adminAgencies.addUnitBtn": { th: "เพิ่มหน่วยงาน", en: "Add Unit" },
-  "adminAgencies.backBtn": { th: "ประเภทหน่วยงาน", en: "Agency Categories" },
-  "adminAgencies.unitsOf": { th: "หน่วยงานย่อยของ: {name}", en: "Units of: {name}" },
-  "adminAgencies.viewUnitsBtn": { th: "ดูหน่วยงาน ({n})", en: "View units ({n})" },
-  "adminAgencies.freeTextHint": { th: "ผู้ขอพิมพ์ชื่อหน่วยงานเอง", en: "Requester types the unit name" },
-  "adminAgencies.categoriesEmpty": { th: "ยังไม่มีประเภทหน่วยงาน", en: "No agency categories yet." },
-  "adminAgencies.unitsEmpty": { th: "ยังไม่มีหน่วยงานในประเภทนี้", en: "No units in this category yet." },
-  "adminAgencies.form.nameTh": { th: "ชื่อ (ไทย) *", en: "Name (Thai) *" },
-  "adminAgencies.form.nameEn": { th: "ชื่อ (อังกฤษ) *", en: "Name (English) *" },
-  "adminAgencies.form.allowsFreeText": { th: "ไม่มีรายชื่อหน่วยงานย่อย — ให้ผู้ขอพิมพ์ชื่อหน่วยงานเอง", en: "No fixed unit list — Requester types the unit name" },
-  "adminAgencies.form.saveBtn": { th: "บันทึก", en: "Save" },
-  "adminAgencies.categoryForm.addTitle": { th: "เพิ่มประเภทหน่วยงาน", en: "Add Agency Category" },
-  "adminAgencies.categoryForm.editTitleNamed": { th: "แก้ไขประเภทหน่วยงาน: {name}", en: "Edit Agency Category: {name}" },
-  "adminAgencies.unitForm.addTitle": { th: "เพิ่มหน่วยงาน", en: "Add Unit" },
-  "adminAgencies.unitForm.editTitleNamed": { th: "แก้ไขหน่วยงาน: {name}", en: "Edit Unit: {name}" },
-  "adminAgencies.unitForm.category": { th: "ประเภทหน่วยงาน", en: "Agency Category" },
-  "adminAgencies.unitForm.categoryHint": { th: "เปลี่ยนได้ถ้าต้องการย้ายหน่วยงานนี้ไปอีกประเภทหนึ่ง", en: "Change this to move the unit to a different category." },
-  "adminAgencies.th.name": { th: "ชื่อ", en: "Name" },
-  "adminAgencies.th.units": { th: "หน่วยงานย่อย", en: "Units" },
-  "adminAgencies.th.action": { th: "การดำเนินการ", en: "Actions" },
-  "adminAgencies.badge.freeText": { th: "พิมพ์เอง", en: "Free text" },
-  "adminAgencies.badge.archived": { th: "เก็บถาวร", en: "Archived" },
-  "adminAgencies.editBtn": { th: "แก้ไข", en: "Edit" },
-  "adminAgencies.archiveBtn": { th: "เก็บถาวร", en: "Archive" },
-  "adminAgencies.restoreBtn": { th: "นำกลับมาใช้", en: "Restore" },
-  "adminAgencies.deleteBtn": { th: "ลบ", en: "Delete" },
-  "adminAgencies.archiveConfirmTitle": { th: "เก็บถาวรรายการนี้?", en: "Archive this?" },
-  "adminAgencies.archiveConfirmMessage": { th: "“{name}” จะไม่แสดงเป็นตัวเลือกอีก คำขอที่เคยเลือกไว้ยังคงเห็นชื่อเดิม", en: "“{name}” will no longer be offered as a choice. Requests that already use it keep showing its name." },
-  "adminAgencies.deleteConfirmTitle": { th: "ลบถาวร?", en: "Delete permanently?" },
-  "adminAgencies.deleteConfirmMessage": { th: "“{name}” จะถูกลบถาวรและกู้คืนไม่ได้ ถ้าเคยมีคำขอใช้แล้วระบบจะไม่ให้ลบ ให้ใช้ “เก็บถาวร” แทน", en: "“{name}” will be deleted for good. If any request has used it, deletion is blocked — use “Archive” instead." },
-  "adminAgencies.banner.saved": { th: "บันทึก “{name}” เรียบร้อยแล้ว", en: "Saved “{name}”." },
-  "adminAgencies.banner.archived": { th: "เก็บถาวร “{name}” แล้ว", en: "Archived “{name}”." },
-  "adminAgencies.banner.restored": { th: "นำ “{name}” กลับมาใช้แล้ว", en: "Restored “{name}”." },
-  "adminAgencies.banner.deleted": { th: "ลบ “{name}” แล้ว", en: "Deleted “{name}”." },
-  "adminAgencies.err.nameRequired": { th: "กรุณากรอกชื่อทั้งภาษาไทยและอังกฤษ", en: "Please enter the name in both Thai and English." },
-  "adminAgencies.err.categoryRequired": { th: "กรุณาเลือกประเภทหน่วยงาน", en: "Please choose an agency category." },
-  "adminAgencies.err.categoryInvalid": { th: "ประเภทหน่วยงานไม่ถูกต้อง", en: "Invalid agency category." },
-  "adminAgencies.err.lastCategory": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นประเภทหน่วยงานแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive — this is the last active agency category." },
-  "adminAgencies.err.lastFreeText": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นประเภท “พิมพ์เอง” แห่งสุดท้ายที่ยังใช้งานอยู่ — ผู้ขอที่ไม่ตรงกับหมวดใดเลยจะไม่มีตัวเลือกให้กรอก", en: "Can't archive — this is the last active free-text category. Requesters who don't fit any other category would have no option left." },
-  "adminAgencies.err.hasUnits": { th: "ลบไม่ได้: ยังมีหน่วยงานย่อยอยู่ในประเภทนี้ กรุณาลบหรือย้ายหน่วยงานย่อยก่อน", en: "Can't delete: this category still has units. Delete or move them first." },
-  "adminAgencies.err.inUse": { th: "ลบไม่ได้: มีคำขอ {n} รายการเคยใช้แล้ว กรุณาใช้ “เก็บถาวร” แทน", en: "Can't delete: {n} request(s) have used this. Use “Archive” instead." },
-  "adminAgencies.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
+  "adminUnits.title": { th: "หน่วยงาน", en: "Units" },
+  "adminUnits.subtitle": { th: "กำหนดประเภทหน่วยงานและหน่วยงานย่อยที่ผู้ขอเลือกตอนส่งคำขอ กรอกทั้งภาษาไทยและอังกฤษ", en: "Set the unit types and units Requesters pick from. Fill in both Thai and English." },
+  "adminUnits.categoriesTitle": { th: "ประเภทหน่วยงาน", en: "Unit Types" },
+  "adminUnits.addCategoryBtn": { th: "เพิ่มประเภท", en: "Add Category" },
+  "adminUnits.addUnitBtn": { th: "เพิ่มหน่วยงาน", en: "Add Unit" },
+  "adminUnits.backBtn": { th: "ประเภทหน่วยงาน", en: "Unit Types" },
+  "adminUnits.unitTypeLabel": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "adminUnits.unitCount": { th: "{n} หน่วยงาน", en: "{n} units" },
+  "adminUnits.viewUnitsBtn": { th: "ดูหน่วยงาน ({n})", en: "View units ({n})" },
+  "adminUnits.freeTextHint": { th: "ผู้ขอพิมพ์ชื่อหน่วยงานเอง", en: "Requester types the unit name" },
+  "adminUnits.categoriesEmpty": { th: "ยังไม่มีประเภทหน่วยงาน", en: "No unit types yet." },
+  "adminUnits.unitsEmpty": { th: "ยังไม่มีหน่วยงานในประเภทนี้", en: "No units in this category yet." },
+  "adminUnits.form.nameTh": { th: "ชื่อ (ไทย) *", en: "Name (Thai) *" },
+  "adminUnits.form.nameEn": { th: "ชื่อ (อังกฤษ) *", en: "Name (English) *" },
+  "adminUnits.form.allowsFreeText": { th: "ไม่มีรายชื่อหน่วยงานย่อย ให้ผู้ขอพิมพ์ชื่อหน่วยงานเอง", en: "No fixed unit list. Requesters type the unit name." },
+  "adminUnits.form.saveBtn": { th: "บันทึก", en: "Save" },
+  "adminUnits.categoryForm.addTitle": { th: "เพิ่มประเภทหน่วยงาน", en: "Add Unit Type" },
+  "adminUnits.categoryForm.editTitleNamed": { th: "แก้ไขประเภทหน่วยงาน: {name}", en: "Edit Unit Type: {name}" },
+  "adminUnits.unitForm.addTitle": { th: "เพิ่มหน่วยงาน", en: "Add Unit" },
+  "adminUnits.unitForm.editTitleNamed": { th: "แก้ไขหน่วยงาน: {name}", en: "Edit Unit: {name}" },
+  "adminUnits.unitForm.category": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "adminUnits.unitForm.categoryHint": { th: "เปลี่ยนได้ถ้าต้องการย้ายหน่วยงานนี้ไปอีกประเภทหนึ่ง", en: "Change this to move the unit to a different category." },
+  "adminUnits.th.name": { th: "ชื่อ", en: "Name" },
+  "adminUnits.th.units": { th: "หน่วยงานย่อย", en: "Units" },
+  "adminUnits.th.action": { th: "การดำเนินการ", en: "Actions" },
+  "adminUnits.badge.freeText": { th: "พิมพ์เอง", en: "Free text" },
+  "adminUnits.badge.archived": { th: "เก็บถาวร", en: "Archived" },
+  "adminUnits.editBtn": { th: "แก้ไข", en: "Edit" },
+  "adminUnits.archiveBtn": { th: "เก็บถาวร", en: "Archive" },
+  "adminUnits.restoreBtn": { th: "นำกลับมาใช้", en: "Restore" },
+  "adminUnits.deleteBtn": { th: "ลบ", en: "Delete" },
+  "adminUnits.archiveConfirmTitle": { th: "เก็บถาวรรายการนี้?", en: "Archive this?" },
+  "adminUnits.archiveConfirmMessage": { th: "“{name}” จะไม่แสดงเป็นตัวเลือกอีก คำขอที่เคยเลือกไว้ยังคงเห็นชื่อเดิม", en: "“{name}” will no longer be offered as a choice. Requests that already use it keep showing its name." },
+  "adminUnits.deleteConfirmTitle": { th: "ลบถาวร?", en: "Delete permanently?" },
+  "adminUnits.deleteConfirmMessage": { th: "“{name}” จะถูกลบถาวรและกู้คืนไม่ได้ คำขอที่เสร็จสิ้นแล้วยังแสดงชื่อเดิมได้ตามปกติ แต่ถ้ายังมีคำขอที่ดำเนินการไม่เสร็จใช้อยู่ ระบบจะไม่ให้ลบ", en: "“{name}” will be deleted for good. Finished requests keep showing the name as before, but deletion is blocked while any unfinished request still uses it." },
+  "adminUnits.banner.saved": { th: "บันทึก “{name}” เรียบร้อยแล้ว", en: "Saved “{name}”." },
+  "adminUnits.banner.archived": { th: "เก็บถาวร “{name}” แล้ว", en: "Archived “{name}”." },
+  "adminUnits.banner.restored": { th: "นำ “{name}” กลับมาใช้แล้ว", en: "Restored “{name}”." },
+  "adminUnits.banner.deleted": { th: "ลบ “{name}” แล้ว", en: "Deleted “{name}”." },
+  "adminUnits.err.nameRequired": { th: "กรุณากรอกชื่อทั้งภาษาไทยและอังกฤษ", en: "Please enter the name in both Thai and English." },
+  "adminUnits.err.fillThis": { th: "กรุณากรอกช่องนี้", en: "Please fill this in" },
+  "adminUnits.err.categoryRequired": { th: "กรุณาเลือกประเภทหน่วยงาน", en: "Please choose a unit type." },
+  "adminUnits.err.categoryInvalid": { th: "ประเภทหน่วยงานไม่ถูกต้อง", en: "Invalid unit type." },
+  "adminUnits.err.lastCategory": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นประเภทหน่วยงานแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive. This is the last active unit type." },
+  "adminUnits.err.lastFreeText": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นประเภท “พิมพ์เอง” แห่งสุดท้ายที่ยังใช้งานอยู่ ถ้าเก็บถาวร ผู้ขอที่ไม่ตรงกับหมวดใดเลยจะไม่มีตัวเลือกให้กรอก", en: "Can't archive: this is the last active free-text category. Requesters who don't fit any other category would have no option left." },
+  "adminUnits.err.hasUnits": { th: "ลบไม่ได้: ยังมีหน่วยงานย่อยอยู่ในประเภทนี้ กรุณาลบหรือย้ายหน่วยงานย่อยก่อน", en: "Can't delete: this category still has units. Delete or move them first." },
+  "adminUnits.err.inUse": { th: "ลบไม่ได้: ยังมีคำขอที่ดำเนินการไม่เสร็จ {n} รายการใช้อยู่ กรุณารอให้เสร็จก่อน หรือใช้ “เก็บถาวร” เพื่อไม่ให้เลือกได้อีก", en: "Can't delete: {n} unfinished request(s) still use this. Wait until they're done, or use “Archive” so it can't be chosen any more." },
+  "adminUnits.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
   "auditLog.filterActor.all": { th: "ผู้แก้ไขทั้งหมด", en: "All editors" },
   "auditLog.filterAction.all": { th: "การดำเนินการทั้งหมด", en: "All actions" },
   "filter.category": { th: "หมวด", en: "Category" },
@@ -1302,24 +1476,32 @@ const TRANSLATIONS = {
   "auditLog.type.officer": { th: "บัญชีเจ้าหน้าที่", en: "Officer accounts" },
   "auditLog.type.settings": { th: "ตั้งค่าระบบ", en: "System settings" },
   "auditLog.type.location": { th: "สถานที่รับ-ส่งเอกสาร", en: "Locations" },
-  "auditLog.type.agency": { th: "หน่วยงาน", en: "Units" },
-  "auditLog.type.agencyCategory": { th: "ประเภทหน่วยงาน", en: "Unit categories" },
-  "auditLog.type.system": { th: "สำรองข้อมูลและคู่มือ", en: "Backup & manuals" },
+  "auditLog.type.unit": { th: "หน่วยงาน", en: "Units" },
+  "auditLog.type.unitType": { th: "ประเภทหน่วยงาน", en: "Unit categories" },
+  "auditLog.type.evaluationForm": { th: "แบบประเมิน", en: "Evaluation form" },
+  "auditLog.type.system": { th: "คู่มือการใช้งาน", en: "User manuals" },
   "auditLog.action.officerAdd": { th: "เพิ่มเจ้าหน้าที่", en: "Added officer" },
   "auditLog.action.officerRemove": { th: "เพิกถอนสิทธิ์เจ้าหน้าที่", en: "Removed officer" },
   "auditLog.action.officerGrantAdmin": { th: "ให้สิทธิ์ผู้ดูแลระบบ", en: "Granted admin role" },
   "auditLog.action.officerRevokeAdmin": { th: "ยกเลิกสิทธิ์ผู้ดูแลระบบ", en: "Revoked admin role" },
   "auditLog.action.settingsUpdate": { th: "แก้ไขการตั้งค่าระบบ", en: "Changed system settings" },
-  "auditLog.action.agencyCategoryCreate": { th: "เพิ่มประเภทหน่วยงาน", en: "Added unit category" },
-  "auditLog.action.agencyCategoryUpdate": { th: "แก้ไขประเภทหน่วยงาน", en: "Edited unit category" },
-  "auditLog.action.agencyCategoryArchive": { th: "เก็บถาวรประเภทหน่วยงาน", en: "Archived unit category" },
-  "auditLog.action.agencyCategoryRestore": { th: "นำประเภทหน่วยงานกลับมาใช้", en: "Restored unit category" },
-  "auditLog.action.agencyCategoryDelete": { th: "ลบประเภทหน่วยงาน", en: "Deleted unit category" },
-  "auditLog.action.agencyUnitCreate": { th: "เพิ่มหน่วยงาน", en: "Added unit" },
-  "auditLog.action.agencyUnitUpdate": { th: "แก้ไขหน่วยงาน", en: "Edited unit" },
-  "auditLog.action.agencyUnitArchive": { th: "เก็บถาวรหน่วยงาน", en: "Archived unit" },
-  "auditLog.action.agencyUnitRestore": { th: "นำหน่วยงานกลับมาใช้", en: "Restored unit" },
-  "auditLog.action.agencyUnitDelete": { th: "ลบหน่วยงาน", en: "Deleted unit" },
+  "auditLog.action.unitTypeCreate": { th: "เพิ่มประเภทหน่วยงาน", en: "Added unit category" },
+  "auditLog.action.unitTypeUpdate": { th: "แก้ไขประเภทหน่วยงาน", en: "Edited unit category" },
+  "auditLog.action.evalWindow": { th: "แก้ไขระยะเวลาที่ให้ประเมิน", en: "Changed the evaluation time limit" },
+  "auditLog.action.evalSectionCreate": { th: "เพิ่มหัวข้อแบบประเมิน", en: "Added evaluation section" },
+  "auditLog.action.evalSectionUpdate": { th: "แก้ไขหัวข้อแบบประเมิน", en: "Edited evaluation section" },
+  "auditLog.action.evalSectionDelete": { th: "ลบหัวข้อแบบประเมิน", en: "Deleted evaluation section" },
+  "auditLog.action.evalQuestionCreate": { th: "เพิ่มคำถามแบบประเมิน", en: "Added evaluation question" },
+  "auditLog.action.evalQuestionUpdate": { th: "แก้ไขคำถามแบบประเมิน", en: "Edited evaluation question" },
+  "auditLog.action.evalQuestionDelete": { th: "ลบคำถามแบบประเมิน", en: "Deleted evaluation question" },
+  "auditLog.action.unitTypeArchive": { th: "เก็บถาวรประเภทหน่วยงาน", en: "Archived unit category" },
+  "auditLog.action.unitTypeRestore": { th: "นำประเภทหน่วยงานกลับมาใช้", en: "Restored unit category" },
+  "auditLog.action.unitTypeDelete": { th: "ลบประเภทหน่วยงาน", en: "Deleted unit category" },
+  "auditLog.action.unitCreate": { th: "เพิ่มหน่วยงาน", en: "Added unit" },
+  "auditLog.action.unitUpdate": { th: "แก้ไขหน่วยงาน", en: "Edited unit" },
+  "auditLog.action.unitArchive": { th: "เก็บถาวรหน่วยงาน", en: "Archived unit" },
+  "auditLog.action.unitRestore": { th: "นำหน่วยงานกลับมาใช้", en: "Restored unit" },
+  "auditLog.action.unitDelete": { th: "ลบหน่วยงาน", en: "Deleted unit" },
   "auditLog.field.name": { th: "ชื่อ", en: "Name" },
   "auditLog.field.allowsFreeText": { th: "ให้พิมพ์ชื่อหน่วยงานเองได้", en: "Allows typed-in unit" },
   "auditLog.field.categoryId": { th: "ประเภทหน่วยงาน (รหัส)", en: "Category (id)" },
@@ -1356,6 +1538,12 @@ const TRANSLATIONS = {
   "settings.maint.endPlaceholder": { th: "เมื่อปิดสวิตช์เอง", en: "When switched off by hand" },
   "settings.maint.timeLabel": { th: "เวลา", en: "Time" },
   "settings.maint.clearBtn": { th: "ล้าง", en: "Clear" },
+  "settings.maint.clearAllBtn": { th: "ล้างช่วงเวลา", en: "Clear dates" },
+  "timeWheel.title": { th: "เลือกเวลา", en: "Choose a time" },
+  "timeWheel.hour": { th: "ชั่วโมง", en: "Hour" },
+  "timeWheel.minute": { th: "นาที", en: "Minute" },
+  "timeWheel.unit": { th: "เวลา (น.) เลื่อนหรือคลิกเพื่อเลือก", en: "24-hour, scroll or click to pick" },
+  "timeWheel.done": { th: "ตกลง", en: "Done" },
   "settings.maint.status.off": { th: "ระบบเปิดให้ผู้ขอใช้งานตามปกติ", en: "The system is open to Requesters." },
   "settings.maint.status.closedIndefinitely": { th: "ระบบจะปิดสำหรับผู้ขอทันที จนกว่าจะปิดสวิตช์เอง", en: "Closed to Requesters now, until switched off." },
   "settings.maint.status.closedUntil": { th: "ระบบจะปิดสำหรับผู้ขอทันที และเปิดอีกครั้งอัตโนมัติ {end}", en: "Closed to Requesters now; reopens automatically on {end}." },
@@ -1367,6 +1555,7 @@ const TRANSLATIONS = {
   "settings.maint.err.dateInvalid": { th: "วันที่หรือเวลาไม่ถูกต้อง", en: "Invalid date or time." },
   "settings.maint.confirmMessageScheduled": { th: "ผู้ขอ (Requester) ทุกคนจะเข้าใช้งานระบบไม่ได้ตั้งแต่ {start} ต้องการดำเนินการต่อหรือไม่?", en: "Every Requester will lose access to the system from {start}. Continue?" },
   "systemClosed.reopensAt": { th: "เปิดให้บริการอีกครั้ง {end}", en: "Reopens on {end}" },
+  "systemClosed.reopensLabel": { th: "เปิดให้บริการอีกครั้ง", en: "Reopens on" },
   "settings.maint.messagesTitle": { th: "ข้อความแจ้งผู้ขอ (ไม่บังคับ)", en: "Message to Requesters (optional)" },
   "settings.maint.messageLabel": { th: "ภาษาไทย", en: "Thai" },
   "settings.maint.messagePlaceholder": { th: "เช่น ปิดรับคำขอช่วงสอบปลายภาค 1–15 ต.ค. 2569", en: "e.g. Closed for final exams, Oct 1–15." },
@@ -1387,7 +1576,7 @@ const TRANSLATIONS = {
   "profile.section.personal": { th: "ข้อมูลส่วนตัว", en: "Personal Info" },
   "profile.section.workplace": { th: "ข้อมูลหน่วยงาน", en: "Workplace Info" },
   "profile.prefixLabel": { th: "คำนำหน้า", en: "Title" },
-  "profile.prefix.none": { th: "— ไม่ระบุ —", en: "— Not set —" },
+  "profile.prefix.none": { th: "ไม่ระบุ", en: "Not set" },
   "profile.prefix.mr": { th: "นาย", en: "Mr." },
   "profile.prefix.mrs": { th: "นาง", en: "Mrs." },
   "profile.prefix.miss": { th: "นางสาว", en: "Ms." },
@@ -1401,9 +1590,9 @@ const TRANSLATIONS = {
   "profile.prefixOther.placeholder": { th: "ระบุคำนำหน้า", en: "Enter a title" },
   "profile.nameLabel": { th: "ชื่อ-นามสกุล", en: "Full Name" },
   "profile.phoneLabel": { th: "เบอร์โทรศัพท์", en: "Phone Number" },
-  "profile.workplaceCategoryLabel": { th: "ประเภทหน่วยงาน", en: "Agency Category" },
-  "profile.workplaceUnitLabel": { th: "หน่วยงาน", en: "Agency/Unit" },
-  "profile.workplaceCategory.none": { th: "— ไม่ระบุ —", en: "— Not set —" },
+  "profile.workplaceCategoryLabel": { th: "ประเภทหน่วยงาน", en: "Unit Type" },
+  "profile.workplaceUnitLabel": { th: "หน่วยงาน", en: "Unit" },
+  "profile.workplaceCategory.none": { th: "ไม่ระบุ", en: "Not set" },
   "profile.positionLabel": { th: "ตำแหน่ง", en: "Position" },
   "profile.saveBtn": { th: "บันทึกโปรไฟล์", en: "Save Profile" },
 
@@ -1414,10 +1603,72 @@ const TRANSLATIONS = {
   "crumb.dashboard": { th: "แดชบอร์ดสรุปข้อมูล / <strong>ภาพรวม</strong>", en: "Dashboard / <strong>Overview</strong>" },
   "crumb.evaluations": { th: "ผลประเมินความพึงพอใจ / <strong>ภาพรวม</strong>", en: "Evaluation Results / <strong>Overview</strong>" },
   "dashboard.title": { th: "แดชบอร์ดสรุปข้อมูล", en: "Summary Dashboard" },
-  "dashboard.subtitle": { th: "ภาพรวมการใช้ทรัพยากรกระดาษ แยกตามหน่วยงานและประเภทหน่วยงาน สำหรับใช้รายงานต่อมหาวิทยาลัย", en: "Overview of paper resource usage, broken down by department and department type — for reporting to the university." },
-  "dashboard.yearFilter": { th: "ปีที่ต้องการดู", en: "Year" },
-  "dashboard.yearFilter.all": { th: "ทุกปี", en: "All years" },
-  "dashboard.monthFilter.all": { th: "ทุกเดือน", en: "All months" },
+  "db.subtitle": { th: "การใช้กระดาษของแต่ละหน่วยงาน", en: "Paper use by unit" },
+  "db.f.unitGroup": { th: "หน่วยงาน", en: "Unit" },
+  "db.f.paperGroup": { th: "เอกสารและกระดาษ", en: "Document and paper" },
+  "db.f.unitPh": { th: "ทุกหน่วยงาน", en: "All units" },
+  "db.active.label": { th: "กำลังดู", en: "Showing" },
+  "db.active.remove": { th: "เอาตัวกรองนี้ออก", en: "Remove this filter" },
+  "db.share.back": { th: "ทุกประเภท", en: "All types" },
+  "db.f.unitSearch": { th: "พิมพ์ชื่อหน่วยงาน (ไทยหรืออังกฤษ)", en: "Type a unit name (Thai or English)" },
+  "db.f.unitNone": { th: "ไม่พบหน่วยงาน", en: "No unit found" },
+  "db.kpi.units": { th: "หน่วยงานที่ใช้บริการ", en: "Active units" },
+  "db.share.byType": { th: "สัดส่วนตามประเภทหน่วยงาน", en: "Share by unit type" },
+  "db.share.inType": { th: "สัดส่วนหน่วยงานใน {name}", en: "Units in {name}" },
+  "db.share.hintType": { th: "คลิกเพื่อกรองประเภทนั้น", en: "Click to filter to that type." },
+  "db.share.hintUnit": { th: "คลิกเพื่อกรองหน่วยงานนั้น", en: "Click to filter to that unit." },
+  "db.share.other": { th: "อื่นๆ ({n})", en: "Other ({n})" },
+  "db.split.title": { th: "สัดส่วนเอกสารและกระดาษ", en: "Documents and paper" },
+  "db.split.hint": { th: "คลิกเพื่อกรอง", en: "Click to filter." },
+  "db.table.title": { th: "แยกตามหน่วยงาน", en: "By unit" },
+  "db.table.hint": { th: "คลิกชื่อหน่วยงานเพื่อกรองเฉพาะหน่วยงานนั้น คลิกหัวคอลัมน์เพื่อเรียง", en: "Click a unit to filter to it. Click a column heading to sort." },
+  "db.table.unit": { th: "หน่วยงาน", en: "Unit" },
+  "db.table.new": { th: "ใหม่", en: "New" },
+  "db.table.all": { th: "แสดงทั้งหมด ({n})", en: "Show all ({n})" },
+  "db.table.less": { th: "แสดงแค่ 10 อันดับ", en: "Show top 10 only" },
+  "db.reset": { th: "ล้างตัวกรอง", en: "Clear filters" },
+  "db.yearN": { th: "ปี {y}", en: "{y}" },
+  "db.noPrev": { th: "ไม่มีข้อมูลช่วงเดียวกันปีก่อน", en: "No data for the same period last year" },
+  "db.kpi.req": { th: "คำขอที่พิมพ์แล้ว", en: "Printed requests" },
+  "db.kpi.sheets": { th: "แผ่นกระดาษที่ใช้", en: "Sheets used" },
+  "db.kpi.avg": { th: "แผ่นต่อคำขอ (เฉลี่ย)", en: "Sheets per request (avg)" },
+  "db.kpi.rank": { th: "อันดับการใช้กระดาษ", en: "Paper use rank" },
+  "db.sheetsUnit": { th: "แผ่น", en: "sheets" },
+  "db.noData": { th: "ไม่มีข้อมูลในช่วงนี้", en: "No data for this selection" },
+  "db.loading": { th: "กำลังโหลดข้อมูล…", en: "Loading…" },
+  "db.loadError": { th: "โหลดข้อมูลไม่สำเร็จ ลองรีเฟรชหน้า", en: "Could not load data. Try refreshing the page." },
+  "db.mode.all": { th: "ทั้งหมด", en: "All time" },
+  "db.mode.year": { th: "รายปี", en: "By year" },
+  "db.mode.month": { th: "รายเดือน", en: "By month" },
+  "db.mode.range": { th: "เลือกวันที่", en: "Date range" },
+  "dd.search": { th: "พิมพ์เพื่อค้นหา", en: "Type to search" },
+  "dd.none": { th: "ไม่พบรายการ", en: "No match" },
+  "dd.choose": { th: "เลือก", en: "Choose" },
+  "db.mode.fiscal": { th: "ปีงบประมาณ", en: "Fiscal year" },
+  "db.fyN": { th: "ปีงบประมาณ {y}", en: "FY {y}" },
+  "db.dd.year": { th: "เลือกปี", en: "Choose a year" },
+  "db.dd.fy": { th: "เลือกปีงบประมาณ (1 ต.ค. ถึง 30 ก.ย.)", en: "Choose a fiscal year (1 Oct to 30 Sep)" },
+  "db.dd.month": { th: "เลือกเดือน ปี {y}", en: "Choose a month, {y}" },
+  "db.mode.allSpan": { th: "ทั้งหมด ({a} ถึง {b})", en: "All time ({a} to {b})" },
+  "db.step.prev": { th: "ก่อนหน้า", en: "Previous" },
+  "db.step.next": { th: "ถัดไป", en: "Next" },
+  "db.upTo": { th: "(นับถึง {d})", en: "(counted to {d})" },
+  "db.chart.day": { th: "แผ่นกระดาษรายวัน", en: "Sheets per day" },
+  "db.chart.month": { th: "แผ่นกระดาษรายเดือน", en: "Sheets per month" },
+  "db.chart.year": { th: "แผ่นกระดาษรายปี", en: "Sheets per year" },
+  "db.chart.hintYear": { th: "คลิกปีเพื่อดูรายเดือนของปีนั้น", en: "Click a year to see its months." },
+  "db.chart.hintMonth": { th: "คลิกเดือนเพื่อดูรายวันของเดือนนั้น", en: "Click a month to see its days." },
+  "db.chart.clickYear": { th: "คลิกเพื่อดูปีนี้", en: "Click to view this year" },
+  "db.chart.clickMonth": { th: "คลิกเพื่อดูเดือนนี้", en: "Click to view this month" },
+  "db.chart.future": { th: "ยังไม่ถึง", en: "Not yet" },
+  "db.legend.now": { th: "ช่วงที่เลือก", en: "Selected period" },
+  "db.legend.prev": { th: "ช่วงเดียวกันปีก่อน", en: "Same period last year" },
+  "db.chart.readHint": { th: "เส้นประคือยอดช่วงเดียวกันของปีก่อน แท่งสูงกว่าเส้นแปลว่าใช้มากขึ้น", en: "The dashed line is the same period last year. A bar above it means more paper was used." },
+  "db.legend.prevShort": { th: "ปีก่อน", en: "Last year" },
+  "db.cmp.prevLabel": { th: "ช่วงเดียวกันปีก่อน", en: "Same period last year" },
+  "db.reqUnit": { th: "คำขอ", en: "requests" },
+  "db.kpi.rankOf": { th: "เทียบกับทุกหน่วยงานในช่วงนี้", en: "Among all units in this period" },
+  "db.table.vsPrev": { th: "เทียบปีก่อน", en: "Vs last year" },
   "dashboard.dateMode.custom": { th: "กำหนดช่วงวันที่เอง", en: "Custom Date Range" },
   "dashboard.dateMode.clear": { th: "ล้าง", en: "Clear" },
   "dashboard.dateMode.rangeTo": { th: "ถึง", en: "to" },
@@ -1426,21 +1677,16 @@ const TRANSLATIONS = {
   "export.preparing": { th: "กำลังสร้างไฟล์…", en: "Building file…" },
   "export.failed": { th: "ส่งออกไม่สำเร็จ ลองใหม่", en: "Export failed, try again" },
   "filter.status": { th: "สถานะ", en: "Status" },
-  "filter.agency": { th: "หน่วยงาน", en: "Department" },
+  "filter.unit": { th: "หน่วยงาน", en: "Department" },
   "filter.month": { th: "เดือน", en: "Month" },
   "filter.show": { th: "แสดง", en: "Show" },
+  "filter.toggle": { th: "ตัวกรอง", en: "Filters" },
+  "auditLog.filterHint": { th: "กรองตามหมวด ผู้แก้ไข การดำเนินการ หรือช่วงวันที่", en: "Filter by category, editor, action or date range" },
   "filter.actor": { th: "ผู้แก้ไข", en: "Edited by" },
   "filter.action": { th: "การดำเนินการ", en: "Action" },
   "filter.dateRange": { th: "ช่วงวันที่", en: "Date range" },
 
-  "dashboard.tab.overview": { th: "ภาพรวม", en: "Overview" },
-  "dashboard.tab.category": { th: "ตามประเภทหน่วยงาน", en: "By Agency Category" },
-  "dashboard.tab.unit": { th: "ตามหน่วยงาน", en: "By Department" },
 
-  "dashboard.kpi.totalRequests": { th: "จำนวนคำขอทั้งหมด", en: "Total Requests" },
-  "dashboard.kpi.totalSheets": { th: "จำนวนแผ่นกระดาษที่ใช้ไป (รวม)", en: "Paper Sheets Used (Total)" },
-  "dashboard.kpi.avgSheets": { th: "เฉลี่ยแผ่นกระดาษ/คำขอ", en: "Avg. Sheets / Request" },
-  "dashboard.kpi.activeUnits": { th: "จำนวนหน่วยงานที่มีการใช้งาน", en: "Active Departments" },
 
   "dashboard.documentTypeFilter": { th: "ประเภทเอกสาร", en: "Document Type" },
   "dashboard.documentTypeFilter.all": { th: "ทุกประเภทเอกสาร", en: "All document types" },
@@ -1451,49 +1697,12 @@ const TRANSLATIONS = {
   "dashboard.paperSourceFilter.all": { th: "ทุกแหล่งที่มากระดาษ", en: "All paper sources" },
   "dashboard.paperSourceFilter.office": { th: "ฝ่ายทะเบียนจัดเตรียมให้", en: "Provided by Registrar Division" },
   "dashboard.paperSourceFilter.requester": { th: "ผู้ขอจัดเตรียมเอง", en: "Provided by Requester" },
-  "dashboard.paperSourceDefaultNote": { th: "ค่าเริ่มต้นนับเฉพาะกระดาษที่ฝ่ายทะเบียนจัดเตรียม เพื่อใช้รายงานงบประมาณ", en: "By default, only paper provided by the Registrar Division is counted, for budget reporting." },
 
-  "dashboard.trendSheetsTitle": { th: "จำนวนแผ่นกระดาษที่ใช้ต่อปี", en: "Paper Sheets Used per Year" },
-  "dashboard.trendNote": { th: "ไม่ขึ้นกับตัวกรองช่วงเวลาด้านบน แต่ขึ้นกับตัวกรองประเภทเอกสารและแหล่งที่มากระดาษ", en: "Not affected by the time filter above, but follows the document type and paper source filters." },
 
-  "dashboard.categorySheetsTitle": { th: "จำนวนแผ่นกระดาษที่ใช้ แยกตามประเภทหน่วยงาน", en: "Paper Sheets Used by Agency Category" },
-  "dashboard.sheetsNote": { th: "คำนวณจากคำขอที่ได้รับการอนุมัติและปริ้นแล้วเท่านั้น (ไม่รวมคำขอที่ถูกปฏิเสธหรือยังรอเอกสารต้นฉบับ) นับเป็นจำนวนแผ่นกระดาษจริงที่ใช้ (พิมพ์สองหน้านับครึ่งหนึ่งของจำนวนหน้า) — ใช้ตัวเลขนี้ประกอบการรายงานและประมาณการงบประมาณ", en: "Calculated only from approved/printed requests (excludes rejected and still-awaiting requests). Counted as actual physical paper sheets used (double-sided printing counts as half the page count) — use this figure for reporting and budget estimation." },
 
-  "dashboard.categoryTableTitle": { th: "ตารางสรุปรายประเภทหน่วยงาน", en: "Agency Category Summary Table" },
-  "dashboard.unitTopTitle": { th: "10 อันดับหน่วยงานที่ใช้กระดาษมากที่สุด", en: "Top 10 Departments by Paper Usage" },
-  "dashboard.unitTableTitle": { th: "ตารางสรุปรายหน่วยงาน (ทั้งหมด)", en: "Full Department Summary Table" },
-  "dashboard.unitSearchLabel": { th: "ค้นหาหน่วยงาน", en: "Search Department" },
-  "dashboard.unitSearchPlaceholder": { th: "พิมพ์ชื่อหน่วยงาน", en: "Type a department name" },
-  "dashboard.unitCategoryFilterLabel": { th: "กรองตามประเภทหน่วยงาน", en: "Filter by Agency Category" },
-  "dashboard.unitCategoryFilter.all": { th: "ทุกประเภทหน่วยงาน", en: "All agency categories" },
+  "dashboard.unitCategoryFilter.all": { th: "ทุกประเภทหน่วยงาน", en: "All unit types" },
 
-  "dashboard.th.category": { th: "ประเภทหน่วยงาน", en: "Agency Category" },
-  "dashboard.th.unit": { th: "หน่วยงาน", en: "Department" },
-  "dashboard.th.requests": { th: "จำนวนคำขอ", en: "Requests" },
-  "dashboard.th.copies": { th: "จำนวนชุดที่ปริ้นแล้ว", en: "Copies Printed" },
-  "dashboard.th.sheets": { th: "จำนวนแผ่นกระดาษที่ใช้", en: "Paper Sheets Used" },
-  "dashboard.th.avgSheets": { th: "เฉลี่ยแผ่น/คำขอ", en: "Avg. Sheets / Request" },
 
-  "dashboard.highest": { th: "สูงสุด", en: "Highest" },
-  "dashboard.lowest": { th: "ต่ำสุด", en: "Lowest" },
-  "dashboard.noData": { th: "ไม่มีข้อมูลสำหรับปีที่เลือก", en: "No data for the selected year." },
-  "dashboard.range.lastYears": { th: "{n} ปีล่าสุด", en: "Last {n} years" },
-  "dashboard.range.all": { th: "ทั้งหมด", en: "All" },
-  "dashboard.yearWord": { th: "ปี พ.ศ.", en: "Year" },
-  "dashboard.trend.latest": { th: "ปีล่าสุด", en: "Latest year" },
-  "dashboard.trend.change": { th: "เทียบกับปีก่อนหน้า", en: "vs. previous year" },
-  "dashboard.trend.peak": { th: "ปีที่ใช้มากที่สุด", en: "Highest year" },
-  "dashboard.trend.avg": { th: "เฉลี่ยต่อปี", en: "Yearly average" },
-  "dashboard.trend.fromPrev": { th: "จากปีก่อนหน้า", en: "from previous year" },
-  "dashboard.trend.yAxis": { th: "จำนวนแผ่นกระดาษ (แผ่น)", en: "Paper sheets" },
-  "dashboard.trend.xAxis": { th: "ปี พ.ศ.", en: "Year" },
-  "dashboard.trend.view.chart": { th: "กราฟ", en: "Chart" },
-  "dashboard.trend.view.table": { th: "ตาราง", en: "Table" },
-  "dashboard.trend.vsYear": { th: "เทียบกับปี {y}", en: "compared with {y}" },
-  "dashboard.trend.rangeYears": { th: "ปี {from} ถึง {to}", en: "{from} to {to}" },
-  "dashboard.trend.th.year": { th: "ปี พ.ศ.", en: "Year" },
-  "dashboard.trend.th.change": { th: "เปลี่ยนแปลงจากปีก่อนหน้า", en: "Change from previous year" },
-  "dashboard.sheetsUnit": { th: "แผ่น", en: "sheets" },
 
   "evalReport.title": { th: "ผลประเมินความพึงพอใจ", en: "Evaluation Results" },
   "evalReport.subtitle": { th: "ภาพรวมคะแนนความพึงพอใจและความคิดเห็นจากผู้ขอ หลังได้รับเอกสารเรียบร้อยแล้ว", en: "Overview of satisfaction scores and feedback comments from Requesters after handover." },
@@ -1533,11 +1742,37 @@ const TRANSLATIONS = {
   "evalReport.th.requester": { th: "ผู้ขอ", en: "Requester" },
   "evalReport.th.item": { th: "รายการ", en: "Item" },
   "evalReport.th.officer": { th: "พนักงานที่รับผิดชอบ", en: "Responsible Officer" },
-  "evalReport.th.overall": { th: "คะแนนโดยรวม", en: "Overall Score" },
+  "evalReport.th.overall": { th: "คะแนนเฉลี่ย", en: "Average score" },
+  "evalReport.likert.1": { th: "น้อยที่สุด", en: "Very dissatisfied" },
+  "evalReport.likert.2": { th: "น้อย", en: "Dissatisfied" },
+  "evalReport.likert.3": { th: "ปานกลาง", en: "Neutral" },
+  "evalReport.likert.4": { th: "มาก", en: "Satisfied" },
+  "evalReport.likert.5": { th: "มากที่สุด", en: "Very satisfied" },
+  "evalReport.likertTip": { th: "{n} คน ({pct}%)", en: "{n} people ({pct}%)" },
+  "evalReport.likertAria": { th: "พอใจมากถึงมากที่สุด {pct}%", en: "{pct}% satisfied or very satisfied" },
+  "evalReport.likertLow": { th: "← ไม่พอใจ", en: "← Dissatisfied" },
+  "evalReport.likertHigh": { th: "พอใจ →", en: "Satisfied →" },
+  "evalReport.avgShort": { th: "เฉลี่ย", en: "Avg" },
+  "evalReport.overallTitle": { th: "ความพึงพอใจเฉลี่ย", en: "Average satisfaction" },
+  "evalReport.peopleCount": { th: "{n} คนประเมิน", en: "{n} people" },
+  "evalReport.reach": { th: "{n} จาก {total} คน", en: "{n} of {total} people" },
+  "evalReport.addedOn": { th: "เริ่มใช้ {date}", en: "Added {date}" },
+  "evalReport.removedOn": { th: "ใช้ถึง {date}", en: "Used until {date}" },
+  "evalReport.tier.excellent": { th: "ดีมาก", en: "Excellent" },
+  "evalReport.tier.good": { th: "ดี", en: "Good" },
+  "evalReport.tier.fair": { th: "พอใช้", en: "Fair" },
+  "evalReport.tier.low": { th: "ควรปรับปรุง", en: "Needs improvement" },
+  "evalReport.readAnswers": { th: "อ่านคำตอบ", en: "Read answers" },
+  "evalReport.avgAll": { th: "เฉลี่ยทุกข้อ", en: "Average of all ratings" },
+  "evalReport.resultsTitle": { th: "ผลการประเมินแยกตามหัวข้อ", en: "Results by section" },
+  "evalReport.answerCount": { th: "{n} คำตอบ", en: "{n} answers" },
+  "evalReport.textAnswers": { th: "มีผู้ตอบ {n} คน ดูข้อความได้ที่แท็บ “ค้นหา / รายการทั้งหมด”", en: "{n} answers. Read them in the “Search / All” tab." },
+  "evalReport.removedOption": { th: "(ตัวเลือกที่ลบแล้ว)", en: "(removed choice)" },
+  "evalReport.removedQuestions": { th: "คำถามที่ถูกลบจากแบบประเมินแล้ว ({n})", en: "Questions removed from the form ({n})" },
   "evalReport.th.comment": { th: "ความคิดเห็น", en: "Comment" },
   "evalReport.th.submitted": { th: "วันที่ประเมิน", en: "Submitted" },
 
-  "evalReport.noComment": { th: "— ไม่มีความคิดเห็น —", en: "— No comment —" },
+  "evalReport.noComment": { th: "ไม่มีความคิดเห็น", en: "No comment" },
   "evalReport.empty": { th: "ไม่พบผลการประเมินที่ตรงกับเงื่อนไขที่ค้นหา", en: "No evaluations match your search/filters." },
   "evalReport.resultCount": { th: "แสดง {from}–{to} จาก {total} รายการ", en: "Showing {from}–{to} of {total}" },
   "evalReport.rowsPerPage": { th: "แสดงต่อหน้า", en: "Rows per page" },
@@ -1556,9 +1791,14 @@ function setLang(lang) {
 }
 
 function t(key) {
+  return tLang(key, getLang());
+}
+
+/** t() for a specific language, regardless of the UI toggle. */
+function tLang(key, lang) {
   const entry = TRANSLATIONS[key];
   if (!entry) return key;
-  return entry[getLang()] || entry.th;
+  return entry[lang] || entry.th;
 }
 
 function applyI18n() {
@@ -1583,6 +1823,11 @@ function applyI18n() {
 
   document.querySelectorAll(".lang-toggle [data-lang]").forEach(function (el) {
     el.classList.toggle("active", el.getAttribute("data-lang") === lang);
+  });
+
+  // Manual links (top-bar menu) open the manual in the page's language.
+  document.querySelectorAll("a[data-manual]").forEach(function (el) {
+    el.href = "/manual/" + el.getAttribute("data-manual") + "/" + (lang === "en" ? "en" : "th");
   });
 
   document.dispatchEvent(new CustomEvent("odprs:langchange", { detail: { lang: lang } }));
@@ -1875,23 +2120,59 @@ function initNavSections() {
     });
   } catch (e) { /* storage unavailable: defaults only */ }
 
-  document.querySelectorAll(".nav-section").forEach(function (section) {
-    const key = prefix + scope + "." + section.getAttribute("data-nav-section");
-    const label = section.querySelector(".nav-section-label");
+  // Accordion: at most one section is open at a time. Opening one (e.g.
+  // "สำหรับผู้ดูแล") folds the others away; clicking the open one closes it.
+  // Stored as the open section's name ("" = all closed).
+  const sections = Array.prototype.slice.call(document.querySelectorAll(".nav-section"));
+  if (sections.length === 0) return;
+  const key = prefix + scope + ".open";
+  const nameOf = function (s) { return s.getAttribute("data-nav-section"); };
+
+  // Slides a section open/closed by animating its pixel height (CSS can't
+  // transition to/from height:auto), then hands height back to CSS so the
+  // open section can still grow/shrink, e.g. on a language switch.
+  function fold(section, collapse, animate) {
     const items = section.querySelector(".nav-section-items");
-    const hasActive = !!section.querySelector(".nav-item.active");
-    let saved = null;
-    try { saved = localStorage.getItem(key); } catch (e) { /* ignore */ }
+    section.querySelector(".nav-section-label").setAttribute("aria-expanded", String(!collapse));
+    if (section.classList.contains("collapsed") === collapse) return;
+    clearTimeout(items._foldTimer);
+    if (!animate) {
+      // Page load: snap straight to the state, no slide on every navigation.
+      items.style.transition = "none";
+      items.style.height = "";
+      section.classList.toggle("collapsed", collapse);
+      void items.offsetHeight;
+      items.style.transition = "";
+      return;
+    }
+    // offsetHeight = the current on-screen height, so a click mid-slide
+    // reverses smoothly from where it is.
+    items.style.height = items.offsetHeight + "px";
+    void items.offsetHeight; // commit the start height before changing it
+    section.classList.toggle("collapsed", collapse);
+    items.style.height = collapse ? "0px" : items.scrollHeight + "px";
+    // A timer rather than transitionend: it also fires under
+    // prefers-reduced-motion, where no transition runs at all.
+    items._foldTimer = setTimeout(function () { items.style.height = ""; }, 300);
+  }
 
-    const collapsed = !hasActive && (saved === null ? section.hasAttribute("data-default-collapsed") : saved === "1");
-    section.classList.toggle("collapsed", collapsed);
-    items.hidden = collapsed;
+  function setOpen(name, animate) {
+    sections.forEach(function (s) { fold(s, nameOf(s) !== name, animate); });
+    try { localStorage.setItem(key, name || ""); } catch (e) { /* ignore */ }
+  }
 
-    label.addEventListener("click", function () {
-      const nowCollapsed = !section.classList.contains("collapsed");
-      section.classList.toggle("collapsed", nowCollapsed);
-      items.hidden = nowCollapsed;
-      try { localStorage.setItem(key, nowCollapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+  let saved = null;
+  try { saved = localStorage.getItem(key); } catch (e) { /* ignore */ }
+  // The current page's section always wins, so navigating never hides the
+  // item you're on; otherwise the last choice, otherwise the first section
+  // not marked data-default-collapsed (the admin section for an Admin).
+  const active = sections.find(function (s) { return s.querySelector(".nav-item.active"); });
+  const fallback = sections.find(function (s) { return !s.hasAttribute("data-default-collapsed"); }) || sections[0];
+  setOpen(active ? nameOf(active) : (saved !== null ? saved : nameOf(fallback)));
+
+  sections.forEach(function (section) {
+    section.querySelector(".nav-section-label").addEventListener("click", function () {
+      setOpen(section.classList.contains("collapsed") ? nameOf(section) : "", true);
     });
   });
 }
@@ -2159,6 +2440,35 @@ function hideProcessing() {
   if (overlay) overlay.hidden = true;
 }
 
+/**
+ * Warns before leaving a page with unsaved changes. Links inside the app
+ * ask with the app's own dialog; reload / close tab / back get the
+ * browser's prompt (its wording can't be changed).
+ * isDirty: () => boolean. titleKey: i18n key for the dialog title.
+ */
+function guardUnsavedChanges(isDirty, titleKey) {
+  let leaving = false;
+  document.addEventListener("click", function (e) {
+    const link = e.target.closest("a[href]");
+    if (!link || leaving || !isDirty()) return;
+    if (link.target === "_blank" || link.hasAttribute("download") || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const href = link.getAttribute("href");
+    if (!href || href.charAt(0) === "#" || /^javascript:/i.test(href)) return;
+    e.preventDefault();
+    showConfirmModal({
+      title: t(titleKey || "unsaved.leaveTitle"),
+      message: t("unsaved.leaveMessage"),
+      confirmText: t("unsaved.leaveConfirm"),
+      cancelText: t("unsaved.leaveStay"),
+      danger: true,
+      onConfirm: function () { leaving = true; window.location.href = link.href; }
+    });
+  }, true);
+  window.addEventListener("beforeunload", function (e) {
+    if (!leaving && isDirty()) { e.preventDefault(); e.returnValue = ""; }
+  });
+}
+
 function showConfirmModal(options) {
   const overlay = ensureModal();
   overlay.querySelector(".modal-title").textContent = options.title || "";
@@ -2339,6 +2649,10 @@ document.addEventListener("DOMContentLoaded", function () {
                   just `date >= minDate`
      onChange     called after the user picks a day
      placeholderKey  optional i18n key shown while no day is picked
+     inline       true: the calendar is always shown in place (no toggle
+                  button, no popup) — e.g. inside a dialog
+   Returns { toggle, getDate, setDate, refresh } — refresh() redraws the
+   grid after isSelectable's answers change.
    A native <input type="date"> can't grey out specific weekdays, which is
    why this exists at all: unselectable cells are rendered `disabled`.
    ===================================================================== */
@@ -2347,6 +2661,37 @@ const DATE_PICKER_WEEKDAYS = {
   th: ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"],
   en: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 };
+
+/* Keeps a just-opened dropdown popup (calendar, time wheel) fully on screen.
+   It always opens downward (flipping it above the field read as "the
+   calendar jumped up"); if it would run off the bottom, the page scrolls
+   just enough to show all of it — above any sticky bottom bar (.savebar)
+   too, which would otherwise cover the last rows. Only at the very end of
+   the page, where scrolling can't make room, does it open upward instead
+   (.open-up). Sideways, it's nudged back inside the viewport when the popup
+   is wider than its field (calendar's min-width on a narrow field). */
+function placePopup(panel, toggle) {
+  const gap = 6;
+  const margin = 12;
+  panel.style.transform = "";
+  const r = panel.getBoundingClientRect();
+  const viewW = document.documentElement.clientWidth;
+  let dx = 0;
+  if (r.right > viewW - margin) dx = (viewW - margin) - r.right;
+  if (r.left + dx < margin) dx = margin - r.left;
+  if (dx) panel.style.transform = "translateX(" + Math.round(dx) + "px)";
+
+  const bar = document.querySelector(".savebar");
+  const reserved = bar && bar.offsetParent ? bar.offsetHeight + 16 : 0;
+  const overflow = r.bottom + margin + reserved - window.innerHeight;
+  if (overflow <= 0) return;
+  const canScroll = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+  if (canScroll < overflow && toggle.getBoundingClientRect().top - gap - margin >= r.height) {
+    panel.classList.add("open-up");
+    return;
+  }
+  window.scrollBy({ top: overflow, behavior: "smooth" });
+}
 
 function createDatePicker(root, opts) {
   const toggle = root.querySelector(".date-picker-input");
@@ -2410,23 +2755,7 @@ function createDatePicker(root, opts) {
     prevBtn.disabled = new Date(viewYear, viewMonth, 1).getTime() <= minMonthTime;
   }
 
-  // Keep the whole popup on screen without making the user scroll for it:
-  // if it would run off the bottom of the viewport, open it upward when
-  // there's room above the field (usually the case on a phone/tablet when
-  // the field sits at the bottom of the page); otherwise stay downward and
-  // scroll just enough to bring the popup fully into view.
-  function position() {
-    const panelRect = panel.getBoundingClientRect();
-    const toggleRect = toggle.getBoundingClientRect();
-    const gap = 6;
-    const margin = 12;
-    if (panelRect.bottom + margin <= window.innerHeight) return;
-    if (toggleRect.top - gap - margin >= panelRect.height) {
-      panel.classList.add("open-up");
-    } else {
-      window.scrollBy({ top: panelRect.bottom + margin - window.innerHeight, behavior: "smooth" });
-    }
-  }
+  function position() { placePopup(panel, toggle); }
 
   function handleOutsideClick(e) {
     if (!root.contains(e.target)) close();
@@ -2437,6 +2766,7 @@ function createDatePicker(root, opts) {
   }
 
   function open() {
+    if (opts.inline) return;
     renderGrid();
     panel.classList.remove("open-up");
     panel.hidden = false;
@@ -2447,6 +2777,7 @@ function createDatePicker(root, opts) {
   }
 
   function close() {
+    if (opts.inline) return;
     panel.hidden = true;
     toggle.setAttribute("aria-expanded", "false");
     document.removeEventListener("click", handleOutsideClick);
@@ -2461,7 +2792,7 @@ function createDatePicker(root, opts) {
       viewMonth = selectedDate.getMonth();
     }
     renderToggleLabel();
-    if (!panel.hidden) renderGrid();
+    if (!panel.hidden || opts.inline) renderGrid();
   }
 
   toggle.addEventListener("click", function () {
@@ -2492,10 +2823,582 @@ function createDatePicker(root, opts) {
   });
 
   renderToggleLabel();
+  if (opts.inline) {
+    root.classList.add("is-inline");
+    toggle.hidden = true;
+    panel.hidden = false;
+    renderGrid();
+  }
 
   return {
     toggle: toggle,
     getDate: function () { return selectedDate; },
-    setDate: setDate
+    setDate: setDate,
+    refresh: renderGrid
   };
 }
+
+/* =====================================================================
+   Time wheel — an iPhone-alarm style "HH : MM" picker (markup:
+   partials/time-wheel.ejs). Two scroll-snapping columns; the row in the
+   centre band is the value. Works with a mouse wheel / trackpad, touch
+   swipe, clicking a number, or ↑/↓ on a focused column. Always 24-hour.
+   opts: { value: "HH:MM", minuteStep: 5, onChange(value), inline }
+   inline: true shows the wheels in place (no button, no popup, no "done")
+   — e.g. inside a dialog; call refresh() once it is visible on screen.
+   Returns { get(), set("HH:MM"), setDisabled(bool), refresh() }.
+   ===================================================================== */
+function createTimeWheel(root, opts) {
+  opts = opts || {};
+  const toggle = root.querySelector(".time-wheel-input");
+  const label = root.querySelector(".time-wheel-label");
+  const panel = root.querySelector(".time-wheel-panel");
+  const hourCol = root.querySelector('.time-wheel-col[data-unit="h"]');
+  const minuteCol = root.querySelector('.time-wheel-col[data-unit="m"]');
+  const doneBtn = root.querySelector(".time-wheel-done");
+  const ITEM_H = 40; // keep in sync with .time-wheel-item height in style.css
+  const step = opts.minuteStep || 5;
+  const pad = function (n) { return String(n).padStart(2, "0"); };
+
+  let hours = [];
+  for (let h = 0; h < 24; h++) hours.push(pad(h));
+  let minutes = [];
+  let value = "08:00";
+
+  function buildMinutes(extra) {
+    minutes = [];
+    for (let m = 0; m < 60; m += step) minutes.push(pad(m));
+    // Keep an off-grid saved minute (e.g. 08:17) selectable instead of rounding it.
+    if (extra && minutes.indexOf(extra) === -1) { minutes.push(extra); minutes.sort(); }
+  }
+
+  function fill(col, list) {
+    col.innerHTML = list.map(function (v, i) {
+      return '<div class="time-wheel-item" role="option" data-index="' + i + '">' + v + "</div>";
+    }).join("");
+  }
+
+  function indexIn(col) {
+    const list = col === hourCol ? hours : minutes;
+    return Math.max(0, Math.min(list.length - 1, Math.round(col.scrollTop / ITEM_H)));
+  }
+
+  function mark(col) {
+    const idx = indexIn(col);
+    col.querySelectorAll(".time-wheel-item").forEach(function (el, i) {
+      el.classList.toggle("selected", i === idx);
+      el.setAttribute("aria-selected", String(i === idx));
+    });
+  }
+
+  function scrollToValue(smooth) {
+    const [h, m] = value.split(":");
+    [[hourCol, hours.indexOf(h)], [minuteCol, minutes.indexOf(m)]].forEach(function (pair) {
+      pair[0].scrollTo({ top: Math.max(0, pair[1]) * ITEM_H, behavior: smooth ? "smooth" : "auto" });
+      mark(pair[0]);
+    });
+  }
+
+  function render() { label.textContent = value; }
+
+  // Read the value off the wheels once a column stops moving.
+  function commit() {
+    const next = hours[indexIn(hourCol)] + ":" + minutes[indexIn(minuteCol)];
+    mark(hourCol); mark(minuteCol);
+    if (next === value) return;
+    value = next;
+    render();
+    if (opts.onChange) opts.onChange(value);
+  }
+
+  [hourCol, minuteCol].forEach(function (col) {
+    let settleTimer = null;
+    col.addEventListener("scroll", function () {
+      mark(col);
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(commit, 120);
+    });
+    col.addEventListener("click", function (e) {
+      const item = e.target.closest(".time-wheel-item");
+      if (!item) return;
+      col.scrollTo({ top: Number(item.getAttribute("data-index")) * ITEM_H, behavior: "smooth" });
+    });
+    col.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      col.scrollTo({ top: (indexIn(col) + (e.key === "ArrowDown" ? 1 : -1)) * ITEM_H, behavior: "smooth" });
+    });
+  });
+
+  function handleOutsideClick(e) { if (!root.contains(e.target)) close(); }
+  function handleKey(e) { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); close(); toggle.focus(); } }
+
+  function open() {
+    if (opts.inline) return;
+    panel.classList.remove("open-up");
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+    scrollToValue(false);
+    placePopup(panel, toggle);
+    hourCol.focus({ preventScroll: true });
+    document.addEventListener("click", handleOutsideClick);
+    document.addEventListener("keydown", handleKey);
+  }
+
+  function close() {
+    if (opts.inline) { commit(); return; }
+    if (panel.hidden) return;
+    commit();
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", handleOutsideClick);
+    document.removeEventListener("keydown", handleKey);
+  }
+
+  // No stopPropagation: the same click must still reach a calendar's
+  // outside-click handler so an open calendar closes when this opens.
+  toggle.addEventListener("click", function () {
+    if (panel.hidden) open(); else close();
+  });
+  doneBtn.addEventListener("click", function () { close(); toggle.focus(); });
+
+  function set(v) {
+    value = /^\d{2}:\d{2}$/.test(v || "") ? v : "08:00";
+    buildMinutes(value.split(":")[1]);
+    fill(minuteCol, minutes);
+    render();
+    if (!panel.hidden) scrollToValue(false);
+  }
+
+  fill(hourCol, hours);
+  if (opts.inline) {
+    root.classList.add("is-inline");
+    toggle.hidden = true;
+    panel.hidden = false;
+    const foot = root.querySelector(".time-wheel-foot");
+    if (foot) foot.hidden = true;
+  }
+  set(opts.value);
+
+  return {
+    get: function () { return value; },
+    set: set,
+    setDisabled: function (disabled) {
+      toggle.disabled = !!disabled;
+      root.classList.toggle("is-disabled", !!disabled);
+      [hourCol, minuteCol].forEach(function (col) { col.tabIndex = disabled ? -1 : 0; });
+      if (disabled) close();
+    },
+    // Scroll the wheels to the current value (needed once an inline wheel
+    // that was built while hidden becomes visible).
+    refresh: function () { scrollToValue(false); }
+  };
+}
+
+/* Floating manuals button (partials/header.ejs) + its sidebar dock.
+   - Click: toggle the small menu. Drag (moved > 5px): move the button; on
+     release it snaps to the nearer left/right edge, top kept on screen.
+   - "Hide" moves it into the sidebar dock; "Show floating button" there
+     brings it back. Position + hidden state are a per-browser convenience
+     in localStorage (odprs_manualFab); everything still works without it. */
+function initManualFab() {
+  const fab = document.getElementById("manual-fab");
+  const btn = document.getElementById("manual-fab-btn");
+  const menu = document.getElementById("manual-fab-menu");
+  if (!fab || !btn || !menu) return;
+  const KEY = "odprs_manualFab";
+  const MARGIN = 16;
+  const HEADER_H = 64;
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { return {}; }
+  }
+  function saveState(patch) {
+    const next = Object.assign(loadState(), patch);
+    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { /* private mode etc. */ }
+    return next;
+  }
+
+  // ---- position ----
+  function clampTop(top) {
+    const max = window.innerHeight - fab.offsetHeight - MARGIN;
+    return Math.max(HEADER_H + MARGIN, Math.min(max, top));
+  }
+  function applyPosition(state) {
+    if (state.side !== "left" && state.side !== "right") return; // default CSS spot
+    fab.style.bottom = "auto";
+    fab.style.top = clampTop(state.top) + "px";
+    fab.style.left = state.side === "left" ? MARGIN + "px" : "auto";
+    fab.style.right = state.side === "right" ? MARGIN + "px" : "auto";
+  }
+  function syncMenuDirection() {
+    const rect = fab.getBoundingClientRect();
+    fab.classList.toggle("opens-down", rect.top < window.innerHeight / 2);
+    fab.classList.toggle("on-left", rect.left + rect.width / 2 < window.innerWidth / 2);
+  }
+
+  // ---- menu ----
+  function setOpen(open) {
+    if (open) syncMenuDirection();
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  menu.addEventListener("click", function (e) { if (e.target.closest("a")) setOpen(false); });
+  document.addEventListener("click", function (e) { if (!menu.hidden && !e.target.closest("#manual-fab")) setOpen(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { setOpen(false); btn.focus(); } });
+
+  // ---- drag vs click ----
+  let drag = null;
+  btn.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    const rect = fab.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, dx: e.clientX - rect.left, dy: e.clientY - rect.top, moved: false };
+    btn.setPointerCapture(e.pointerId);
+  });
+  btn.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
+    if (!drag.moved) { drag.moved = true; setOpen(false); fab.classList.add("is-dragging"); fab.classList.remove("is-snapping"); }
+    const left = Math.max(0, Math.min(window.innerWidth - fab.offsetWidth, e.clientX - drag.dx));
+    const top = Math.max(0, Math.min(window.innerHeight - fab.offsetHeight, e.clientY - drag.dy));
+    fab.style.left = left + "px";
+    fab.style.top = top + "px";
+    fab.style.right = "auto";
+    fab.style.bottom = "auto";
+  });
+  function endDrag(e) {
+    if (!drag) return;
+    const wasDrag = drag.moved;
+    drag = null;
+    if (!wasDrag) { if (e.type === "pointerup") setOpen(menu.hidden); return; }
+    fab.classList.remove("is-dragging");
+    const rect = fab.getBoundingClientRect();
+    const side = rect.left + rect.width / 2 < window.innerWidth / 2 ? "left" : "right";
+    fab.classList.add("is-snapping");
+    // Snap: switch from the free left offset to the chosen edge.
+    if (side === "left") { fab.style.left = MARGIN + "px"; fab.style.right = "auto"; }
+    else { fab.style.left = (window.innerWidth - fab.offsetWidth - MARGIN) + "px"; }
+    const top = clampTop(rect.top);
+    fab.style.top = top + "px";
+    setTimeout(function () {
+      fab.classList.remove("is-snapping");
+      applyPosition(saveState({ side: side, top: top }));
+    }, 220);
+  }
+  btn.addEventListener("pointerup", endDrag);
+  btn.addEventListener("pointercancel", endDrag);
+  // Keyboard users: Enter/Space fire "click" without pointer events.
+  btn.addEventListener("click", function (e) { if (e.detail === 0) setOpen(menu.hidden); });
+
+  window.addEventListener("resize", function () { applyPosition(loadState()); });
+
+  // ---- hide into the sidebar / show again ----
+  const dockBtn = document.getElementById("nav-manual-dock-btn");
+  const dockPop = document.getElementById("manual-dock-pop");
+  function setDockOpen(open) {
+    if (!dockBtn || !dockPop) return;
+    if (open) {
+      // Beside the dock row, bottoms aligned; kept inside the window.
+      dockPop.hidden = false;
+      const r = dockBtn.getBoundingClientRect();
+      const w = dockPop.offsetWidth, h = dockPop.offsetHeight;
+      const left = Math.min(r.right + 8, window.innerWidth - w - 8);
+      const top = Math.max(8, Math.min(r.bottom - h, window.innerHeight - h - 8));
+      dockPop.style.left = Math.max(8, left) + "px";
+      dockPop.style.top = top + "px";
+    } else {
+      dockPop.hidden = true;
+    }
+    dockBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  function setDocked(docked) {
+    document.documentElement.classList.toggle("manual-fab-docked", docked);
+    saveState({ hidden: docked });
+    setOpen(false);
+    setDockOpen(false);
+  }
+  const hideBtn = document.getElementById("manual-fab-hide");
+  if (hideBtn) hideBtn.addEventListener("click", function () { setDocked(true); });
+  const showBtn = document.getElementById("manual-dock-show");
+  if (showBtn) showBtn.addEventListener("click", function () { setDocked(false); });
+  if (dockBtn && dockPop) {
+    dockBtn.addEventListener("click", function (e) { e.stopPropagation(); setDockOpen(dockPop.hidden); });
+    dockPop.addEventListener("click", function (e) { if (e.target.closest("a")) setDockOpen(false); });
+    document.addEventListener("click", function (e) { if (!dockPop.hidden && !e.target.closest("#manual-dock-pop")) setDockOpen(false); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !dockPop.hidden) { setDockOpen(false); dockBtn.focus(); } });
+    window.addEventListener("resize", function () { setDockOpen(false); });
+    const sidebarEl = document.getElementById("app-sidebar");
+    if (sidebarEl) sidebarEl.addEventListener("scroll", function () { setDockOpen(false); });
+  }
+
+  const state = loadState();
+  document.documentElement.classList.toggle("manual-fab-docked", !!state.hidden);
+  applyPosition(state);
+}
+document.addEventListener("DOMContentLoaded", initManualFab);
+
+/* =====================================================================
+   Collapsible filter panels (history, dashboard, evaluations, audit log).
+   Markup: a .filter-toggle button (aria-controls = the body) holding a
+   .filter-toggle-count badge, and a .filter-collapse body wrapping a
+   .filter-collapse-inner. Closed by default; open/closed is remembered per
+   page in this browser. The badge shows how many filters are on (count()),
+   so a closed panel never hides that the data is filtered.
+   initFilterCollapse({ toggle, body, badge, key, count }) → { sync, open }
+   ===================================================================== */
+function initFilterCollapse(opts) {
+  const toggle = document.getElementById(opts.toggle);
+  const body = document.getElementById(opts.body);
+  const badge = document.getElementById(opts.badge);
+  if (!toggle || !body) return { sync: function () {}, open: function () {} };
+  const key = "odprs_filters_open." + opts.key;
+
+  function setOpen(open, save) {
+    body.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (save) { try { localStorage.setItem(key, open ? "1" : "0"); } catch (e) { /* private mode etc. */ } }
+  }
+  function sync() {
+    if (!badge) return;
+    const n = opts.count ? opts.count() : 0;
+    badge.textContent = n;
+    badge.hidden = n === 0;
+  }
+  toggle.addEventListener("click", function () { setOpen(!body.classList.contains("is-open"), true); });
+  // After the page's own handlers (e.g. a "clear" button) have run.
+  ["change", "input", "click"].forEach(function (ev) {
+    body.addEventListener(ev, function () { setTimeout(sync, 0); });
+  });
+
+  let startOpen = false;
+  try { startOpen = localStorage.getItem(key) === "1"; } catch (e) { /* ignore */ }
+  setOpen(startOpen, false);
+  sync();
+  return { sync: sync, open: function () { setOpen(true, true); } };
+}
+
+/* ---------- Tidy dropdowns for every <select> ----------
+   Each <select> on a page is upgraded in place: the select stays in the
+   page (visually hidden) and keeps working as the source of truth, so page
+   scripts still read/set .value, fill options and listen for "change".
+   A button shows the chosen option and opens a panel:
+     - a grid of equal tiles when the choices are short (years, months),
+     - otherwise a list with a check on the chosen row, a search box when
+       there are many, and optgroup headings.
+   The panel is position:fixed, so dialogs and scroll boxes never clip it,
+   and it opens upwards when there is no room below.
+   Opt out with data-native on the <select>; force a grid with
+   data-dd-cols="N" or a list with data-dd-cols="0". */
+(function () {
+  let openPanel = null;
+  const SEARCH_FROM = 15;
+
+  function labelOf(opt) { return (opt.textContent || "").replace(/\s+/g, " ").trim(); }
+
+  function enhance(sel) {
+    if (sel.__dd || sel.multiple || sel.hasAttribute("data-native") || Number(sel.getAttribute("size")) > 1) return;
+    const wrap = document.createElement("div");
+    wrap.className = "dd dd-auto";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dd-btn " + (sel.className || "") + (sel.closest(".field") && !sel.classList.contains("toolbar-select") ? " dd-field" : "");
+    // keep the look of an inline-styled select, but never its show/hide
+    if (sel.getAttribute("style")) { btn.setAttribute("style", sel.getAttribute("style")); btn.style.display = ""; }
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = '<span class="dd-value"></span><span class="icon dd-chevron">' + (ICONS["chevron-down"] || "") + "</span>";
+    const panel = document.createElement("div");
+    panel.className = "dd-panel dd-fixed";
+    panel.hidden = true;
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(btn);
+    wrap.appendChild(sel);
+    document.body.appendChild(panel);
+    sel.classList.add("dd-native");
+    sel.tabIndex = -1;
+    sel.setAttribute("aria-hidden", "true");
+
+    // label the button like the select was labelled
+    const aria = sel.getAttribute("aria-label") || (sel.id && document.querySelector('label[for="' + sel.id + '"]') ? document.querySelector('label[for="' + sel.id + '"]').textContent.trim() : "");
+    if (aria) btn.setAttribute("aria-label", aria);
+
+    function sync() {
+      const opt = sel.options[sel.selectedIndex];
+      const text = opt ? labelOf(opt) : (sel.options.length ? t("dd.choose") : "");
+      btn.querySelector(".dd-value").textContent = text;
+      btn.title = text.length > 24 ? text : "";
+      btn.disabled = sel.disabled;
+      btn.classList.toggle("is-placeholder", !opt || (opt.value === "" && sel.required));
+      // follow the select's own visibility (some pages hide it with style/hidden)
+      const hidden = sel.hidden || sel.style.display === "none";
+      wrap.hidden = hidden;
+      if (!panel.hidden && (hidden || sel.disabled)) close();
+    }
+
+    function layout() {
+      const opts = Array.from(sel.options).filter((o) => !o.hidden);
+      const real = opts.filter((o) => o.value !== "");
+      const forced = sel.getAttribute("data-dd-cols");
+      if (forced != null) return Number(forced) || 0;
+      if (sel.querySelector("optgroup") || real.length < 5) return 0;
+      if (real.every((o) => labelOf(o).length <= 9)) return real.length === 12 ? 3 : 4;
+      return 0;
+    }
+
+    function place() {
+      const r = btn.getBoundingClientRect();
+      const below = innerHeight - r.bottom - 12, above = r.top - 12;
+      const up = below < 220 && above > below;
+      const room = Math.max(160, Math.min(400, up ? above : below));
+      panel.style.maxHeight = room + "px";
+      panel.style.minWidth = r.width + "px";
+      panel.style.top = "0px"; panel.style.left = "0px";
+      const w = panel.offsetWidth, h = panel.offsetHeight;
+      let left = Math.min(r.left, innerWidth - 8 - w);
+      left = Math.max(8, left);
+      panel.style.left = left + "px";
+      panel.style.top = (up ? r.top - 6 - h : r.bottom + 6) + "px";
+    }
+
+    function render(filter) {
+      const cols = layout();
+      const q = (filter || "").toLowerCase().replace(/\s+/g, "");
+      const cur = sel.selectedIndex;
+      let html = "";
+      let lastGroup = null;
+      Array.from(sel.options).forEach((o, i) => {
+        if (o.hidden) return;
+        const text = labelOf(o);
+        if (q && !text.toLowerCase().replace(/\s+/g, "").includes(q)) return;
+        const g = o.parentNode.tagName === "OPTGROUP" ? o.parentNode.label : null;
+        if (!cols && g && g !== lastGroup) { html += '<div class="dd-group">' + escapeHtml(g) + "</div>"; }
+        lastGroup = g;
+        const selected = i === cur;
+        const wide = cols && o.value === "";
+        html += '<button type="button" class="dd-opt' + (selected ? " is-selected" : "") + (wide ? " is-wide" : "") + '" role="option" aria-selected="' + selected + '" data-i="' + i + '"' + (o.disabled ? " disabled" : "") + ">" +
+          (cols ? "" : '<span class="dd-check" aria-hidden="true">✓</span>') + '<span class="dd-label">' + escapeHtml(text) + "</span></button>";
+      });
+      if (!html) html = '<div class="dd-empty">' + escapeHtml(t("dd.none")) + "</div>";
+      return { cols, html: '<div class="' + (cols ? "dd-grid" : "dd-list") + '" role="listbox"' + (cols ? ' style="--cols:' + cols + '"' : "") + ">" + html + "</div>" };
+    }
+
+    function bindOptions() {
+      panel.querySelectorAll(".dd-opt").forEach((b) => b.addEventListener("click", () => choose(+b.dataset.i)));
+    }
+
+    function open() {
+      if (sel.disabled) return;
+      if (openPanel) openPanel.close();
+      const many = sel.options.length > SEARCH_FROM && !layout();
+      const r = render("");
+      panel.classList.toggle("is-grid", !!r.cols);
+      panel.innerHTML = (many ? '<input type="text" class="dd-search" autocomplete="off" placeholder="' + escapeHtml(t("dd.search")) + '">' : "") + '<div class="dd-body">' + r.html + "</div>";
+      panel.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      openPanel = api;
+      bindOptions();
+      place();
+      const search = panel.querySelector(".dd-search");
+      if (search) {
+        search.addEventListener("input", () => { panel.querySelector(".dd-body").innerHTML = render(search.value).html; bindOptions(); });
+        search.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); const f = panel.querySelector(".dd-opt:not(:disabled)"); if (f) f.focus(); }
+          else if (e.key === "Enter") { e.preventDefault(); const f = panel.querySelector(".dd-opt:not(:disabled)"); if (f) f.click(); }
+        });
+        search.focus();
+      }
+      const chosen = panel.querySelector(".dd-opt.is-selected:not(:disabled)") || panel.querySelector(".dd-opt:not(:disabled)");
+      if (chosen) { chosen.scrollIntoView({ block: "nearest" }); if (!search) chosen.focus(); }
+    }
+
+    function close(focus) {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      if (openPanel === api) openPanel = null;
+      if (focus) btn.focus();
+    }
+
+    function choose(i) {
+      close(true);
+      if (i === sel.selectedIndex) return;
+      sel.selectedIndex = i;
+      sync();
+      sel.dispatchEvent(new Event("input", { bubbles: true }));
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    btn.addEventListener("click", () => (panel.hidden ? open() : close()));
+    btn.addEventListener("keydown", (e) => {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && panel.hidden) { e.preventDefault(); open(); }
+    });
+    panel.addEventListener("keydown", (e) => {
+      const opts = Array.from(panel.querySelectorAll(".dd-opt:not(:disabled)"));
+      const i = opts.indexOf(document.activeElement);
+      const cols = panel.classList.contains("is-grid") ? Number((panel.querySelector(".dd-grid") || {}).style.getPropertyValue("--cols")) || 4 : 1;
+      const grid = cols > 1;
+      const move = { ArrowRight: grid ? 1 : 0, ArrowLeft: grid ? -1 : 0, ArrowDown: cols, ArrowUp: -cols }[e.key];
+      if (e.key === "Escape") { e.preventDefault(); close(true); }
+      else if (e.key === "Tab") close();
+      else if (move && (i >= 0 || e.target.classList.contains("dd-search"))) {
+        if (e.target.classList.contains("dd-search")) return;
+        e.preventDefault();
+        if (i + move < 0 && panel.querySelector(".dd-search")) { panel.querySelector(".dd-search").focus(); return; }
+        const n = opts[Math.min(opts.length - 1, Math.max(0, i + move))];
+        if (n) n.focus();
+      }
+    });
+    sel.addEventListener("change", sync);
+    // pages that focus a select to point at an error land on the button
+    sel.addEventListener("focus", () => btn.focus());
+    // the browser points at the select when a required one is empty
+    sel.addEventListener("invalid", () => btn.classList.add("is-invalid"));
+    sel.addEventListener("change", () => btn.classList.remove("is-invalid"));
+
+    // page scripts set .value / .selectedIndex directly: keep the button in step
+    ["value", "selectedIndex"].forEach((prop) => {
+      const d = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, prop);
+      Object.defineProperty(sel, prop, { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, v); sync(); } });
+    });
+    new MutationObserver(sync).observe(sel, { childList: true, subtree: true, attributes: true, characterData: true, attributeFilter: ["disabled", "hidden", "style", "selected", "label"] });
+    const form = sel.form;
+    if (form) form.addEventListener("reset", () => setTimeout(sync, 0));
+
+    const api = { close, open, sync, place, panel, wrap };
+    sel.__dd = api;
+    sync();
+    return api;
+  }
+
+  function enhanceAll(root) {
+    (root || document).querySelectorAll("select").forEach(enhance);
+  }
+  window.enhanceSelect = enhance;
+
+  document.addEventListener("mousedown", (e) => {
+    if (openPanel && !openPanel.panel.contains(e.target) && !openPanel.wrap.contains(e.target)) openPanel.close();
+  });
+  // follow the button while the page scrolls; a resize just closes it
+  window.addEventListener("scroll", (e) => {
+    if (!openPanel) return;
+    if (openPanel.panel.contains(e.target)) return;
+    const r = openPanel.wrap.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > innerHeight) openPanel.close(); else openPanel.place();
+  }, true);
+  window.addEventListener("resize", () => { if (openPanel) openPanel.close(); });
+  document.addEventListener("odprs:langchange", () => {
+    document.querySelectorAll("select").forEach((s) => { if (s.__dd) s.__dd.sync(); });
+    if (openPanel) openPanel.close();
+  });
+
+  document.addEventListener("DOMContentLoaded", () => {
+    enhanceAll();
+    // selects added later (dialogs, re-rendered forms)
+    new MutationObserver((list) => {
+      list.forEach((m) => m.addedNodes.forEach((n) => {
+        if (n.nodeType !== 1) return;
+        if (n.tagName === "SELECT") enhance(n); else if (n.querySelector) enhanceAll(n);
+      }));
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+})();

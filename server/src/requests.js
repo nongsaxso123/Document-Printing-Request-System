@@ -1,3 +1,4 @@
+const { Prisma } = require("@prisma/client");
 /**
  * Request queries + the DB-shape -> client-shape JSON mapper.
  * Client-side (server/views/officer/*.ejs inline scripts, ported almost
@@ -11,7 +12,8 @@ const counters = require("./counters");
 const businessDays = require("./businessDays");
 const notifications = require("./notifications");
 const locations = require("./locations");
-const agencies = require("./agencies");
+const unitDirectory = require("./units");
+const evaluationForm = require("./evaluationForm");
 
 // v0.4 print-spec fields: the new-request.ejs form submits short codes
 // (client-side JS branches on these), but every display page (translateValue
@@ -35,6 +37,11 @@ const FINISHING_METHOD_TH = {
   glue: "เข้าเล่มสันกาว"
 };
 const DOCUMENT_TYPE_TH = { exam: "ข้อสอบ", general: "เอกสารทั่วไป" };
+
+// Longest "items to print" text that still keeps the printed Request Form on
+// one A4 page (measured 2026-11-13: ~150-170 chars spill onto a 2nd page).
+// Same number as maxlength on the textarea in requester/new-request.ejs.
+const ITEM_LIST_MAX = 120;
 
 // Exam print jobs at the counter only ever get a quick corner-staple (or
 // nothing) — none of the book-binding methods are offered for exams in
@@ -99,6 +106,18 @@ function toDateInputValue(date) {
   return `${y}-${m}-${d}`;
 }
 
+function isFinished(r) {
+  return locations.FINISHED_STATUSES.includes(r.status);
+}
+
+// Which version of a place a request shows — see the comment in toClientJSON.
+function locationFor(r, live, snapshot) {
+  const finished = isFinished(r);
+  if (finished && snapshot) return snapshot;
+  if (live) return locations.snapshotOf(live);
+  return snapshot || null;
+}
+
 function toClientJSON(r) {
   return {
     referenceNo: r.requestReferenceNo,
@@ -106,14 +125,17 @@ function toClientJSON(r) {
     requesterName: r.requesterName,
     requesterEmail: r.requesterEmail,
     tel: r.requesterTel,
-    agencyCategory: r.agencyCategory,
-    agencyUnit: r.agencyUnit,
-    agencyCategoryId: r.agencyCategoryId,
-    agencyUnitId: r.agencyUnitId,
-    // Live English name when the caller included the relation (getByRef —
-    // follows a rename), else null (print form / detail views fall back to
-    // AGENCY_CATEGORY_EN's static copy for older cached lookups without it).
-    agencyCategoryNameEn: r.agencyCategoryRef ? r.agencyCategoryRef.nameEn : null,
+    unitType: r.unitType,
+    unit: r.unit,
+    unitTypeId: r.unitTypeId,
+    unitId: r.unitId,
+    // Live English name when the caller included the relation (getByRef),
+    // else null (print form / detail views fall back to UNIT_TYPE_EN's
+    // static copy, then the stored Thai name). A finished request only takes
+    // it while the category still has the Thai name it was submitted under —
+    // after a rename it keeps showing what was saved, like locationFor().
+    unitTypeNameEn: r.unitTypeRef && (!isFinished(r) || r.unitTypeRef.nameTh === r.unitType)
+      ? r.unitTypeRef.nameEn : null,
     paperSize: r.paperSize,
     colorMode: r.colorMode,
     printSide: r.printSide,
@@ -136,6 +158,10 @@ function toClientJSON(r) {
     claimCode: r.claimCode,
     statusCode: STATUS_TO_CODE[r.status],
     rejectionReason: r.rejectionReason,
+    rejectedAt: r.rejectedAt ? r.rejectedAt.toISOString() : null,
+    cancelledAt: r.cancelledAt ? r.cancelledAt.toISOString() : null,
+    readyAt: r.readyAt ? r.readyAt.toISOString() : null,
+    markedReadyByOfficer: r.markedReadyByOfficerName,
     reviewedByOfficer: r.reviewedByOfficerName,
     reviewedByOfficerEmail: r.reviewedByOfficerEmail,
     handedOverByOfficer: r.handedOverByOfficerName,
@@ -145,10 +171,13 @@ function toClientJSON(r) {
     receiverWorkplace: r.receiverWorkplace,
     receiverWorkPhone: r.receiverWorkPhone,
     completedTimestamp: r.completedTimestamp ? r.completedTimestamp.toISOString() : null,
-    // Live Location row when the caller included the relation (getByRef —
-    // follows renames), otherwise what was true at submission.
-    dropoffLocation: r.dropoffLocation ? locations.snapshotOf(r.dropoffLocation) : (r.dropoffLocationSnapshot || null),
-    pickupLocation: r.pickupLocation ? locations.snapshotOf(r.pickupLocation) : (r.pickupLocationSnapshot || null),
+    // Open requests follow the live Location row (getByRef includes it) so a
+    // rename or new phone number reaches people who still have to go there.
+    // Finished requests (completed / rejected / cancelled) show the snapshot —
+    // the place as it was — and that is also what lets a place be deleted
+    // once only finished requests point at it (locations.remove()).
+    dropoffLocation: locationFor(r, r.dropoffLocation, r.dropoffLocationSnapshot),
+    pickupLocation: locationFor(r, r.pickupLocation, r.pickupLocationSnapshot),
     pickupAvailableFrom: r.pickupAvailableFrom ? r.pickupAvailableFrom.toISOString() : null
   };
 }
@@ -161,7 +190,7 @@ async function list() {
 async function getByRef(ref) {
   const row = await prisma.request.findUnique({
     where: { requestReferenceNo: ref },
-    include: { dropoffLocation: true, pickupLocation: true, agencyCategoryRef: true }
+    include: { dropoffLocation: true, pickupLocation: true, unitTypeRef: true }
   });
   return row ? toClientJSON(row) : null;
 }
@@ -226,10 +255,10 @@ async function listAvailableYears() {
 // Shared by searchHistory (one page for the table) and the Excel export in
 // src/reports.js (every matching row), so the export always matches exactly
 // what the filters on screen show.
-async function buildHistoryWhere({ status, agencyCategory, year, month, q, fromDate, toDate } = {}) {
+async function buildHistoryWhere({ status, unitType, year, month, q, fromDate, toDate } = {}) {
   const andClauses = [];
   if (status && CODE_TO_STATUS[status]) andClauses.push({ status: CODE_TO_STATUS[status] });
-  if (agencyCategory) andClauses.push({ agencyCategory });
+  if (unitType) andClauses.push({ unitType });
 
   const hasCustomRange = !!(fromDate || toDate);
   const hasYear = year !== undefined && year !== null && year !== "";
@@ -276,8 +305,8 @@ async function buildHistoryWhere({ status, agencyCategory, year, month, q, fromD
   return andClauses.length > 0 ? { AND: andClauses } : {};
 }
 
-async function searchHistory({ status, agencyCategory, year, month, q, page, pageSize, fromDate, toDate } = {}) {
-  const where = await buildHistoryWhere({ status, agencyCategory, year, month, q, fromDate, toDate });
+async function searchHistory({ status, unitType, year, month, q, page, pageSize, fromDate, toDate } = {}) {
+  const where = await buildHistoryWhere({ status, unitType, year, month, q, fromDate, toDate });
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
 
@@ -300,10 +329,10 @@ async function searchHistory({ status, agencyCategory, year, month, q, page, pag
 const PRINTED_STATUS_ENUMS = ["PRINTING_IN_PROGRESS", "READY_FOR_PICKUP", "COMPLETED"];
 
 const DASHBOARD_SELECT = {
-  agencyCategory: true,
-  agencyCategoryId: true,
-  agencyUnit: true,
-  agencyUnitId: true,
+  unitType: true,
+  unitTypeId: true,
+  unit: true,
+  unitId: true,
   originalPages: true,
   numberOfCopies: true,
   printSide: true,
@@ -342,10 +371,244 @@ function parseDateOnly(str) {
 // (either or both) for an arbitrary custom range when the officer explicitly
 // wants day-level precision. The custom range takes priority if both are
 // somehow present.
-async function dashboardSummary({ year, month, documentType, paperSource, fromDate, toDate } = {}) {
+// ---- Officer dashboard (officer/dashboard.ejs) ----
+// submission_date is stored in UTC; years/days are counted in local time.
+const DASH_TZ = process.env.TZ || "Asia/Bangkok";
+const SHEETS_SQL = Prisma.sql`CASE WHEN print_side = ${PRINT_SIDE_TH.double} THEN CEIL(original_pages / 2.0) * number_of_copies ELSE original_pages * number_of_copies END`;
+const LOCAL_TS_SQL = Prisma.sql`((submission_date AT TIME ZONE 'UTC') AT TIME ZONE ${DASH_TZ})`;
+
+function dashboardWhere({ unitType, unit, documentType, paperSource } = {}) {
+  const where = { status: { in: PRINTED_STATUS_ENUMS } };
+  if (unitType) where.unitType = unitType;
+  if (unit) where.unit = unit;
+  if (documentType) where.documentType = documentType;
+  if (paperSource) where.paperSource = paperSource;
+  return where;
+}
+
+// Filter choices (types, units, document types, paper sources) seen in
+// printed requests. Small; cached briefly.
+let dashboardOptionsCache = null;
+async function dashboardOptions() {
+  if (dashboardOptionsCache && Date.now() - dashboardOptionsCache.at < 60 * 1000) return dashboardOptionsCache.data;
+  const where = { status: { in: PRINTED_STATUS_ENUMS } };
+  const [reqPairs, docs, srcs, typeRows, unitRows, firstRow] = await Promise.all([
+    prisma.request.groupBy({ by: ["unitType", "unit"], where }),
+    prisma.request.groupBy({ by: ["documentType"], where }),
+    prisma.request.groupBy({ by: ["paperSource"], where }),
+    prisma.unitType.findMany({ select: { nameTh: true, nameEn: true, sortOrder: true } }),
+    // every unit from the admin tables too, so a unit with no printing yet
+    // can still be picked (stored on requests as "<th> (<en>)")
+    prisma.unit.findMany({ where: { isActive: true }, select: { nameTh: true, nameEn: true, category: { select: { nameTh: true } } } }),
+    prisma.$queryRaw`SELECT MIN(EXTRACT(YEAR FROM ${LOCAL_TS_SQL}))::int AS y FROM requests WHERE status::text IN (${Prisma.join(PRINTED_STATUS_ENUMS)})`
+  ]);
+  const seen = new Set();
+  const pairs = reqPairs.concat(unitRows.map((u) => ({ unitType: u.category.nameTh, unit: `${u.nameTh} (${u.nameEn})` })))
+    .filter((p) => { const k = p.unitType + "\u0001" + p.unit; if (!p.unit || seen.has(k)) return false; seen.add(k); return true; });
+  const order = new Map(typeRows.map((x) => [x.nameTh, x.sortOrder]));
+  const enOf = new Map(typeRows.map((x) => [x.nameTh, x.nameEn]));
+  const types = Array.from(new Set(pairs.map((p) => p.unitType))).filter(Boolean)
+    .sort((a, b) => (order.get(a) ?? 999) - (order.get(b) ?? 999) || a.localeCompare(b, "th"));
+  const data = {
+    types: types.map((th) => ({ th, en: enOf.get(th) || th })),
+    // stored unit strings read "<th> (<en>)"; the page splits them per language
+    units: pairs.filter((p) => p.unit).map((p) => ({ type: p.unitType, unit: p.unit })).sort((a, b) => a.unit.localeCompare(b.unit, "th")),
+    docs: docs.map((d) => d.documentType).filter(Boolean),
+    srcs: srcs.map((d) => d.paperSource).filter(Boolean),
+    firstYear: firstRow[0] && firstRow[0].y ? Number(firstRow[0].y) : null,
+    today: localToday()
+  };
+  dashboardOptionsCache = { at: Date.now(), data };
+  return data;
+}
+
+// ---- Officer dashboard: one period at a time ----
+// The page picks a period (everything, a year, a month or any from-to
+// dates) plus unit / document filters; everything is counted here so the
+// browser gets a small answer whatever the size of the table.
+// Days are local days (DASH_TZ), written "YYYY-MM-DD".
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function localToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: DASH_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+// "YYYY-MM-DD" helpers on plain strings (no time zone involved)
+const dayParts = (s) => s.split("-").map(Number);
+const dayStr = (y, m, d) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function addDays(s, n) {
+  const [y, m, d] = dayParts(s);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return dayStr(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+}
+function minusYear(s) {
+  const [y, m, d] = dayParts(s);
+  const last = new Date(Date.UTC(y - 1, m, 0)).getUTCDate(); // 29 Feb -> 28 Feb
+  return dayStr(y - 1, m, Math.min(d, last));
+}
+const daysBetween = (a, b) => Math.round((Date.UTC(...dayParts(b).map((v, i) => (i === 1 ? v - 1 : v))) - Date.UTC(...dayParts(a).map((v, i) => (i === 1 ? v - 1 : v)))) / 864e5);
+
+function rangeConds(params, from, to, withUnit) {
+  const conds = [Prisma.sql`status::text IN (${Prisma.join(PRINTED_STATUS_ENUMS)})`];
+  if (params.unitType) conds.push(Prisma.sql`unit_type = ${params.unitType}`);
+  if (withUnit && params.unit) conds.push(Prisma.sql`unit = ${params.unit}`);
+  if (params.documentType) conds.push(Prisma.sql`document_type = ${params.documentType}`);
+  if (params.paperSource) conds.push(Prisma.sql`paper_source = ${params.paperSource}`);
+  if (from) conds.push(Prisma.sql`(${LOCAL_TS_SQL})::date >= ${from}::date`);
+  if (to) conds.push(Prisma.sql`(${LOCAL_TS_SQL})::date <= ${to}::date`);
+  return Prisma.join(conds, " AND ");
+}
+
+// Every unit in the period (unit filter left out so the table can rank the
+// chosen unit among the others), split by document type and paper source.
+function unitRows(params, from, to) {
+  return prisma.$queryRaw`
+    SELECT unit_type AS type, unit, document_type AS doc, paper_source AS src,
+           COUNT(*)::int AS requests, COALESCE(SUM(${SHEETS_SQL}), 0)::bigint AS sheets
+    FROM requests WHERE ${rangeConds(params, from, to, false)} GROUP BY 1, 2, 3, 4`;
+}
+
+// params: { from?, to?, unitType?, unit?, documentType?, paperSource? }
+// {
+//   from, to, today, upTo,            upTo = last day counted (today when the period runs past it)
+//   bucket: "day" | "month" | "year",
+//   prev: { from, to } | null,         same days one year earlier (null for "everything")
+//   totals: { requests, sheets, units }, prevTotals: {...} | null,
+//   series: [{ k: "YYYY-MM-DD", sheets, requests, prev }],   one per bucket; sheets null after today
+//   units: [{ type, unit, requests, sheets, prev }],          most sheets first
+//   rank: { pos, total } | null,                              when one unit is chosen
+//   types: [{ type, sheets }], docs: [{ value, sheets }], srcs: [{ value, sheets }]
+// }
+async function dashboardRange(params = {}) {
+  const today = localToday();
+  let from = DAY_RE.test(params.from || "") ? params.from : null;
+  let to = DAY_RE.test(params.to || "") ? params.to : null;
+  if (from && to && from > to) [from, to] = [to, from];
+
+  // "everything": from the first printed day
+  if (!from) {
+    const first = await prisma.$queryRaw`
+      SELECT to_char(MIN((${LOCAL_TS_SQL})::date), 'YYYY-MM-DD') AS d FROM requests WHERE ${rangeConds({}, null, null, false)}`;
+    from = (first[0] && first[0].d) || today;
+  }
+  const allTime = !params.from;
+  if (!to) to = allTime ? today : from;
+  const upTo = to > today ? today : to;
+  const prev = allTime || upTo < from ? null : { from: minusYear(from), to: minusYear(upTo) };
+
+  const span = daysBetween(from, to);
+  const bucket = allTime ? "year" : span <= 62 ? "day" : span <= 1100 ? "month" : "year";
+  const trunc = Prisma.raw(`'${bucket}'`);
+  const seriesSql = (a, b) => prisma.$queryRaw`
+    SELECT to_char(date_trunc(${trunc}, (${LOCAL_TS_SQL})::date), 'YYYY-MM-DD') AS k,
+           COUNT(*)::int AS requests, COALESCE(SUM(${SHEETS_SQL}), 0)::bigint AS sheets
+    FROM requests WHERE ${rangeConds(params, a, b, true)} GROUP BY 1`;
+
+  const [rows, prevRows, series, prevSeries] = await Promise.all([
+    unitRows(params, from, upTo),
+    prev ? unitRows(params, prev.from, prev.to) : [],
+    seriesSql(from, upTo),
+    prev ? seriesSql(prev.from, prev.to) : []
+  ]);
+
+  const units = new Map(), types = new Map(), docs = new Map(), srcs = new Map();
+  // per type / document type / paper source: requests, sheets, units, and last year
+  const breakdown = { types: new Map(), docs: new Map(), srcs: new Map() };
+  const totals = { requests: 0, sheets: 0, units: 0 };
+  for (const r of rows) {
+    const sh = Number(r.sheets), rq = Number(r.requests);
+    const u = units.get(r.unit) || { type: r.type, unit: r.unit, requests: 0, sheets: 0, prev: 0 };
+    u.requests += rq; u.sheets += sh; units.set(r.unit, u);
+    if (params.unit && r.unit !== params.unit) continue;
+    totals.requests += rq; totals.sheets += sh;
+    types.set(r.type, (types.get(r.type) || 0) + sh);
+    if (r.doc) docs.set(r.doc, (docs.get(r.doc) || 0) + sh);
+    if (r.src) srcs.set(r.src, (srcs.get(r.src) || 0) + sh);
+    for (const [dim, key] of [["types", r.type], ["docs", r.doc], ["srcs", r.src]]) {
+      if (!key) continue;
+      const b = breakdown[dim].get(key) || { key, requests: 0, sheets: 0, prev: 0, prevRequests: 0, units: new Set() };
+      b.requests += rq; b.sheets += sh; b.units.add(r.unit); breakdown[dim].set(key, b);
+    }
+  }
+  let prevTotals = null;
+  if (prev) {
+    prevTotals = { requests: 0, sheets: 0, units: 0 };
+    const seen = new Set();
+    for (const r of prevRows) {
+      const sh = Number(r.sheets);
+      const u = units.get(r.unit);
+      if (u) u.prev += sh;
+      if (params.unit && r.unit !== params.unit) continue;
+      prevTotals.requests += Number(r.requests); prevTotals.sheets += sh; seen.add(r.unit);
+      for (const [dim, key] of [["types", r.type], ["docs", r.doc], ["srcs", r.src]]) {
+        if (!key) continue;
+        const b = breakdown[dim].get(key) || { key, requests: 0, sheets: 0, prev: 0, prevRequests: 0, units: new Set() };
+        b.prev += sh; b.prevRequests += Number(r.requests); breakdown[dim].set(key, b);
+      }
+    }
+    prevTotals.units = seen.size;
+  }
+  const unitList = Array.from(units.values()).sort((a, b) => b.sheets - a.sheets);
+  totals.units = params.unit ? (units.has(params.unit) ? 1 : 0) : unitList.length;
+  let rank = null;
+  if (params.unit) {
+    const i = unitList.findIndex((u) => u.unit === params.unit && u.sheets > 0);
+    rank = { pos: i < 0 ? null : i + 1, total: unitList.filter((u) => u.sheets > 0).length };
+  }
+
+  // one entry per bucket from `from` to `to`, gaps as 0, after today null
+  const keyOf = (s) => (bucket === "day" ? s : bucket === "month" ? s.slice(0, 8) + "01" : s.slice(0, 5) + "01-01");
+  const step = (s) => {
+    const [y, m] = dayParts(s);
+    return bucket === "day" ? addDays(s, 1) : bucket === "month" ? dayStr(m === 12 ? y + 1 : y, m === 12 ? 1 : m + 1, 1) : dayStr(y + 1, 1, 1);
+  };
+  const cur = new Map(series.map((r) => [r.k, r]));
+  const old = new Map(prevSeries.map((r) => [keyOf(addYears(r.k, 1)), Number(r.sheets)]));
+  const out = [];
+  for (let k = keyOf(from), n = 0; k <= to && n < 400; k = step(k), n++) {
+    const r = cur.get(k);
+    const future = k > upTo;
+    out.push({ k, sheets: future ? null : r ? Number(r.sheets) : 0, requests: future ? null : r ? r.requests : 0, prev: prev && !future ? old.get(k) || 0 : null });
+  }
+
+  const list = (m, name) => Array.from(m, ([value, sheets]) => ({ [name]: value, sheets })).sort((a, b) => b.sheets - a.sheets);
+  const detail = (m) => Array.from(m.values()).map((b) => ({ ...b, units: b.units.size })).sort((a, b) => b.sheets - a.sheets);
+
+  // Excel export only: sheets per unit per bucket, and every printed request
+  let matrix = null, requestRows = null;
+  if (params.withDetail) {
+    [matrix, requestRows] = await Promise.all([
+      prisma.$queryRaw`
+        SELECT unit_type AS type, unit, to_char(date_trunc(${trunc}, (${LOCAL_TS_SQL})::date), 'YYYY-MM-DD') AS k,
+               COUNT(*)::int AS requests, COALESCE(SUM(${SHEETS_SQL}), 0)::bigint AS sheets
+        FROM requests WHERE ${rangeConds(params, from, upTo, true)} GROUP BY 1, 2, 3`,
+      prisma.$queryRaw`
+        SELECT request_reference_no AS ref, run_number AS run, submission_date AS submitted, status::text AS status,
+               requester_name AS name, unit_type AS type, unit, document_type AS doc, paper_source AS src,
+               paper_size AS "paperSize", color_mode AS color, print_side AS side,
+               original_pages AS pages, number_of_copies AS copies, (${SHEETS_SQL})::int AS sheets
+        FROM requests WHERE ${rangeConds(params, from, upTo, true)}
+        ORDER BY submission_date LIMIT ${Number(params.rowLimit) || 200000}`
+    ]);
+    matrix = matrix.map((m) => ({ ...m, sheets: Number(m.sheets) }));
+  }
+  return {
+    from, to, today, upTo, bucket, prev, allTime,
+    totals, prevTotals, series: out, units: unitList, rank,
+    types: list(types, "type"), docs: list(docs, "value"), srcs: list(srcs, "value"),
+    breakdown: { types: detail(breakdown.types), docs: detail(breakdown.docs), srcs: detail(breakdown.srcs) },
+    matrix, requestRows
+  };
+}
+function addYears(s, n) {
+  const [y, m, d] = dayParts(s);
+  return dayStr(y + n, m, d);
+}
+
+async function dashboardSummary({ year, month, documentType, paperSource, fromDate, toDate, unitType, unit } = {}) {
   const scopedWhere = {};
   if (documentType) scopedWhere.documentType = documentType;
   if (paperSource) scopedWhere.paperSource = paperSource;
+  if (unitType) scopedWhere.unitType = unitType;
+  if (unit) scopedWhere.unit = unit;
 
   const hasCustomRange = !!(fromDate || toDate);
   const hasYear = year !== undefined && year !== null && year !== "";
@@ -390,33 +653,33 @@ async function dashboardSummary({ year, month, documentType, paperSource, fromDa
   const totalSheets = printedRows.reduce((sum, r) => sum + computeSheets(r), 0);
   const avgSheets = totalRequests > 0 ? Math.round(totalSheets / totalRequests) : 0;
   // Grouped by id when the request has one (survives a category/unit
-  // rename — see the plan comment on Request.agencyCategoryId), falling
+  // rename — see the plan comment on Request.unitTypeId), falling
   // back to the raw strings for older/unmatched rows that have none.
-  const activeUnits = new Set(printedRows.map((r) => (r.agencyUnitId != null ? `id:${r.agencyUnitId}` : `str:${r.agencyCategory}||${r.agencyUnit}`))).size;
+  const activeUnits = new Set(printedRows.map((r) => (r.unitId != null ? `id:${r.unitId}` : `str:${r.unitType}||${r.unit}`))).size;
 
   // Current category names (nameEn especially) for whichever ids show up
   // below — cheap, the whole table is a dozen rows — so a rename is
   // reflected immediately instead of only in newly-submitted rows.
-  const categoryById = new Map((await agencies.listAllCategories()).map((c) => [c.id, c]));
+  const categoryById = new Map((await unitDirectory.listAllCategories()).map((c) => [c.id, c]));
 
   const categoryMap = {};
   const unitMap = {};
   scopedRows.forEach((r) => {
-    const live = r.agencyCategoryId != null ? categoryById.get(r.agencyCategoryId) : null;
-    const catKey = r.agencyCategoryId != null ? `id:${r.agencyCategoryId}` : `str:${r.agencyCategory}`;
+    const live = r.unitTypeId != null ? categoryById.get(r.unitTypeId) : null;
+    const catKey = r.unitTypeId != null ? `id:${r.unitTypeId}` : `str:${r.unitType}`;
     if (!categoryMap[catKey]) {
       categoryMap[catKey] = {
-        category: live ? live.nameTh : r.agencyCategory,
+        category: live ? live.nameTh : r.unitType,
         categoryEn: live ? live.nameEn : null,
         count: 0, copies: 0, sheets: 0
       };
     }
     categoryMap[catKey].count += 1;
 
-    const unitKey = r.agencyUnitId != null ? `id:${r.agencyUnitId}` : `str:${catKey}||${r.agencyUnit}`;
+    const unitKey = r.unitId != null ? `id:${r.unitId}` : `str:${catKey}||${r.unit}`;
     if (!unitMap[unitKey]) {
       unitMap[unitKey] = {
-        unit: r.agencyUnit,
+        unit: r.unit,
         category: categoryMap[catKey].category,
         categoryEn: categoryMap[catKey].categoryEn,
         count: 0, copies: 0, sheets: 0
@@ -477,6 +740,10 @@ function buildRequestFields(input, submissionDate) {
   }
   if (!businessDays.isBusinessDay(proposed)) {
     return { error: "completion-date-weekend" };
+  }
+
+  if (String(input.itemList || "").trim().length > ITEM_LIST_MAX) {
+    return { error: "item-list-too-long" };
   }
 
   const colorMode = COLOR_MODE_TH[input.colorMode];
@@ -606,10 +873,10 @@ async function create(input) {
   if (built.error) return built;
   const dropoffLocation = await resolveDropoff(input.dropoffLocationId);
   if (dropoffLocation.error) return dropoffLocation;
-  const agency = await agencies.resolveAgency({
-    categoryId: input.agencyCategoryId, unitId: input.agencyUnitId, unitText: input.agencyUnitText
+  const unit = await unitDirectory.resolveUnit({
+    categoryId: input.unitTypeId, unitId: input.unitId, unitText: input.unitText
   });
-  if (agency.error) return agency;
+  if (unit.error) return unit;
 
   const dropoffWindow = locations.hourWindowOf(dropoffLocation.location);
   const dropoff = businessDays.computeDropoffDeadline(submissionDate, dropoffWindow ? dropoffWindow.end : undefined);
@@ -621,7 +888,7 @@ async function create(input) {
       requesterEmail: input.requesterEmail,
       ...built.fields,
       ...dropoffLocation.fields,
-      ...agency.fields,
+      ...unit.fields,
       submissionDate,
       originalDocDeadline: dropoff.date,
       status: "AWAITING_ORIGINAL_DOCUMENT"
@@ -660,14 +927,14 @@ async function update(ref, input) {
   if (built.error) return built;
   const dropoffLocation = await resolveDropoff(input.dropoffLocationId);
   if (dropoffLocation.error) return dropoffLocation;
-  const agency = await agencies.resolveAgency({
-    categoryId: input.agencyCategoryId, unitId: input.agencyUnitId, unitText: input.agencyUnitText
+  const unit = await unitDirectory.resolveUnit({
+    categoryId: input.unitTypeId, unitId: input.unitId, unitText: input.unitText
   });
-  if (agency.error) return agency;
+  if (unit.error) return unit;
 
   const result = await prisma.request.updateMany({
     where: { requestReferenceNo: ref, requesterEmail: input.requesterEmail, status: "AWAITING_ORIGINAL_DOCUMENT" },
-    data: { ...built.fields, ...dropoffLocation.fields, ...agency.fields }
+    data: { ...built.fields, ...dropoffLocation.fields, ...unit.fields }
   });
   if (result.count === 0) return { error: "not-editable" };
 
@@ -691,10 +958,10 @@ async function getEditPrefill(ref, requesterEmail) {
     referenceNo: row.requestReferenceNo,
     requesterName: row.requesterName,
     requesterTel: row.requesterTel,
-    agencyCategory: row.agencyCategory,
-    agencyUnit: row.agencyUnit,
-    agencyCategoryId: row.agencyCategoryId,
-    agencyUnitId: row.agencyUnitId,
+    unitType: row.unitType,
+    unit: row.unit,
+    unitTypeId: row.unitTypeId,
+    unitId: row.unitId,
     dropoffLocationId: row.dropoffLocationId,
     form: {
       documentType: invertMap(DOCUMENT_TYPE_TH)[row.documentType] || "",
@@ -783,6 +1050,7 @@ async function reject(ref, { reason, officerEmail, officerName }) {
     where: { requestReferenceNo: ref },
     data: {
       status: "REJECTED",
+      rejectedAt: new Date(),
       rejectionReason: reason,
       reviewedByOfficerEmail: officerEmail,
       reviewedByOfficerName: officerName
@@ -804,7 +1072,7 @@ async function reject(ref, { reason, officerEmail, officerName }) {
 async function cancel(ref, { requesterEmail }) {
   const result = await prisma.request.updateMany({
     where: { requestReferenceNo: ref, requesterEmail, status: "AWAITING_ORIGINAL_DOCUMENT" },
-    data: { status: "CANCELLED" }
+    data: { status: "CANCELLED", cancelledAt: new Date() }
   });
   if (result.count === 0) return null;
 
@@ -859,15 +1127,18 @@ function resolvePickupTime(raw, now = new Date(), window) {
   const at = new Date(raw);
   if (isNaN(at.getTime())) return { error: "pickup-time-invalid" };
   const fiveMinutes = 5 * 60 * 1000;
-  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-  if (at.getTime() < now.getTime() - fiveMinutes || at.getTime() > now.getTime() + thirtyDays) return { error: "pickup-time-invalid" };
-  if (!businessDays.isBusinessDay(at) || hourOf(at) < start || hourOf(at) >= end) return { error: "pickup-time-invalid" };
+  // Up to a year ahead (the "mark ready" dialog offers the same range).
+  const maxAhead = 367 * 24 * 60 * 60 * 1000;
+  if (at.getTime() < now.getTime() - fiveMinutes || at.getTime() > now.getTime() + maxAhead) return { error: "pickup-time-invalid" };
+  // Any day/time is allowed here: the Officer decides (weekend or late
+  // pickups by arrangement). The Requester is still shown the place's
+  // opening hours next to this time (messages.ready).
   return { value: at };
 }
 
 // FR-12 — Mark Ready for Pickup. Returns null when the request isn't in
 // Printing In Progress, { error } for a bad pickup place or time.
-async function markReady(ref, { pickupLocationId, pickupAvailableFrom } = {}) {
+async function markReady(ref, { pickupLocationId, pickupAvailableFrom, officerEmail, officerName } = {}) {
   const existing = await prisma.request.findUnique({ where: { requestReferenceNo: ref } });
   if (!existing || existing.status !== "PRINTING_IN_PROGRESS") return null;
 
@@ -879,7 +1150,12 @@ async function markReady(ref, { pickupLocationId, pickupAvailableFrom } = {}) {
 
   const updated = await prisma.request.update({
     where: { requestReferenceNo: ref },
-    data: { status: "READY_FOR_PICKUP", ...pickup.fields, pickupAvailableFrom: availableFrom.value }
+    data: {
+      status: "READY_FOR_PICKUP", ...pickup.fields, pickupAvailableFrom: availableFrom.value,
+      readyAt: new Date(),
+      markedReadyByOfficerEmail: officerEmail || null,
+      markedReadyByOfficerName: officerName || null
+    }
   });
 
   notifications.notifyRequesterStatusChange(updated, "ready")
@@ -986,91 +1262,251 @@ async function notifyLocationChange({ purpose, fromLocationId, toLocationId, old
   return affected.length;
 }
 
-const RATING_FIELDS = ["ratingStaffService", "ratingSystemEase", "ratingSpeed", "ratingPrintQuality", "ratingOverall"];
+// ---------------------------------------------------------------- evaluations
+// The form itself is admin-editable (src/evaluationForm.js). A Requester is
+// asked to evaluate each completed request, and blocked from submitting a
+// new one (requireNoPendingEvaluation in routes/requester.js) while any is
+// still open — "open" meaning: completed, not yet evaluated, the form has at
+// least one question, and the pickup is still inside the admin's time window
+// (evaluationForm.getWindow). Past the window it simply expires: no longer
+// asked for, no longer blocking. Oldest first, one at a time.
+async function evaluationCutoff() {
+  const win = await evaluationForm.getWindow();
+  return { win, cutoff: evaluationForm.oldestOpenCompletion(win.value, win.unit) };
+}
 
-// The Requester is prompted to rate a completed request, and blocked from
-// submitting a new one (see requireNoPendingEvaluation in routes/requester.js)
-// while any of their completed requests still lacks an Evaluation. Always
-// resolves the oldest one first, so a backlog of several unevaluated jobs
-// gets cleared one at a time rather than all at once.
 async function getPendingEvaluation(requesterEmail) {
+  if ((await evaluationForm.questionCount()) === 0) return null;
+  const { win, cutoff } = await evaluationCutoff();
   const row = await prisma.request.findFirst({
-    where: { requesterEmail, status: "COMPLETED", evaluation: null },
+    where: {
+      requesterEmail, status: "COMPLETED", evaluation: null,
+      ...(cutoff ? { completedTimestamp: { gte: cutoff } } : {})
+    },
     orderBy: { completedTimestamp: "asc" }
   });
   if (!row) return null;
-  return { referenceNo: row.requestReferenceNo, itemList: row.itemList, completedTimestamp: row.completedTimestamp.toISOString() };
+  const deadline = evaluationForm.deadlineFor(row.completedTimestamp, win.value, win.unit);
+  return {
+    referenceNo: row.requestReferenceNo, itemList: row.itemList,
+    completedTimestamp: row.completedTimestamp.toISOString(),
+    deadline: deadline ? deadline.toISOString() : null
+  };
 }
 
 async function getEvaluation(ref) {
   return prisma.evaluation.findUnique({ where: { requestReferenceNo: ref } });
 }
 
-async function submitEvaluation(ref, { requesterEmail, ratings, comment }) {
-  const request = await prisma.request.findUnique({ where: { requestReferenceNo: ref } });
-  if (!request || request.requesterEmail !== requesterEmail || request.status !== "COMPLETED") {
-    return { error: "not-eligible" };
-  }
-
-  const existing = await prisma.evaluation.findUnique({ where: { requestReferenceNo: ref } });
-  if (existing) return { error: "already-evaluated" };
-
-  const values = {};
-  for (const field of RATING_FIELDS) {
-    const n = parseInt((ratings || {})[field], 10);
-    if (!Number.isInteger(n) || n < 1 || n > 5) return { error: "invalid-rating" };
-    values[field] = n;
-  }
-
-  const trimmedComment = comment ? String(comment).trim() : "";
-  await prisma.evaluation.create({
-    data: {
-      requestReferenceNo: ref,
-      requesterEmail,
-      ...values,
-      comment: trimmedComment || null
-    }
+// Whether this Requester can evaluate this request right now:
+// "open" | "done" | "expired" | "no-form" | "not-eligible".
+async function evaluationState(ref, requesterEmail) {
+  const request = await prisma.request.findUnique({
+    where: { requestReferenceNo: ref }, include: { evaluation: { select: { id: true } } }
   });
+  if (!request || request.requesterEmail !== requesterEmail || request.status !== "COMPLETED") return { state: "not-eligible" };
+  if (request.evaluation) return { state: "done" };
+  if ((await evaluationForm.questionCount()) === 0) return { state: "no-form" };
+  const win = await evaluationForm.getWindow();
+  const deadline = evaluationForm.deadlineFor(request.completedTimestamp, win.value, win.unit);
+  if (deadline && deadline < new Date()) return { state: "expired", deadline };
+  return { state: "open", deadline };
+}
+
+// body: the posted form (fields q_<questionId>). Saves the evaluation and
+// one EvaluationAnswer per answered question, with the question text copied
+// in. Returns { ok } or { error, errors? }.
+async function submitEvaluation(ref, { requesterEmail, body }) {
+  const status = await evaluationState(ref, requesterEmail);
+  if (status.state === "done") return { error: "already-evaluated" };
+  if (status.state === "expired") return { error: "expired" };
+  if (status.state !== "open") return { error: "not-eligible" };
+
+  const sections = await evaluationForm.listForm();
+  const result = evaluationForm.validateAnswers(sections, body || {});
+  if (result.errors) return { error: "invalid-answers", errors: result.errors };
+
+  try {
+    await prisma.evaluation.create({
+      data: {
+        requestReferenceNo: ref,
+        requesterEmail,
+        averageRating: result.averageRating,
+        comment: result.comment,
+        answers: { create: result.answers }
+      }
+    });
+  } catch (err) {
+    if (err.code === "P2002") return { error: "already-evaluated" }; // double submit
+    throw err;
+  }
   return { ok: true };
 }
 
-// Overview KPIs for the officer-facing evaluation report — same server-side
-// aggregation philosophy as dashboardSummary (never ship every raw row to
-// the browser just to average it). Scoped by the year the evaluation was
-// *submitted*; in practice this lines up with the completion year almost
-// always, since requireNoPendingEvaluation blocks a Requester's next
-// submission until they clear the backlog, so evaluations happen soon after
-// handover rather than piling up across years.
+// Year scope on the evaluation's submittedAt (see evaluationsSummary).
+function yearRange(year) {
+  if (year === undefined || year === null || year === "") return null;
+  const y = Number(year);
+  return { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
+}
+
+// Overview for the officer report: KPIs plus per-question results for the
+// current form (average + 1-5 spread for ratings, a count per option for
+// single/multi, answer count for text). Answers to questions deleted since
+// are grouped at the end as "removed" so old results don't vanish.
 async function evaluationsSummary({ year } = {}) {
-  const allEvaluations = await prisma.evaluation.findMany({
-    select: {
-      ratingStaffService: true, ratingSystemEase: true, ratingSpeed: true,
-      ratingPrintQuality: true, ratingOverall: true, submittedAt: true, comment: true
+  const range = yearRange(year);
+  const evalWhere = range ? { submittedAt: range } : {};
+
+  const answerRange = range ? Prisma.sql`e.submitted_at >= ${range.gte} AND e.submitted_at < ${range.lt}` : Prisma.sql`TRUE`;
+  const [totalEvaluated, totalWithComments, availableYears, sections, answers, overallAgg, evalSpan, choiceRows] = await Promise.all([
+    prisma.evaluation.count({ where: evalWhere }),
+    prisma.evaluation.count({ where: { ...evalWhere, comment: { not: null } } }),
+    listEvaluationYears(),
+    evaluationForm.listForm(),
+    // Counted in SQL, one row per question snapshot and rating (and one per
+    // chosen option below), so a period with tens of thousands of answers
+    // never has to be loaded row by row.
+    prisma.$queryRaw`
+      SELECT a.question_id AS "questionId", a.question_type AS "questionType",
+             a.question_text_th AS "questionTextTh", a.question_text_en AS "questionTextEn",
+             a.section_title_th AS "sectionTitleTh", a.section_title_en AS "sectionTitleEn",
+             a.rating, COUNT(*)::int AS n, MIN(e.submitted_at) AS "firstAt", MAX(e.submitted_at) AS "lastAt"
+      FROM evaluation_answers a JOIN evaluations e ON e.id = a.evaluation_id
+      WHERE ${answerRange}
+      GROUP BY 1, 2, 3, 4, 5, 6, 7
+      ORDER BY "firstAt"`, // oldest first: a question's earliest wording names it, as before
+    // Headline: each respondent's own average (Evaluation.averageRating),
+    // averaged over the period, so a person counts once however many
+    // questions the form had when they answered.
+    prisma.evaluation.aggregate({ where: { ...evalWhere, averageRating: { not: null } }, _avg: { averageRating: true }, _count: { averageRating: true } }),
+    prisma.evaluation.aggregate({ where: evalWhere, _min: { submittedAt: true }, _max: { submittedAt: true } }),
+    prisma.$queryRaw`
+      SELECT a.question_id AS "questionId", a.question_type AS "questionType",
+             a.question_text_th AS "questionTextTh", a.section_title_th AS "sectionTitleTh",
+             c->>'key' AS key, c->>'th' AS th, c->>'en' AS en, COUNT(*)::int AS n
+      FROM evaluation_answers a JOIN evaluations e ON e.id = a.evaluation_id
+      CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.choices) = 'array' THEN a.choices ELSE '[]'::jsonb END) c
+      WHERE ${answerRange}
+      GROUP BY 1, 2, 3, 4, 5, 6, 7`
+  ]);
+  const periodFirst = evalSpan._min.submittedAt;
+  const periodLast = evalSpan._max.submittedAt;
+
+  const stats = new Map();
+  const overallSpread = [0, 0, 0, 0, 0]; // every 1-5 answer in the period
+  function statFor(key, seed) {
+    if (!stats.has(key)) stats.set(key, { ...seed, count: 0, sum: 0, spread: [0, 0, 0, 0, 0], optionCounts: {}, optionLabels: {}, firstAt: null, lastAt: null });
+    return stats.get(key);
+  }
+  // Answers to a deleted question are counted under a current question with
+  // the same type, section and (Thai) wording, e.g. when an admin deleted a
+  // question and created it again: they are one question in the report.
+  // Their choices are matched to the current options by Thai label.
+  const norm = (v) => String(v || "").trim().replace(/s+/g, " ");
+  const liveBySnapshot = new Map();
+  const liveOptionsByQ = new Map();
+  for (const sec of sections) {
+    for (const q of sec.questions) {
+      const k = [q.type, norm(sec.titleTh), norm(q.textTh)].join("|");
+      if (!liveBySnapshot.has(k)) liveBySnapshot.set(k, q.id);
+      liveOptionsByQ.set(q.id, Array.isArray(q.options) ? q.options : []);
     }
-  });
+  }
+  // which stat an answer snapshot belongs to (see the note above)
+  function keyFor(a) {
+    let qid = a.questionId;
+    if (qid == null) qid = liveBySnapshot.get([a.questionType, norm(a.sectionTitleTh), norm(a.questionTextTh)].join("|")) ?? null;
+    return { qid, merged: a.questionId == null && qid != null, key: qid != null ? "q" + qid : ["x", a.questionType, a.sectionTitleTh, a.questionTextTh].join("|") };
+  }
+  for (const a of answers) {
+    const { key } = keyFor(a);
+    const st = statFor(key, {
+      type: a.questionType, textTh: a.questionTextTh, textEn: a.questionTextEn,
+      sectionTitleTh: a.sectionTitleTh, sectionTitleEn: a.sectionTitleEn
+    });
+    st.count += a.n;
+    if (!st.firstAt || a.firstAt < st.firstAt) st.firstAt = a.firstAt;
+    if (!st.lastAt || a.lastAt > st.lastAt) st.lastAt = a.lastAt;
+    if (a.rating != null && a.rating >= 1 && a.rating <= 5) { st.sum += a.rating * a.n; st.spread[a.rating - 1] += a.n; overallSpread[a.rating - 1] += a.n; }
+  }
+  for (const c of choiceRows) {
+    const { qid, merged, key } = keyFor(c);
+    const st = stats.get(key);
+    if (!st) continue;
+    let ck = c.key;
+    if (merged) {
+      const same = (liveOptionsByQ.get(qid) || []).find((o) => norm(o.th) === norm(c.th));
+      if (same) ck = same.key;
+    }
+    st.optionCounts[ck] = (st.optionCounts[ck] || 0) + c.n;
+    if (!st.optionLabels[ck]) st.optionLabels[ck] = { th: c.th, en: c.en };
+  }
 
-  const availableYears = Array.from(new Set(allEvaluations.map((e) => e.submittedAt.getFullYear())))
-    .sort((a, b) => b - a);
+  const round1 = (n) => Math.round(n * 10) / 10;
+  function questionResult(base, st, currentOptions) {
+    const count = st ? st.count : 0;
+    const out = { ...base, count };
+    if (base.type === "rating") {
+      out.average = count ? round1(st.sum / count) : 0;
+      out.spread = st ? st.spread : [0, 0, 0, 0, 0];
+    } else if (base.type === "single" || base.type === "multi") {
+      const seen = new Set();
+      const opts = (currentOptions || []).map((o) => { seen.add(o.key); return { key: o.key, th: o.th, en: o.en, count: st ? st.optionCounts[o.key] || 0 : 0 }; });
+      // options removed from the question but chosen in the past
+      if (st) Object.keys(st.optionCounts).forEach((k) => {
+        if (!seen.has(k)) opts.push({ key: k, th: st.optionLabels[k].th, en: st.optionLabels[k].en, count: st.optionCounts[k], removed: true });
+      });
+      out.options = opts;
+    }
+    return out;
+  }
 
-  const scoped = year ? allEvaluations.filter((e) => e.submittedAt.getFullYear() === Number(year)) : allEvaluations;
-  const totalEvaluated = scoped.length;
-  const totalWithComments = scoped.filter((e) => e.comment).length;
+  // A period shows only the questions someone answered in it. A question
+  // created after the period's first evaluation was added during it
+  // (addedAt); a deleted one whose last answer is before the period's last
+  // evaluation stopped being asked during it (removedAt). Either way not
+  // every respondent saw it, which the report says next to it.
+  const resultSections = sections.map((sec) => ({
+    titleTh: sec.titleTh, titleEn: sec.titleEn,
+    questions: sec.questions
+      .filter((q) => stats.has("q" + q.id))
+      .map((q) => {
+        const out = questionResult(
+          { id: q.id, type: q.type, textTh: q.textTh, textEn: q.textEn },
+          stats.get("q" + q.id), Array.isArray(q.options) ? q.options : []
+        );
+        const st = stats.get("q" + q.id);
+        const since = st && st.firstAt < q.createdAt ? st.firstAt : q.createdAt;
+        if (periodFirst && since > periodFirst) out.addedAt = since.toISOString();
+        return out;
+      })
+  })).filter((sec) => sec.questions.length);
 
-  const averages = {};
-  RATING_FIELDS.forEach((field) => {
-    averages[field] = totalEvaluated > 0
-      ? Math.round((scoped.reduce((sum, e) => sum + e[field], 0) / totalEvaluated) * 10) / 10
-      : 0;
+  const overall = {
+    average: overallAgg._avg.averageRating == null ? 0 : round1(overallAgg._avg.averageRating),
+    count: overallAgg._count.averageRating,
+    spread: overallSpread
+  };
+
+  const liveKeys = new Set(sections.flatMap((sec) => sec.questions.map((q) => "q" + q.id)));
+  const removed = [];
+  stats.forEach((st, key) => {
+    if (liveKeys.has(key)) return;
+    const out = questionResult({
+      id: null, type: st.type, textTh: st.textTh, textEn: st.textEn,
+      sectionTitleTh: st.sectionTitleTh, sectionTitleEn: st.sectionTitleEn, removed: true
+    }, st, []);
+    if (periodLast && st.lastAt < periodLast) out.removedAt = st.lastAt.toISOString();
+    removed.push(out);
   });
 
   const completedWhere = { status: "COMPLETED" };
-  if (year) {
-    const y = Number(year);
-    completedWhere.completedTimestamp = { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
-  }
+  const completedRange = yearRange(year);
+  if (completedRange) completedWhere.completedTimestamp = completedRange;
   const totalCompleted = await prisma.request.count({ where: completedWhere });
 
-  return { totalEvaluated, totalCompleted, totalWithComments, averages, availableYears };
+  return { totalEvaluated, totalCompleted, totalWithComments, availableYears, overall, sections: resultSections, removed };
 }
 
 // All years that have at least one evaluation, regardless of any other
@@ -1085,17 +1521,25 @@ async function listEvaluationYears() {
 // Individual feedback log — paginated + searchable, same server-side pattern
 // as searchHistory (including the year/month combination logic below, copied
 // from there). `hasComment` narrows to evaluations with written feedback
-// (used by the Overview tab's "needs attention" feed, and by the list tab's
-// "only with comments" checkbox); `sort: "lowest"` surfaces the worst-rated
-// feedback first instead of the most recent, since the point of the Overview
-// feed is spotting what to improve, not a chronological log.
-// Shared by searchEvaluations and the Excel export (src/reports.js).
-async function buildEvaluationsWhere({ year, month, q, hasComment } = {}) {
+// (any free-text answer); `sort: "lowest"` puts the lowest average rating
+// first. Shared by searchEvaluations and the Excel export (src/reports.js).
+async function buildEvaluationsWhere({ year, month, q, hasComment, fromDate, toDate } = {}) {
   const andClauses = [];
 
+  // A custom from/to range (both ends inclusive) replaces year/month.
+  const hasCustomRange = !!(fromDate || toDate);
   const hasYear = year !== undefined && year !== null && year !== "";
   const hasMonth = month !== undefined && month !== null && month !== "";
-  if (hasYear && hasMonth) {
+  if (hasCustomRange) {
+    const range = {};
+    if (fromDate) range.gte = parseDateOnly(fromDate);
+    if (toDate) {
+      const to = parseDateOnly(toDate);
+      to.setDate(to.getDate() + 1);
+      range.lt = to;
+    }
+    andClauses.push({ submittedAt: range });
+  } else if (hasYear && hasMonth) {
     const y = Number(year), m = Number(month);
     andClauses.push({ submittedAt: { gte: new Date(y, m, 1), lt: new Date(y, m + 1, 1) } });
   } else if (hasYear) {
@@ -1127,25 +1571,23 @@ async function buildEvaluationsWhere({ year, month, q, hasComment } = {}) {
   return andClauses.length > 0 ? { AND: andClauses } : {};
 }
 
+// "lowest" = lowest average score first.
 function evaluationsOrderBy(sort) {
   return sort === "lowest"
-    ? [{ ratingOverall: "asc" }, { submittedAt: "desc" }]
+    ? [{ averageRating: { sort: "asc", nulls: "last" } }, { submittedAt: "desc" }]
     : { submittedAt: "desc" };
 }
 
-async function searchEvaluations({ year, month, q, page, pageSize, hasComment, sort } = {}) {
-  const where = await buildEvaluationsWhere({ year, month, q, hasComment });
+async function searchEvaluations({ year, month, q, page, pageSize, hasComment, sort, fromDate, toDate } = {}) {
+  const where = await buildEvaluationsWhere({ year, month, q, hasComment, fromDate, toDate });
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
-  const orderBy = sort === "lowest"
-    ? [{ ratingOverall: "asc" }, { submittedAt: "desc" }]
-    : { submittedAt: "desc" };
 
   const [total, rows] = await Promise.all([
     prisma.evaluation.count({ where }),
     prisma.evaluation.findMany({
       where,
-      orderBy,
+      orderBy: evaluationsOrderBy(sort),
       skip: (pageNum - 1) * size,
       take: size,
       include: {
@@ -1154,6 +1596,11 @@ async function searchEvaluations({ year, month, q, page, pageSize, hasComment, s
             runNumber: true, requesterName: true, itemList: true,
             reviewedByOfficerName: true, handedOverByOfficerName: true
           }
+        },
+        answers: {
+          where: { questionType: "rating" },
+          orderBy: { id: "asc" },
+          select: { questionTextTh: true, questionTextEn: true, rating: true }
         }
       }
     })
@@ -1168,11 +1615,8 @@ async function searchEvaluations({ year, month, q, page, pageSize, hasComment, s
     requesterName: e.request.requesterName,
     itemList: e.request.itemList,
     officerName: e.request.handedOverByOfficerName || e.request.reviewedByOfficerName || null,
-    ratingStaffService: e.ratingStaffService,
-    ratingSystemEase: e.ratingSystemEase,
-    ratingSpeed: e.ratingSpeed,
-    ratingPrintQuality: e.ratingPrintQuality,
-    ratingOverall: e.ratingOverall,
+    averageRating: e.averageRating == null ? null : Math.round(e.averageRating * 10) / 10,
+    ratings: e.answers.map((a) => ({ th: a.questionTextTh, en: a.questionTextEn, rating: a.rating })),
     comment: e.comment,
     submittedAt: e.submittedAt.toISOString()
   }));
@@ -1182,7 +1626,7 @@ async function searchEvaluations({ year, month, q, page, pageSize, hasComment, s
 
 module.exports = {
   list, getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory,
-  create, update, getEditPrefill, approve, reject, cancel, markReady, resolvePickupTime, handover, dashboardSummary, getPendingEvaluation, getEvaluation, submitEvaluation,
+  create, update, getEditPrefill, approve, reject, cancel, markReady, resolvePickupTime, handover, dashboardSummary, dashboardOptions, dashboardRange, getPendingEvaluation, getEvaluation, evaluationState, submitEvaluation,
   evaluationsSummary, searchEvaluations,
   buildHistoryWhere, buildEvaluationsWhere, evaluationsOrderBy, computeSheets, PRINTED_STATUS_ENUMS,
   countInFlightForLocation, countInFlightByLocation, notifyLocationChange,

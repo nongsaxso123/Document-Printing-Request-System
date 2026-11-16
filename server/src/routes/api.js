@@ -3,12 +3,13 @@ const requests = require("../requests");
 const notifications = require("../notifications");
 const settings = require("../settings");
 const locations = require("../locations");
-const agencies = require("../agencies");
+const unitDirectory = require("../units");
 const profile = require("../profile");
 const auth = require("../auth");
 const audit = require("../audit");
 const { requireRole } = auth;
 const reports = require("../reports");
+const evaluationForm = require("../evaluationForm");
 
 const router = express.Router();
 router.use(express.json());
@@ -70,9 +71,9 @@ router.post("/profile", async (req, res, next) => {
       prefix,
       name: req.body.name,
       phone: req.body.phone,
-      agencyCategoryId: req.body.agencyCategoryId,
-      agencyUnitId: req.body.agencyUnitId,
-      agencyUnitText: req.body.agencyUnitText,
+      unitTypeId: req.body.unitTypeId,
+      unitId: req.body.unitId,
+      unitText: req.body.unitText,
       position: req.body.position
     });
     if (result.error) return res.status(400).json({ error: result.error });
@@ -116,7 +117,7 @@ router.get("/reports/history.xlsx", async (req, res, next) => {
   try {
     const q = req.query;
     const wb = await reports.historyReport({
-      status: q.status, agencyCategory: q.agencyCategory, year: q.year, month: q.month,
+      status: q.status, unitType: q.unitType, year: q.year, month: q.month,
       q: q.q, fromDate: q.fromDate, toDate: q.toDate
     }, { lang: q.lang, user: req.user.email });
     await reports.sendWorkbook(res, wb, "history", q.lang);
@@ -128,7 +129,7 @@ router.get("/reports/dashboard.xlsx", async (req, res, next) => {
     const q = req.query;
     const wb = await reports.dashboardReport({
       year: q.year, month: q.month, documentType: q.documentType, paperSource: q.paperSource,
-      fromDate: q.fromDate, toDate: q.toDate
+      fromDate: q.fromDate, toDate: q.toDate, unitType: q.unitType, unit: q.unit
     }, { lang: q.lang, user: req.user.email });
     await reports.sendWorkbook(res, wb, "dashboard", q.lang);
   } catch (err) { next(err); }
@@ -138,9 +139,27 @@ router.get("/reports/evaluations.xlsx", async (req, res, next) => {
   try {
     const q = req.query;
     const wb = await reports.evaluationsReport({
-      year: q.year, month: q.month, q: q.q, hasComment: q.hasComment, sort: q.sort
+      year: q.year, month: q.month, q: q.q, hasComment: q.hasComment, sort: q.sort,
+      fromDate: q.fromDate, toDate: q.toDate
     }, { lang: q.lang, user: req.user.email });
     await reports.sendWorkbook(res, wb, "evaluations", q.lang);
+  } catch (err) { next(err); }
+});
+
+router.get("/dashboard-options", async (req, res, next) => {
+  try {
+    res.json(await requests.dashboardOptions());
+  } catch (err) { next(err); }
+});
+
+router.get("/dashboard-range", async (req, res, next) => {
+  try {
+    const q = req.query;
+    const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+    res.json(await requests.dashboardRange({
+      from: str(q.from), to: str(q.to),
+      unitType: str(q.unitType), unit: str(q.unit), documentType: str(q.documentType), paperSource: str(q.paperSource)
+    }));
   } catch (err) { next(err); }
 });
 
@@ -172,7 +191,9 @@ router.get("/evaluations", async (req, res, next) => {
       page: req.query.page,
       pageSize: req.query.pageSize,
       hasComment: req.query.hasComment,
-      sort: req.query.sort
+      sort: req.query.sort,
+      fromDate: req.query.fromDate,
+      toDate: req.query.toDate
     }));
   } catch (err) { next(err); }
 });
@@ -199,7 +220,7 @@ router.get("/requests/history", async (req, res, next) => {
   try {
     res.json(await requests.searchHistory({
       status: req.query.status,
-      agencyCategory: req.query.agencyCategory,
+      unitType: req.query.unitType,
       year: req.query.year,
       month: req.query.month,
       q: req.query.q,
@@ -278,7 +299,9 @@ router.post("/requests/:ref/ready", async (req, res, next) => {
   try {
     const updated = await requests.markReady(req.params.ref, {
       pickupLocationId: req.body.pickupLocationId,
-      pickupAvailableFrom: req.body.pickupAvailableFrom
+      pickupAvailableFrom: req.body.pickupAvailableFrom,
+      officerEmail: req.user.email,
+      officerName: await profile.resolveDisplayName(req.user.email, req.user.name)
     });
     if (!updated) return res.status(409).json({ error: "not-printing" });
     if (updated.error) return res.status(400).json({ error: updated.error });
@@ -482,6 +505,47 @@ router.post("/admin/locations/:id/active", auth.requireAdmin, async (req, res, n
   } catch (err) { next(err); }
 });
 
+// ---- Editable evaluation form (admin/evaluation-form.ejs, src/evaluationForm.js) ----
+const EVAL_FORM_ERROR_STATUS = { "not-found": 404 };
+function sendEvalForm(res, result) {
+  if (result.error) return res.status(EVAL_FORM_ERROR_STATUS[result.error] || 400).json({ error: result.error });
+  res.json({ ok: true });
+}
+
+router.get("/admin/evaluation-form", auth.requireAdmin, async (req, res, next) => {
+  try {
+    const [sections, window] = await Promise.all([evaluationForm.listForm(), evaluationForm.getWindow()]);
+    res.json({ sections: sections.map(evaluationForm.sectionJSON), window });
+  } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/window", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.setWindow(req.body, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/sections", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.createSection(req.body, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/sections/:id", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.updateSection(req.params.id, req.body, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/sections/:id/delete", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.deleteSection(req.params.id, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/sections/:id/move", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.moveSection(req.params.id, req.body.direction)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/questions", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.createQuestion(req.body, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/questions/:id", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.updateQuestion(req.params.id, req.body, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/questions/:id/delete", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.deleteQuestion(req.params.id, req.user.email)); } catch (err) { next(err); }
+});
+router.post("/admin/evaluation-form/questions/:id/move", auth.requireAdmin, async (req, res, next) => {
+  try { sendEvalForm(res, await evaluationForm.moveQuestion(req.params.id, req.body.direction)); } catch (err) { next(err); }
+});
+
 router.post("/admin/locations/:id/delete", auth.requireAdmin, async (req, res, next) => {
   try {
     const result = await locations.remove(req.params.id, req.user.email);
@@ -499,20 +563,20 @@ router.post("/admin/locations/:id/move", auth.requireAdmin, async (req, res, nex
   } catch (err) { next(err); }
 });
 
-// Agency directory (src/agencies.js). Archive/restore instead of delete for
+// Unit directory (src/units.js). Archive/restore instead of delete for
 // a category/unit any Request or Profile has used, same reasoning as
 // Locations. "categories" here always means the admin's flat, all-rows list
 // (bilingual labels for officer views like history/dashboard) — new-request
 // and profile pass their own active-with-units list in as a render local
 // instead (see routes/requester.js, src/app.js's /profile route), since
 // both are full-page (non-fetch) form submissions.
-const AGENCY_ERROR_STATUS = {
+const UNIT_ERROR_STATUS = {
   "not-found": 404, "last-category": 409, "last-freetext": 409, "has-units": 409,
   "category-required": 400, "category-invalid": 400
 };
 
-function sendAgencyResult(res, result, key, toJSON) {
-  if (result.error) return res.status(AGENCY_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
+function sendUnitResult(res, result, key, toJSON) {
+  if (result.error) return res.status(UNIT_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
   res.json(toJSON(result[key]));
 }
 
@@ -521,88 +585,88 @@ function sendAgencyResult(res, result, key, toJSON) {
 // (history.ejs, queue.ejs, dashboard.ejs, request-detail.ejs). Just needs
 // the Officer/Admin gate this whole router section already sits behind,
 // not Admin specifically.
-router.get("/agencies/categories", async (req, res, next) => {
+router.get("/unit-types", async (req, res, next) => {
   try {
-    res.json((await agencies.listAllCategories()).map(agencies.categoryAdminJSON));
+    res.json((await unitDirectory.listAllCategories()).map(unitDirectory.categoryAdminJSON));
   } catch (err) { next(err); }
 });
 
-router.get("/admin/agencies/categories", auth.requireAdmin, async (req, res, next) => {
+router.get("/admin/unit-types", auth.requireAdmin, async (req, res, next) => {
   try {
-    res.json((await agencies.listAllCategoriesWithUnitCount()).map(agencies.categoryAdminJSON));
+    res.json((await unitDirectory.listAllCategoriesWithUnitCount()).map(unitDirectory.categoryAdminJSON));
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/categories", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/unit-types", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.createCategory(req.body, req.user.email), "category", agencies.categoryAdminJSON);
+    sendUnitResult(res, await unitDirectory.createCategory(req.body, req.user.email), "category", unitDirectory.categoryAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/categories/:id", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/unit-types/:id", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.updateCategory(req.params.id, req.body, req.user.email), "category", agencies.categoryAdminJSON);
+    sendUnitResult(res, await unitDirectory.updateCategory(req.params.id, req.body, req.user.email), "category", unitDirectory.categoryAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/categories/:id/active", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/unit-types/:id/active", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.setCategoryActive(req.params.id, !!req.body.isActive, req.user.email), "category", agencies.categoryAdminJSON);
+    sendUnitResult(res, await unitDirectory.setCategoryActive(req.params.id, !!req.body.isActive, req.user.email), "category", unitDirectory.categoryAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/categories/:id/delete", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/unit-types/:id/delete", auth.requireAdmin, async (req, res, next) => {
   try {
-    const result = await agencies.removeCategory(req.params.id, req.user.email);
-    if (result.error) return res.status(AGENCY_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
+    const result = await unitDirectory.removeCategory(req.params.id, req.user.email);
+    if (result.error) return res.status(UNIT_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/categories/:id/move", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/unit-types/:id/move", auth.requireAdmin, async (req, res, next) => {
   try {
-    const result = await agencies.moveCategory(req.params.id, req.body.direction === "up" ? "up" : "down");
-    if (result.error) return res.status(AGENCY_ERROR_STATUS[result.error] || 400).json({ error: result.error });
-    res.json((await agencies.listAllCategoriesWithUnitCount()).map(agencies.categoryAdminJSON));
+    const result = await unitDirectory.moveCategory(req.params.id, req.body.direction === "up" ? "up" : "down");
+    if (result.error) return res.status(UNIT_ERROR_STATUS[result.error] || 400).json({ error: result.error });
+    res.json((await unitDirectory.listAllCategoriesWithUnitCount()).map(unitDirectory.categoryAdminJSON));
   } catch (err) { next(err); }
 });
 
-router.get("/admin/agencies/categories/:id/units", auth.requireAdmin, async (req, res, next) => {
+router.get("/admin/unit-types/:id/units", auth.requireAdmin, async (req, res, next) => {
   try {
-    res.json((await agencies.listUnitsForCategory(req.params.id)).map(agencies.unitAdminJSON));
+    res.json((await unitDirectory.listUnitsForCategory(req.params.id)).map(unitDirectory.unitAdminJSON));
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/units", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/units", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.createUnit(req.body, req.user.email), "unit", agencies.unitAdminJSON);
+    sendUnitResult(res, await unitDirectory.createUnit(req.body, req.user.email), "unit", unitDirectory.unitAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/units/:id", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/units/:id", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.updateUnit(req.params.id, req.body, req.user.email), "unit", agencies.unitAdminJSON);
+    sendUnitResult(res, await unitDirectory.updateUnit(req.params.id, req.body, req.user.email), "unit", unitDirectory.unitAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/units/:id/active", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/units/:id/active", auth.requireAdmin, async (req, res, next) => {
   try {
-    sendAgencyResult(res, await agencies.setUnitActive(req.params.id, !!req.body.isActive, req.user.email), "unit", agencies.unitAdminJSON);
+    sendUnitResult(res, await unitDirectory.setUnitActive(req.params.id, !!req.body.isActive, req.user.email), "unit", unitDirectory.unitAdminJSON);
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/units/:id/delete", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/units/:id/delete", auth.requireAdmin, async (req, res, next) => {
   try {
-    const result = await agencies.removeUnit(req.params.id, req.user.email);
-    if (result.error) return res.status(AGENCY_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
+    const result = await unitDirectory.removeUnit(req.params.id, req.user.email);
+    if (result.error) return res.status(UNIT_ERROR_STATUS[result.error] || 400).json({ error: result.error, count: result.count });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
 
-router.post("/admin/agencies/units/:id/move", auth.requireAdmin, async (req, res, next) => {
+router.post("/admin/units/:id/move", auth.requireAdmin, async (req, res, next) => {
   try {
-    const result = await agencies.moveUnit(req.params.id, req.body.direction === "up" ? "up" : "down");
-    if (result.error) return res.status(AGENCY_ERROR_STATUS[result.error] || 400).json({ error: result.error });
+    const result = await unitDirectory.moveUnit(req.params.id, req.body.direction === "up" ? "up" : "down");
+    if (result.error) return res.status(UNIT_ERROR_STATUS[result.error] || 400).json({ error: result.error });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });

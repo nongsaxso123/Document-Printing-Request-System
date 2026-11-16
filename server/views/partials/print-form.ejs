@@ -7,86 +7,83 @@
   (its .ph-* classes, renamed here to .print-*). Populated by
   renderPrintForm(record) in app.js (all ids prefixed "pf-").
 
-  Unlike the rest of the app, this document is NOT toggled by the TH/EN
-  language switch — it's a fixed bilingual official document (header in
-  English; body labels/values Thai-primary with English in parentheses),
-  so the requester can read it regardless of the UI language they had
-  selected when they generated it. Labels below are hardcoded, not
-  data-i18n; renderPrintForm() builds the bilingual value text.
+  Two faces: ON SCREEN it follows the TH/EN toggle like every other page;
+  when PRINTED or turned into the PDF it is the fixed bilingual official
+  document (header in English, body "Thai (English)"). The hardcoded text
+  below IS the print wording; data-pf-label="<i18n key>" gives the screen
+  wording. renderPrintForm() renders both and CSS (.pf-screen/.pf-print)
+  shows the right one, so it works for window.print() and the puppeteer
+  PDF alike (that one never fires beforeprint).
 -->
 <div class="print-header">
   <img class="print-logo" src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
-  <div class="print-org-en">Registrar Division, Mae Fah Luang University</div>
-  <div class="print-doc-title">Document Printing Request Form</div>
-  <div class="print-salutation">To Head of the Registrar Division</div>
+  <div class="print-org-en" data-pf-label="pf.org">Registrar Division, Mae Fah Luang University</div>
+  <div class="print-doc-title" data-pf-label="pf.title">Document Printing Request Form</div>
+  <div class="print-salutation" data-pf-label="pf.salutation">To Head of the Registrar Division</div>
 </div>
 
-<div class="print-section-label">ข้อมูลผู้ขอ (Requester Information)</div>
+<div class="print-section-label" data-pf-label="pf.sec.requester">ข้อมูลผู้ขอ (Requester Information)</div>
 <table class="print-field-table">
   <tr>
-    <th>ชื่อผู้ขอ (Name)</th><td id="pf-name">—</td>
-    <th>เบอร์โทรศัพท์ (Tel.)</th><td id="pf-tel">—</td>
+    <th data-pf-label="pf.name">ชื่อผู้ขอ (Name)</th><td id="pf-name">—</td>
+    <th data-pf-label="pf.tel">เบอร์โทรศัพท์ (Tel.)</th><td id="pf-tel">—</td>
   </tr>
-  <tr><th>หน่วยงาน (Agency)</th><td colspan="3" id="pf-agency-unit">—</td></tr>
-  <tr><th>ประเภทหน่วยงาน (Agency Type)</th><td colspan="3" id="pf-agency-category">—</td></tr>
+  <tr><th data-pf-label="pf.unit">หน่วยงาน (Unit)</th><td colspan="3" id="pf-unit">—</td></tr>
+  <tr><th data-pf-label="pf.unitType">ประเภทหน่วยงาน (Unit Type)</th><td colspan="3" id="pf-unit-type">—</td></tr>
 </table>
 
-<div class="print-section-label">ข้อมูลการพิมพ์ (Print Specification)</div>
+<div class="print-section-label" data-pf-label="pf.sec.print">ข้อมูลการพิมพ์ (Print Specification)</div>
 <table class="print-field-table">
   <tr>
-    <th>ประเภทเอกสาร (Document Type)</th><td id="pf-documenttype">—</td>
-    <th>ขนาดกระดาษ (Paper Size)</th><td id="pf-papersize">—</td>
+    <th data-pf-label="pf.documentType">ประเภทเอกสาร (Document Type)</th><td id="pf-documenttype">—</td>
+    <th data-pf-label="pf.paperSize">ขนาดกระดาษ (Paper Size)</th><td id="pf-papersize">—</td>
   </tr>
   <tr>
-    <th>โหมดสี (Color Mode)</th><td id="pf-colormode">—</td>
-    <th>รูปแบบการพิมพ์ (Print Side)</th><td id="pf-printside">—</td>
+    <th data-pf-label="pf.colorMode">โหมดสี (Color Mode)</th><td id="pf-colormode">—</td>
+    <th data-pf-label="pf.printSide">รูปแบบการพิมพ์ (Print Side)</th><td id="pf-printside">—</td>
   </tr>
-  <tr><th>งานตกแต่ง / การเข้าเล่ม (Finishing / Binding)</th><td colspan="3" id="pf-finishing">—</td></tr>
-  <tr><th>การจัดเตรียมกระดาษ (Paper Source)</th><td colspan="3" id="pf-paperresponsibility">—</td></tr>
-  <tr><th>เลขรันประจำชุด (Copy Label)</th><td colspan="3" id="pf-copylabel">—</td></tr>
+  <tr><th data-pf-label="pf.finishing">งานตกแต่ง / การเข้าเล่ม (Finishing / Binding)</th><td colspan="3" id="pf-finishing">—</td></tr>
+  <tr><th data-pf-label="pf.paperSource">การจัดเตรียมกระดาษ (Paper Source)</th><td colspan="3" id="pf-paperresponsibility">—</td></tr>
+  <tr><th data-pf-label="pf.copyLabel">เลขรันประจำชุด (Copy Label)</th><td colspan="3" id="pf-copylabel">—</td></tr>
 </table>
 
-<div class="print-section-label">รายการที่ขอผลิต (Items Requested)</div>
+<div class="print-section-label" data-pf-label="pf.sec.items">รายการที่ขอผลิต (Items Requested)</div>
 <table class="print-item-table">
   <thead>
     <tr>
-      <th>เลขอ้างอิง / RUN NUMBER</th>
-      <th>รายการเอกสาร (Items)</th>
-      <th>หน้าต้นฉบับ (Orig. Pages)</th>
-      <th>จำนวนชุด (Copies)</th>
-      <th>รวมหน้าพิมพ์ (Total Pages)</th>
-      <th>รวมแผ่นกระดาษ (Total Sheets)</th>
+      <th data-pf-label="pf.ref">เลขอ้างอิง / RUN NUMBER</th>
+      <th data-pf-label="pf.items">รายการเอกสาร (Items)</th>
+      <th data-pf-label="pf.pages">หน้าต้นฉบับ (Orig. Pages)</th>
+      <th data-pf-label="pf.copies">จำนวนชุด (Copies)</th>
+      <th data-pf-label="pf.totalPages">รวมหน้าพิมพ์ (Total Pages)</th>
+      <th data-pf-label="pf.totalSheets">รวมแผ่นกระดาษ (Total Sheets)</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td class="pf-cell-ref" data-label="เลขอ้างอิง / RUN NUMBER">
+      <td class="pf-cell-ref" data-label="เลขอ้างอิง / RUN NUMBER" data-pf-cell="pf.ref">
         <span id="pf-refno">—</span>
         <small id="pf-runno" style="display:none;"></small>
       </td>
-      <td class="pf-cell-items" id="pf-itemlist" data-label="รายการเอกสาร (Items)">—</td>
-      <td class="num" id="pf-pages" data-label="หน้าต้นฉบับ (Orig. Pages)">—</td>
-      <td class="num" id="pf-copies" data-label="จำนวนชุด (Copies)">—</td>
-      <td class="num" id="pf-totalpages" data-label="รวมหน้าพิมพ์ (Total Pages)">—</td>
-      <td class="num" id="pf-totalsheets" data-label="รวมแผ่นกระดาษ (Total Sheets)">—</td>
+      <td class="pf-cell-items" id="pf-itemlist" data-label="รายการเอกสาร (Items)" data-pf-cell="pf.items">—</td>
+      <td class="num" id="pf-pages" data-label="หน้าต้นฉบับ (Orig. Pages)" data-pf-cell="pf.pages">—</td>
+      <td class="num" id="pf-copies" data-label="จำนวนชุด (Copies)" data-pf-cell="pf.copies">—</td>
+      <td class="num" id="pf-totalpages" data-label="รวมหน้าพิมพ์ (Total Pages)" data-pf-cell="pf.totalPages">—</td>
+      <td class="num" id="pf-totalsheets" data-label="รวมแผ่นกระดาษ (Total Sheets)" data-pf-cell="pf.totalSheets">—</td>
     </tr>
   </tbody>
 </table>
 
 <div class="print-requester-line">
-  <span class="pf-meta"><span class="k">ผู้ขอ (Requester)</span> <span id="pf-requester-name">—</span></span>
-  <span class="pf-sep">&nbsp;·&nbsp;</span>
-  <span class="pf-meta"><span class="k">ส่งเมื่อ (Submitted)</span> <span id="pf-submitted">—</span></span>
-  <span id="pf-received-wrap" style="display:none;">
-    <span class="pf-sep">&nbsp;·&nbsp;</span>
-    <span class="pf-meta"><span class="k">รับเอกสารต้นฉบับเมื่อ (Original Received)</span> <span id="pf-received">—</span></span>
-  </span>
+  <span class="pf-meta"><span class="k" data-pf-label="pf.requester">ผู้ขอ (Requester)</span> <span id="pf-requester-name">—</span></span>
+  <span class="pf-sep" aria-hidden="true"></span>
+  <span class="pf-meta"><span class="k" data-pf-label="pf.submitted">ส่งเมื่อ (Submitted)</span> <span id="pf-submitted">—</span></span>
 </div>
 
 <table class="print-field-table print-approval-table">
   <tr>
-    <th>เจ้าหน้าที่ (Officer)</th>
-    <th>ผู้รับเอกสาร (Receiver)</th>
+    <th data-pf-label="pf.officer">เจ้าหน้าที่ (Officer)</th>
+    <th data-pf-label="pf.receiver">ผู้รับเอกสาร (Receiver)</th>
   </tr>
   <tr>
     <td id="pf-signoff-officer"></td>

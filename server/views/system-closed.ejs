@@ -157,18 +157,7 @@
   }
   .closed-icon-core .icon { width: 32px; height: 32px; animation: closedSpin 8s linear infinite; }
 
-  .closed-status {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 14px;
-    border-radius: 999px;
-    background: var(--color-warning-tint);
-    color: var(--color-warning);
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .closed-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-warning); animation: closedPulse 1.8s ease-out infinite; }
-
-  .closed-title { margin: 14px 0 0; font-size: 24px; font-weight: 700; color: var(--color-primary); line-height: 1.35; }
+  .closed-title { margin: 0; font-size: 24px; font-weight: 700; color: var(--color-primary); line-height: 1.35; text-align: center; }
   .closed-rule { display: flex; align-items: center; gap: 10px; width: 150px; margin: 16px auto; }
   .closed-rule::before, .closed-rule::after { content: ""; flex: 1; height: 1px; }
   .closed-rule::before { background: linear-gradient(90deg, transparent, var(--closed-gold-deep)); }
@@ -181,9 +170,26 @@
     color: var(--color-text);
     white-space: pre-line;
     overflow-wrap: anywhere;
+    text-align: center;
+    max-width: 36ch;
+    margin-inline: auto;
   }
 
-  .closed-reopens { margin: 14px 0 0; font-size: 14px; font-weight: 600; color: var(--closed-gold-deep); }
+  .closed-reopens {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin: 22px auto 0;
+    padding: 12px 18px;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid rgba(226, 194, 133, 0.7);
+    border-radius: 12px;
+    background: #fdf3df;
+    text-align: left;
+  }
+  .closed-reopens[hidden] { display: none; }
+  .closed-reopens-icon { width: 22px; height: 22px; flex-shrink: 0; color: var(--closed-gold-deep); }
+  .closed-reopens-label { font-size: 12.5px; color: var(--color-muted); }
+  .closed-reopens-time { font-size: 16px; font-weight: 700; color: var(--color-primary); }
 
   .closed-actions { margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--color-border); }
   .closed-btn {
@@ -203,7 +209,7 @@
   .closed-btn:hover { border-color: var(--closed-gold); color: var(--color-primary); box-shadow: 0 4px 12px rgba(176, 138, 62, 0.18); }
 
   @media (prefers-reduced-motion: reduce) {
-    .closed-icon::before, .closed-icon-core .icon, .closed-status-dot { animation: none; }
+    .closed-icon::before, .closed-icon-core .icon { animation: none; }
   }
   @media (max-width: 560px) {
     .closed-corners { inset: 10px; }
@@ -215,6 +221,53 @@
     .closed-brand-name { font-size: 17px; }
     .closed-card { padding: 36px 22px 26px; margin-top: 28px; }
     .closed-title { font-size: 20px; }
+  }
+
+  /* ---------- Fit one screen, any size ----------
+     Everything vertical scales with the viewport height (clamp + vh), so
+     the page fills exactly one screen with no scrollbar from a tall
+     monitor down to a phone. 100dvh = the *visible* height on phones
+     (100vh there includes the area behind the address bar, which is what
+     made the page scroll). Placed last so it wins over the fixed sizes
+     above, including the 560px block. */
+  html, body { height: 100%; overflow-x: hidden; }
+  body { min-height: 100vh; min-height: 100dvh; }
+  .closed-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: clamp(14px, 6vh, 72px) clamp(16px, 4vw, 24px);
+  }
+  .closed-emblem-wrap { width: clamp(52px, 11vh, 96px); height: clamp(52px, 11vh, 96px); margin-bottom: clamp(8px, 2.2vh, 20px); }
+  .closed-emblem img { width: 75%; height: 75%; }
+  .closed-emblem-wrap::before { width: clamp(160px, 32vh, 300px); height: clamp(160px, 32vh, 300px); }
+  .closed-brand-name { font-size: clamp(16px, 2.4vh, 20px); }
+  .closed-brand-sub { font-size: clamp(12px, 1.7vh, 14px); }
+  .closed-card {
+    margin-top: clamp(12px, 3.6vh, 34px);
+    padding: clamp(20px, 4.6vh, 44px) clamp(18px, 5vw, 40px) clamp(16px, 3.4vh, 32px);
+  }
+  .closed-icon { width: clamp(52px, 9.5vh, 88px); height: clamp(52px, 9.5vh, 88px); margin-bottom: clamp(10px, 2.4vh, 22px); }
+  .closed-icon-core { width: 75%; height: 75%; }
+  .closed-icon-core .icon { width: 48%; height: 48%; }
+  .closed-title { font-size: clamp(18px, 3vh, 24px); }
+  .closed-rule { margin: clamp(8px, 1.8vh, 16px) auto; }
+  .closed-message { font-size: clamp(13.5px, 1.8vh, 15px); line-height: 1.6; }
+  .closed-reopens { margin-top: clamp(12px, 2.4vh, 22px); padding: clamp(8px, 1.4vh, 12px) 18px; }
+  .closed-actions { margin-top: clamp(14px, 3vh, 28px); padding-top: clamp(12px, 2.4vh, 22px); }
+  .closed-btn { padding: clamp(8px, 1.2vh, 10px) 22px; }
+
+  /* Short screens (laptop with zoom, phone in landscape): drop the purely
+     decorative pieces first so the message itself still fits. */
+  @media (max-height: 640px) {
+    .closed-brand-sub { display: none; }
+    .closed-emblem-wrap::before { display: none; }
+    .closed-card::before { display: none; }
+  }
+  @media (max-height: 520px) {
+    .closed-emblem-wrap { display: none; }
+    .closed-icon { display: none; }
+    .closed-corners { display: none; }
+    .closed-lang-toggle { top: 10px; right: 12px; }
   }
 </style>
 </head>
@@ -242,15 +295,18 @@
       <div class="closed-icon-core"><span class="icon"><%- icon('settings') %></span></div>
     </div>
 
-    <span class="closed-status">
-      <span class="closed-status-dot" aria-hidden="true"></span>
-      <span data-i18n="systemClosed.status">กำลังปรับปรุงระบบ</span>
-    </span>
-
     <h1 class="closed-title" data-i18n="systemClosed.title">ระบบปิดปรับปรุงชั่วคราว</h1>
     <div class="closed-rule" aria-hidden="true"><span></span></div>
     <p class="closed-message" id="system-closed-message"><%= message || "" %></p>
-    <p class="closed-reopens" id="system-closed-reopens" hidden></p>
+    <!-- When it reopens, as its own highlighted box (label above, date/time
+         big) — only when the admin set an end time. -->
+    <div class="closed-reopens" id="system-closed-reopens" hidden>
+      <span class="icon closed-reopens-icon" aria-hidden="true"><%- icon('clock') %></span>
+      <div class="closed-reopens-body">
+        <div class="closed-reopens-label" data-i18n="systemClosed.reopensLabel">เปิดให้บริการอีกครั้ง</div>
+        <div class="closed-reopens-time" id="system-closed-reopens-time"></div>
+      </div>
+    </div>
 
     <div class="closed-actions">
       <a class="closed-btn" href="/logout">
@@ -263,19 +319,19 @@
 
 <script src="/assets/js/app.js"></script>
 <script>
-  const customMessageTh = <%- JSON.stringify(message || "") %>;
+  const customMessageTh = <%- safeJson(message || "") %>;
   // Auto-translated from customMessageTh when the admin saved it (see
   // settings.js / translate.js) — best-effort, can be empty if translation
   // failed, in which case English viewers fall back to the Thai text
   // rather than showing nothing.
-  const customMessageEn = <%- JSON.stringify(messageEn || "") %>;
-  const reopensAt = <%- JSON.stringify(typeof endsAt !== "undefined" && endsAt ? endsAt : null) %>;
+  const customMessageEn = <%- safeJson(messageEn || "") %>;
+  const reopensAt = <%- safeJson(typeof endsAt !== "undefined" && endsAt ? endsAt : null) %>;
   function renderMessage() {
     const custom = getLang() === "en" ? (customMessageEn || customMessageTh) : customMessageTh;
     document.getElementById("system-closed-message").textContent = custom || t("systemClosed.defaultMessage");
     const reopens = document.getElementById("system-closed-reopens");
     if (reopensAt) {
-      reopens.textContent = t("systemClosed.reopensAt").replace("{end}", formatDateTime(new Date(reopensAt), getLang()));
+      document.getElementById("system-closed-reopens-time").textContent = formatDateTime(new Date(reopensAt), getLang());
       reopens.hidden = false;
     }
   }

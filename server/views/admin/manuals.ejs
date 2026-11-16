@@ -6,22 +6,31 @@
     <h1 class="page-title" data-i18n="manuals.title">คู่มือการใช้งาน</h1>
     <p class="page-subtitle" data-i18n="manuals.subtitle">อัปโหลดคู่มือการใช้งานสำหรับผู้ขอ (ไฟล์ PDF) ผู้ใช้เปิดอ่านได้จากหน้าเข้าสู่ระบบ ตามภาษาที่เลือก</p>
 
+    <!-- One table: a row per audience, a column per language; rows built by render(). -->
     <div class="card admin-card">
-      <div class="card-header"><span data-i18n="manuals.requester">คู่มือสำหรับผู้ขอ</span></div>
-      <div class="card-body">
-        <p class="mn-rule" id="mn-rule"></p>
-        <div class="mn-grid" id="mn-grid"></div>
-        <p class="mn-hint" data-i18n="manuals.emptyHint">ถ้ามีเพียงภาษาเดียว ผู้ใช้ทั้งสองภาษาจะเห็นไฟล์นั้น</p>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table mn-table">
+          <thead>
+            <tr>
+              <th data-i18n="manuals.th.manual">คู่มือ</th>
+              <th data-i18n="manuals.lang.th">ภาษาไทย</th>
+              <th data-i18n="manuals.lang.en">ภาษาอังกฤษ</th>
+            </tr>
+          </thead>
+          <tbody id="mn-rows"></tbody>
+        </table>
       </div>
     </div>
+    <p class="mn-hint" id="mn-rule"></p>
   </main>
 
 <%- include("../partials/foot") %>
 <script>
   // "<" is escaped so a file name can never close this script tag early.
-  const MANUALS = <%- JSON.stringify(manuals.map(function (m) { return { id: m.id, fileName: m.fileName, size: m.size, uploadedAt: m.uploadedAt, uploadedBy: m.uploadedBy }; })).replace(/</g, "\\u003c") %>;
+  const MANUALS = <%- safeJson(manuals.map(function (m) { return { id: m.id, fileName: m.fileName, size: m.size, uploadedAt: m.uploadedAt, uploadedBy: m.uploadedBy }; })) %>;
   const MAX_MB = <%= maxMb %>;
-  const AUDIENCE = "requester";
+  // Same list as AUDIENCES in src/manuals.js. "where" says who sees it.
+  const AUDIENCES = ["requester", "officer", "admin"];
   const LANGS = ["th", "en"];
 
   function esc(s) {
@@ -32,39 +41,51 @@
   }
   function langName(lang) { return t("manuals.lang." + lang); }
 
+  // One cell: the file (its name opens it) or "not uploaded", then the
+  // buttons. Who uploaded it and when is in the name's tooltip.
+  function renderCell(audience, l, lang) {
+    const m = MANUALS.find(function (x) { return x.id === audience + "-" + l; });
+    const file = m
+      ? '<a class="mn-file-link" href="/manual/' + audience + '/' + l + '" target="_blank" rel="noopener" title="' +
+          esc(t("manuals.uploadedBy").replace("{email}", m.uploadedBy).replace("{date}", formatDateTime(new Date(m.uploadedAt), lang))) + '">' +
+          '<span class="icon">' + ICONS["book-open"] + '</span><span class="mn-file-name">' + esc(m.fileName) + '</span></a>' +
+          '<span class="mn-file-size">' + fmtSize(m.size) + '</span>'
+      : '<span class="mn-empty">' + esc(t("manuals.empty")) + '</span>';
+    // Empty slot: one quiet "Upload" button. Filled slot: two small text
+    // links (replace / delete) so the table isn't a wall of red buttons.
+    const uploadInput = '<input type="file" accept="application/pdf,.pdf" data-audience="' + audience + '" data-lang="' + l + '" hidden>';
+    const actions = m
+      ? '<label class="mn-link mn-upload">' + uploadInput + '<span>' + esc(t("manuals.replaceBtn")) + '</span></label>' +
+        '<button type="button" class="mn-link mn-link-danger" data-delete-audience="' + audience + '" data-delete="' + l + '" data-name="' + esc(m.fileName) + '">' + esc(t("manuals.deleteBtn")) + '</button>'
+      : '<label class="btn btn-secondary mn-btn mn-upload">' + uploadInput +
+        '<span class="icon">' + ICONS["file-plus"] + '</span><span>' + esc(t("manuals.uploadBtn")) + '</span></label>';
+    return '<td data-label="' + esc(langName(l)) + '"><div class="mn-cell"><div class="mn-file">' + file + '</div><div class="mn-actions">' + actions + '</div></div></td>';
+  }
+
   function render() {
     const lang = getLang();
-    document.getElementById("mn-rule").textContent = t("manuals.rule").replace("{mb}", MAX_MB);
-    document.getElementById("mn-grid").innerHTML = LANGS.map(function (l) {
-      const m = MANUALS.find(function (x) { return x.id === AUDIENCE + "-" + l; });
-      const status = m
-        ? '<div class="mn-file"><span class="icon">' + ICONS["clipboard"] + '</span><div>' +
-            '<div class="mn-file-name">' + esc(m.fileName) + ' <span class="mn-file-size">(' + fmtSize(m.size) + ')</span></div>' +
-            '<div class="mn-file-meta">' + esc(t("manuals.uploadedBy").replace("{email}", m.uploadedBy).replace("{date}", formatDateTime(new Date(m.uploadedAt), lang))) + '</div>' +
-          '</div></div>'
-        : '<div class="mn-file is-empty">' + esc(t("manuals.empty")) + '</div>';
-      const actions =
-        (m ? '<a class="btn btn-secondary" href="/manual/' + AUDIENCE + '/' + l + '" target="_blank" rel="noopener"><span class="icon">' + ICONS["eye"] + '</span>' + esc(t("manuals.viewBtn")) + '</a>' : '') +
-        '<label class="btn btn-primary mn-upload"><input type="file" accept="application/pdf,.pdf" data-lang="' + l + '" hidden>' +
-          '<span class="icon">' + ICONS["file-plus"] + '</span><span>' + esc(t(m ? "manuals.replaceBtn" : "manuals.uploadBtn")) + '</span></label>' +
-        (m ? '<button type="button" class="btn btn-danger" data-delete="' + l + '" data-name="' + esc(m.fileName) + '">' + esc(t("manuals.deleteBtn")) + '</button>' : '');
-      return '<section class="mn-slot">' +
-          '<h3 class="mn-slot-title">' + esc(langName(l)) + '</h3>' + status +
-          '<div class="mn-actions">' + actions + '</div>' +
-        '</section>';
+    document.getElementById("mn-rule").textContent = t("manuals.rule").replace("{mb}", MAX_MB) + " " + t("manuals.emptyHint");
+    document.getElementById("mn-rows").innerHTML = AUDIENCES.map(function (audience) {
+      return '<tr><th scope="row" class="mn-audience">' + esc(t("manuals." + audience)) + '</th>' +
+        LANGS.map(function (l) { return renderCell(audience, l, lang); }).join("") + '</tr>';
     }).join("");
 
     document.querySelectorAll(".mn-upload input").forEach(function (input) {
       input.addEventListener("change", function () {
-        if (this.files.length) upload(this.getAttribute("data-lang"), this.files[0], this);
+        if (this.files.length) upload(this.getAttribute("data-audience"), this.getAttribute("data-lang"), this.files[0], this);
       });
     });
     document.querySelectorAll("button[data-delete]").forEach(function (btn) {
-      btn.addEventListener("click", function () { confirmDelete(this.getAttribute("data-delete"), this.getAttribute("data-name")); });
+      btn.addEventListener("click", function () {
+        confirmDelete(this.getAttribute("data-delete-audience"), this.getAttribute("data-delete"), this.getAttribute("data-name"));
+      });
     });
   }
 
-  async function upload(l, file, input) {
+  // "Requester manual (Thai)" — names the exact file in result messages.
+  function slotName(audience, l) { return t("manuals." + audience) + " (" + langName(l) + ")"; }
+
+  async function upload(audience, l, file, input) {
     input.value = "";
     if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") return showActionResult(false, t("manuals.error.notPdf"));
     if (file.size > MAX_MB * 1024 * 1024) return showActionResult(false, t("manuals.error.tooLarge").replace("{mb}", MAX_MB));
@@ -72,14 +93,14 @@
     label.textContent = t("manuals.uploading");
     input.parentElement.classList.add("is-busy");
     try {
-      const res = await fetch("/admin/manuals/" + AUDIENCE + "/" + l, {
+      const res = await fetch("/admin/manuals/" + audience + "/" + l, {
         method: "POST",
         headers: { "Content-Type": "application/pdf", "X-File-Name": encodeURIComponent(file.name) },
         body: file
       });
       const body = await res.json().catch(function () { return {}; });
       if (res.ok) {
-        return showActionResult(true, t("manuals.result.uploaded").replace("{lang}", langName(l)), { onClose: function () { location.reload(); } });
+        return showActionResult(true, t("manuals.result.uploaded").replace("{lang}", slotName(audience, l)), { onClose: function () { location.reload(); } });
       }
       const key = body.error === "notPdf" ? "manuals.error.notPdf" : res.status === 413 || body.error === "tooLarge" ? "manuals.error.tooLarge" : "result.generic";
       showActionResult(false, t(key).replace("{mb}", MAX_MB));
@@ -89,16 +110,16 @@
     render();
   }
 
-  function confirmDelete(l, name) {
+  function confirmDelete(audience, l, name) {
     showConfirmModal({
       title: t("manuals.deleteTitle"),
-      message: t("manuals.deleteMessage").replace("{lang}", langName(l)).replace("{name}", name),
+      message: t("manuals.deleteMessage").replace("{lang}", slotName(audience, l)).replace("{name}", name),
       confirmText: t("manuals.deleteBtn"),
       danger: true,
       onConfirm: async function () {
         try {
-          const res = await fetch("/admin/manuals/" + AUDIENCE + "/" + l, { method: "DELETE" });
-          showActionResult(res.ok, res.ok ? t("manuals.result.deleted").replace("{lang}", langName(l)) : t("result.generic"),
+          const res = await fetch("/admin/manuals/" + audience + "/" + l, { method: "DELETE" });
+          showActionResult(res.ok, res.ok ? t("manuals.result.deleted").replace("{lang}", slotName(audience, l)) : t("result.generic"),
             res.ok ? { onClose: function () { location.reload(); } } : undefined);
         } catch (err) {
           showActionResult(false, t("result.network"));

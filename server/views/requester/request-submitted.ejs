@@ -17,7 +17,6 @@
         </div>
         <dl class="handoff-info">
           <div id="office-location-line" hidden><dt id="office-location-label"></dt><dd><span id="office-location-value"></span> <a id="office-map-link" href="#" target="_blank" rel="noopener" hidden></a></dd></div>
-          <div id="office-available-line" class="office-contact-line" hidden><span data-i18n="submitted.availableFrom"></span> <strong id="office-available-value"></strong></div>
           <div id="office-hours-line" hidden><dt id="office-hours-label"></dt><dd id="office-hours-value"></dd></div>
           <div id="office-phone-line" hidden><dt id="office-phone-label"></dt><dd id="office-phone-value"></dd></div>
         </dl>
@@ -70,14 +69,14 @@
 
 <%- include("../partials/foot") %>
 <script>
-  const data = <%- JSON.stringify(record) %>;
+  const data = <%- safeJson(record) %>;
   // Where to bring the original document, from the Location the Requester
   // chose (src/locations.js) — shown in both languages' terms via
   // formatLocation() so it follows the TH/EN toggle. Only relevant while the
   // Requester still needs to bring the original document in, not once it's
   // already been received or the request was rejected (see the two early
   // returns in renderDeadlineNotice below).
-  const dropoffLocation = <%- JSON.stringify(dropoffLocation || null).replace(/</g, "\\u003c") %>;
+  const dropoffLocation = <%- safeJson(dropoffLocation || null) %>;
 
   // Same three lines serve two moments: the drop-off place while the
   // original document is still due, and the pickup place once the copies are
@@ -109,14 +108,24 @@
       mapLink.textContent = t("location.map");
     }
 
-    // "Available from" belongs to the pickup moment only.
-    const availableFrom = labelKey === "submitted.pickupLocation" && data.pickupAvailableFrom ? data.pickupAvailableFrom : "";
-    document.getElementById("office-available-value").textContent = availableFrom ? formatDateTime(new Date(availableFrom), lang) : "";
-    document.getElementById("office-available-line").hidden = !(show && availableFrom);
-
     document.getElementById("office-location-line").hidden = !(show && locationText);
     document.getElementById("office-hours-line").hidden = !(show && hoursText);
     document.getElementById("office-phone-line").hidden = !(show && phoneText);
+  }
+
+  function setNoticeLook(noticeEl, cls, iconName) {
+    noticeEl.style.display = "";
+    noticeEl.classList.remove("handoff-warning", "handoff-success");
+    noticeEl.classList.add(cls);
+    document.getElementById("deadline-icon").setAttribute("data-icon", iconName);
+    applyIcons();
+  }
+
+  // "09:00 น." / "09:00"
+  function clockText(iso, lang) {
+    const d = new Date(iso);
+    const hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    return lang === "en" ? hm : hm + " น.";
   }
 
   function renderDeadlineNotice(lang) {
@@ -125,6 +134,34 @@
     const bodyEl = document.getElementById("deadline-body");
     const labelEl = document.getElementById("deadline-label");
     const timeEl = document.getElementById("deadline-time");
+
+    // Done: the copies were collected.
+    if (data.statusCode === "completed" && data.completedTimestamp) {
+      setNoticeLook(noticeEl, "handoff-success", "check-circle");
+      titleEl.textContent = t("submitted.deadline.completed.label");
+      labelEl.textContent = formatDate(new Date(data.completedTimestamp), lang);
+      timeEl.textContent = clockText(data.completedTimestamp, lang);
+      bodyEl.textContent = t("submitted.deadline.completed.body");
+      updateOfficeContactLines(false, lang);
+      return;
+    }
+
+    // Copies ready: the headline is when they can be collected, and the row
+    // below says where (place / hours / phone).
+    if (data.statusCode === "ready" && data.pickupLocation) {
+      setNoticeLook(noticeEl, "handoff-success", "package");
+      titleEl.textContent = t("submitted.deadline.ready.label");
+      if (data.pickupAvailableFrom) {
+        labelEl.textContent = formatDate(new Date(data.pickupAvailableFrom), lang);
+        timeEl.textContent = clockText(data.pickupAvailableFrom, lang);
+      } else {
+        labelEl.textContent = t("submitted.deadline.ready.now");
+        timeEl.textContent = "";
+      }
+      bodyEl.textContent = t("submitted.deadline.ready.body");
+      updateOfficeContactLines(true, lang, data.pickupLocation, "submitted.pickupLocation");
+      return;
+    }
 
     if (data.originalDocReceivedTimestamp) {
       // Officer has already confirmed receipt (FR-10) — the "bring it by
@@ -139,9 +176,7 @@
       labelEl.textContent = formatDateTime(new Date(data.originalDocReceivedTimestamp), lang);
       timeEl.textContent = "";
       bodyEl.textContent = t("submitted.deadline.received.body");
-      // Copies ready: point at where to collect them.
-      const pickup = data.statusCode === "ready" ? data.pickupLocation : null;
-      updateOfficeContactLines(!!pickup, lang, pickup, "submitted.pickupLocation");
+      updateOfficeContactLines(false, lang);
       return;
     }
 

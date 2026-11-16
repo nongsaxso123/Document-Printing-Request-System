@@ -42,9 +42,6 @@ services:
       NODE_ENV: production
       TZ: Asia/Bangkok
       DATABASE_URL: postgresql://odprs:${POSTGRES_PASSWORD}@db:5432/odprs?schema=public
-      BACKUP_DIR: /data/backups
-    volumes:
-      - backups:/data/backups
     command: sh -c "npx prisma migrate deploy && node src/app.js"
     depends_on:
       db:
@@ -74,6 +71,5 @@ services:
 
 volumes:
   pgdata:
-  backups:
   caddy_data:
   caddy_config:

@@ -11,19 +11,19 @@
  */
 
 const prisma = require("./prisma");
-const agencies = require("./agencies");
+const unitDirectory = require("./units");
 
 async function get(email) {
   return prisma.profile.findUnique({ where: { email: email.toLowerCase() } });
 }
 
-// workplace* comes from src/agencies.js's resolveWorkplace() (categoryId +
+// workplace* comes from src/units.js's resolveWorkplace() (categoryId +
 // unitId-or-free-typed-text) — optional, so leaving it blank clears any
 // previously-saved workplace rather than erroring. Returns { error } only
 // for a genuinely invalid selection (an id that no longer exists/is
 // archived, or free text missing where required), never for "nothing set".
-async function upsert(email, { prefix, name, phone, agencyCategoryId, agencyUnitId, agencyUnitText, position }) {
-  const workplace = await agencies.resolveWorkplace({ categoryId: agencyCategoryId, unitId: agencyUnitId, unitText: agencyUnitText });
+async function upsert(email, { prefix, name, phone, unitTypeId, unitId, unitText, position }) {
+  const workplace = await unitDirectory.resolveWorkplace({ categoryId: unitTypeId, unitId: unitId, unitText: unitText });
   if (workplace.error) return workplace;
 
   const data = {

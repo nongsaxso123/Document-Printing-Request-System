@@ -58,12 +58,29 @@ function locLine(snapshot, lang) {
   return locations.formatText(snapshot, lang);
 }
 
-// The "Request X: item (N copies)" lead-in every Requester-facing sentence
-// starts with, kept as one helper so it reads identically across statuses.
+// "คำขอ RN-… / REQ-… (item)": how every requester message names the job.
+// Copies are left to the email's detail table to keep the sentence short.
 function leadIn(p, lang) {
-  return lang === "en"
-    ? `Request ${p.idLabel}: ${p.itemList} (${p.numberOfCopies} copies)`
-    : `คำขอ ${p.idLabel}: ${p.itemList} (${p.numberOfCopies} ชุด)`;
+  return lang === "en" ? `Request ${p.idLabel} (${p.itemList})` : `คำขอ ${p.idLabel} (${p.itemList})`;
+}
+
+// "0882313456 (Somnuk)" → "088-231-3456 (Somnuk)". Anything not starting
+// with a Thai number is left as typed.
+function formatPhone(raw) {
+  const m = String(raw || "").match(/^\s*([0-9][0-9\s-]{7,}[0-9])\s*(.*)$/);
+  if (!m) return String(raw || "").trim();
+  const d = m[1].replace(/\D/g, "");
+  let num = m[1].trim();
+  if (/^0\d{9}$/.test(d)) num = `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  else if (/^02\d{7}$/.test(d)) num = `02-${d.slice(2, 5)}-${d.slice(5)}`;
+  else if (/^0\d{8}$/.test(d)) num = `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return m[2] ? `${num} ${m[2].trim()}` : num;
+}
+
+// Opening hours of a place, or the generic wording when it has none.
+function hoursOf(loc, lang) {
+  if (lang === "en") return loc && loc.hoursEn ? loc.hoursEn : "business hours";
+  return loc && loc.hoursTh ? loc.hoursTh : "ในเวลาราชการ";
 }
 
 function baseDetails(p) {
@@ -74,22 +91,25 @@ function baseDetails(p) {
   ];
 }
 
+// Wording rules: short sentences, one fact per line, no "—"/"·" separators.
+// The sentence is the in-app notification body and the email's lead line;
+// the email adds a detail table below it.
 const CATALOG = {
   submitted(p) {
     const deadline = new Date(p.deadline);
-    const phone = p.dropoffLocation && p.dropoffLocation.phone;
+    const phone = p.dropoffLocation && p.dropoffLocation.phone ? formatPhone(p.dropoffLocation.phone) : null;
     return {
-      titleTh: "ได้รับคำขอพิมพ์เอกสารของคุณแล้ว",
-      titleEn: "Your document printing request has been received",
-      sentenceTh: `${leadIn(p, "th")} ถูกบันทึกเข้าระบบเรียบร้อยแล้ว กรุณานำเอกสารต้นฉบับมาส่งที่ ${locLine(p.dropoffLocation, "th")} ภายในวันที่ ${formatThaiDate(deadline)}`
-        + (phone ? `\nหากมีข้อสงสัย ติดต่อเจ้าหน้าที่ที่ ${phone}` : ""),
-      sentenceEn: `${leadIn(p, "en")} has been recorded. Please submit the original document at ${locLine(p.dropoffLocation, "en")} by ${formatEnDate(deadline)}`
-        + (phone ? `\nFor questions, contact ${phone}` : ""),
+      titleTh: "ได้รับคำขอแล้ว",
+      titleEn: "Request received",
+      sentenceTh: `${leadIn(p, "th")} บันทึกแล้ว\nกรุณานำต้นฉบับมาส่งที่ ${locLine(p.dropoffLocation, "th")} ภายใน ${formatThaiDate(deadline)}`
+        + (phone ? `\nสอบถามโทร ${phone}` : ""),
+      sentenceEn: `${leadIn(p, "en")} is recorded.\nPlease bring the original to ${locLine(p.dropoffLocation, "en")} by ${formatEnDate(deadline)}.`
+        + (phone ? `\nQuestions: call ${phone}` : ""),
       details: [
         ...baseDetails(p),
-        { labelTh: "สถานที่ส่งเอกสาร", labelEn: "Drop-off location", valueTh: locLine(p.dropoffLocation, "th"), valueEn: locLine(p.dropoffLocation, "en") },
-        { labelTh: "กำหนดส่งต้นฉบับ", labelEn: "Submission deadline", valueTh: formatThaiDate(deadline), valueEn: formatEnDate(deadline) },
-        ...(phone ? [{ labelTh: "โทรศัพท์ติดต่อ", labelEn: "Phone", value: phone }] : [])
+        { labelTh: "ส่งต้นฉบับที่", labelEn: "Drop-off at", valueTh: locLine(p.dropoffLocation, "th"), valueEn: locLine(p.dropoffLocation, "en") },
+        { labelTh: "ส่งภายใน", labelEn: "Drop off by", valueTh: formatThaiDate(deadline), valueEn: formatEnDate(deadline) },
+        ...(phone ? [{ labelTh: "โทร", labelEn: "Phone", value: phone }] : [])
       ]
     };
   },
@@ -98,23 +118,23 @@ const CATALOG = {
     const receivedAt = new Date(p.receivedAt);
     const confirmedDate = new Date(p.confirmedDate);
     return {
-      titleTh: "คำขอของคุณได้รับการอนุมัติแล้ว",
-      titleEn: "Your request has been approved",
-      sentenceTh: `${leadIn(p, "th")} รับเอกสารต้นฉบับแล้วเมื่อ ${formatThaiDateTime(receivedAt)} และเริ่มดำเนินการพิมพ์\nรหัสรับเอกสาร (Claim Code): ${p.claimCode}\nวันที่นัดรับ: ${formatThaiDate(confirmedDate)}`,
-      sentenceEn: `${leadIn(p, "en")} — the original document was received on ${formatEnDateTime(receivedAt)} and printing has started.\nClaim Code: ${p.claimCode}\nScheduled pickup date: ${formatEnDate(confirmedDate)}`,
-      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim Code", value: p.claimCode },
+      titleTh: "อนุมัติคำขอแล้ว",
+      titleEn: "Request approved",
+      sentenceTh: `${leadIn(p, "th")} ได้รับต้นฉบับแล้ว กำลังพิมพ์\nรหัสรับเอกสาร: ${p.claimCode}\nนัดรับ: ${formatThaiDate(confirmedDate)}`,
+      sentenceEn: `${leadIn(p, "en")}: original received, printing has started.\nClaim code: ${p.claimCode}\nPickup date: ${formatEnDate(confirmedDate)}`,
+      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim code", value: p.claimCode },
       details: [
         ...baseDetails(p),
-        { labelTh: "รับเอกสารต้นฉบับเมื่อ", labelEn: "Original received", valueTh: formatThaiDateTime(receivedAt), valueEn: formatEnDateTime(receivedAt) },
-        { labelTh: "วันที่นัดรับ", labelEn: "Scheduled pickup date", valueTh: formatThaiDate(confirmedDate), valueEn: formatEnDate(confirmedDate) }
+        { labelTh: "รับต้นฉบับเมื่อ", labelEn: "Original received", valueTh: formatThaiDateTime(receivedAt), valueEn: formatEnDateTime(receivedAt) },
+        { labelTh: "นัดรับ", labelEn: "Pickup date", valueTh: formatThaiDate(confirmedDate), valueEn: formatEnDate(confirmedDate) }
       ]
     };
   },
 
   rejected(p) {
     return {
-      titleTh: "คำขอของคุณถูกปฏิเสธ",
-      titleEn: "Your request has been rejected",
+      titleTh: "คำขอถูกปฏิเสธ",
+      titleEn: "Request rejected",
       sentenceTh: `${leadIn(p, "th")} ถูกปฏิเสธ\nเหตุผล: ${p.reason}`,
       sentenceEn: `${leadIn(p, "en")} was rejected.\nReason: ${p.reason}`,
       details: [
@@ -126,22 +146,20 @@ const CATALOG = {
 
   ready(p) {
     const availableFrom = p.pickupAvailableFrom ? new Date(p.pickupAvailableFrom) : null;
-    const availableThLine = availableFrom ? ` ตั้งแต่ ${formatThaiDateTime(availableFrom)} เป็นต้นไป (ในเวลาราชการ)` : " ในเวลาราชการ";
-    const availableEnLine = availableFrom ? ` from ${formatEnDateTime(availableFrom)} onwards (business hours)` : " during business hours";
+    const loc = p.pickupLocation || null;
+    const fromTh = availableFrom ? ` ตั้งแต่ ${formatThaiDateTime(availableFrom)}` : "";
+    const fromEn = availableFrom ? ` from ${formatEnDateTime(availableFrom)}` : "";
     return {
-      titleTh: "เอกสารของคุณพร้อมให้รับแล้ว",
-      titleEn: "Your documents are ready for pickup",
-      sentenceTh: `${leadIn(p, "th")} พิมพ์เสร็จเรียบร้อยแล้ว กรุณามารับเอกสารที่ ${locLine(p.pickupLocation, "th")}${availableThLine} พร้อมแจ้งรหัสรับเอกสาร (Claim Code): ${p.claimCode}`,
-      sentenceEn: `${leadIn(p, "en")} has been printed. Please collect it at ${locLine(p.pickupLocation, "en")}${availableEnLine} and present the claim code: ${p.claimCode}`,
-      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim Code", value: p.claimCode },
+      titleTh: "เอกสารพร้อมรับแล้ว",
+      titleEn: "Ready for pickup",
+      sentenceTh: `${leadIn(p, "th")} พิมพ์เสร็จแล้ว\nรับได้ที่ ${locLine(loc, "th")}${fromTh}\nเวลาทำการ: ${hoursOf(loc, "th")}\nแจ้งรหัสรับเอกสาร ${p.claimCode} เมื่อมารับ`,
+      sentenceEn: `${leadIn(p, "en")} is printed.\nPick it up at ${locLine(loc, "en")}${fromEn}.\nOpening hours: ${hoursOf(loc, "en")}\nShow claim code ${p.claimCode} when you collect it.`,
+      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim code", value: p.claimCode },
       details: [
         ...baseDetails(p),
-        { labelTh: "สถานที่รับเอกสาร", labelEn: "Pickup location", valueTh: locLine(p.pickupLocation, "th"), valueEn: locLine(p.pickupLocation, "en") },
-        {
-          labelTh: "รับเอกสารได้ตั้งแต่", labelEn: "Available for pickup from",
-          valueTh: availableFrom ? `${formatThaiDateTime(availableFrom)} เป็นต้นไป (ในเวลาราชการ)` : "ในเวลาราชการ",
-          valueEn: availableFrom ? `${formatEnDateTime(availableFrom)} onwards (business hours)` : "During business hours"
-        }
+        { labelTh: "รับที่", labelEn: "Pickup at", valueTh: locLine(loc, "th"), valueEn: locLine(loc, "en") },
+        ...(availableFrom ? [{ labelTh: "รับได้ตั้งแต่", labelEn: "Available from", valueTh: formatThaiDateTime(availableFrom), valueEn: formatEnDateTime(availableFrom) }] : []),
+        { labelTh: "เวลาทำการ", labelEn: "Opening hours", valueTh: hoursOf(loc, "th"), valueEn: hoursOf(loc, "en") }
       ]
     };
   },
@@ -149,25 +167,24 @@ const CATALOG = {
   completed(p) {
     const completedAt = new Date(p.completedAt);
     return {
-      titleTh: "ส่งมอบเอกสารเรียบร้อยแล้ว",
-      titleEn: "Documents delivered",
-      sentenceTh: `${leadIn(p, "th")} ได้รับการส่งมอบเรียบร้อยแล้วเมื่อ ${formatThaiDateTime(completedAt)} ขอบคุณที่ใช้บริการ`,
-      sentenceEn: `${leadIn(p, "en")} has been delivered on ${formatEnDateTime(completedAt)}. Thank you for using our service.`,
+      titleTh: "รับเอกสารเรียบร้อยแล้ว",
+      titleEn: "Documents collected",
+      sentenceTh: `${leadIn(p, "th")} ส่งมอบแล้วเมื่อ ${formatThaiDateTime(completedAt)}\nขอบคุณที่ใช้บริการ`,
+      sentenceEn: `${leadIn(p, "en")} was collected on ${formatEnDateTime(completedAt)}.\nThank you for using our service.`,
       details: [
         ...baseDetails(p),
-        { labelTh: "ส่งมอบเมื่อ", labelEn: "Delivered on", valueTh: formatThaiDateTime(completedAt), valueEn: formatEnDateTime(completedAt) }
+        { labelTh: "ส่งมอบเมื่อ", labelEn: "Collected on", valueTh: formatThaiDateTime(completedAt), valueEn: formatEnDateTime(completedAt) }
       ]
     };
   },
 
-  // Officer-facing — not a Requester status, so no leadIn() (that mentions
-  // copies, which these two never did) or ref-no prefix inside the sentence.
+  // Officer-facing (no copies, no requester lead-in).
   new_request(p) {
     return {
-      titleTh: "มีคำขอพิมพ์เอกสารใหม่รอตรวจสอบ",
-      titleEn: "New document printing request awaiting review",
-      sentenceTh: `${p.requesterName} ส่งคำขอ ${p.idLabel} (${p.itemList}) เข้ามาใหม่ กรุณาตรวจสอบเอกสารต้นฉบับที่คิว`,
-      sentenceEn: `${p.requesterName} submitted a new request ${p.idLabel} (${p.itemList}). Please review the original document in the queue.`,
+      titleTh: "คำขอใหม่รอตรวจสอบ",
+      titleEn: "New request to review",
+      sentenceTh: `${p.requesterName} ส่งคำขอ ${p.idLabel} (${p.itemList})`,
+      sentenceEn: `${p.requesterName} sent request ${p.idLabel} (${p.itemList}).`,
       details: [
         { labelTh: "ผู้ขอ", labelEn: "Requester", value: p.requesterName },
         ...baseDetails(p)
@@ -175,52 +192,49 @@ const CATALOG = {
     };
   },
 
-  // D — sent to a requester whose request is still in-flight at a place
-  // that just got edited-and-flagged-as-moved, or archived with a
-  // replacement chosen (src/requests.js notifyLocationChange). Distinct
-  // from submitted/ready above (which restate the place that was already
-  // true when they fired) — this one exists specifically to call out that
-  // it changed after the fact.
+  // A place used by a still-open request was changed afterwards
+  // (src/requests.js notifyLocationChange).
   dropoff_moved(p) {
     const deadline = new Date(p.deadline);
     return {
-      titleTh: "สถานที่ส่งเอกสารมีการเปลี่ยนแปลง",
-      titleEn: "Drop-off location has changed",
-      sentenceTh: `${leadIn(p, "th")} เปลี่ยนสถานที่ส่งเอกสารต้นฉบับ จากเดิม ${locLine(p.oldLocation, "th")} เป็น ${locLine(p.newLocation, "th")} กรุณานำเอกสารต้นฉบับมาส่งที่แห่งใหม่ภายในวันที่ ${formatThaiDate(deadline)} ตามกำหนดเดิม ขออภัยในความไม่สะดวก`,
-      sentenceEn: `${leadIn(p, "en")}: the drop-off location has changed from ${locLine(p.oldLocation, "en")} to ${locLine(p.newLocation, "en")}. Please submit the original document at the new location by ${formatEnDate(deadline)}, as originally scheduled. We apologize for the inconvenience.`,
+      titleTh: "เปลี่ยนสถานที่ส่งต้นฉบับ",
+      titleEn: "Drop-off place changed",
+      sentenceTh: `${leadIn(p, "th")} เปลี่ยนที่ส่งต้นฉบับเป็น ${locLine(p.newLocation, "th")} (เดิม ${locLine(p.oldLocation, "th")})\nส่งภายใน ${formatThaiDate(deadline)} ตามเดิม ขออภัยในความไม่สะดวก`,
+      sentenceEn: `${leadIn(p, "en")}: the drop-off place is now ${locLine(p.newLocation, "en")} (was ${locLine(p.oldLocation, "en")}).\nThe deadline stays ${formatEnDate(deadline)}. Sorry for the inconvenience.`,
       details: [
         ...baseDetails(p),
-        { labelTh: "สถานที่เดิม", labelEn: "Previous location", valueTh: locLine(p.oldLocation, "th"), valueEn: locLine(p.oldLocation, "en") },
-        { labelTh: "สถานที่ใหม่", labelEn: "New location", valueTh: locLine(p.newLocation, "th"), valueEn: locLine(p.newLocation, "en") },
-        { labelTh: "กำหนดส่งต้นฉบับ", labelEn: "Submission deadline", valueTh: formatThaiDate(deadline), valueEn: formatEnDate(deadline) }
+        { labelTh: "ที่ใหม่", labelEn: "New place", valueTh: locLine(p.newLocation, "th"), valueEn: locLine(p.newLocation, "en") },
+        { labelTh: "ที่เดิม", labelEn: "Previous place", valueTh: locLine(p.oldLocation, "th"), valueEn: locLine(p.oldLocation, "en") },
+        { labelTh: "ส่งภายใน", labelEn: "Drop off by", valueTh: formatThaiDate(deadline), valueEn: formatEnDate(deadline) }
       ]
     };
   },
 
   pickup_moved(p) {
     const availableFrom = p.pickupAvailableFrom ? new Date(p.pickupAvailableFrom) : null;
-    const availableThLine = availableFrom ? ` ตั้งแต่ ${formatThaiDateTime(availableFrom)} เป็นต้นไป (ในเวลาราชการ)` : "";
-    const availableEnLine = availableFrom ? ` from ${formatEnDateTime(availableFrom)} onwards (business hours)` : "";
+    const fromTh = availableFrom ? ` ตั้งแต่ ${formatThaiDateTime(availableFrom)}` : "";
+    const fromEn = availableFrom ? ` from ${formatEnDateTime(availableFrom)}` : "";
     return {
-      titleTh: "สถานที่รับเอกสารมีการเปลี่ยนแปลง",
-      titleEn: "Pickup location has changed",
-      sentenceTh: `${leadIn(p, "th")} เปลี่ยนสถานที่รับเอกสาร จากเดิม ${locLine(p.oldLocation, "th")} เป็น ${locLine(p.newLocation, "th")}${availableThLine} กรุณามารับที่แห่งใหม่ พร้อมแจ้งรหัสรับเอกสาร (Claim Code): ${p.claimCode} ขออภัยในความไม่สะดวก`,
-      sentenceEn: `${leadIn(p, "en")}: the pickup location has changed from ${locLine(p.oldLocation, "en")} to ${locLine(p.newLocation, "en")}${availableEnLine}. Please collect it at the new location and present the claim code: ${p.claimCode}. We apologize for the inconvenience.`,
-      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim Code", value: p.claimCode },
+      titleTh: "เปลี่ยนสถานที่รับเอกสาร",
+      titleEn: "Pickup place changed",
+      sentenceTh: `${leadIn(p, "th")} เปลี่ยนที่รับเอกสารเป็น ${locLine(p.newLocation, "th")}${fromTh} (เดิม ${locLine(p.oldLocation, "th")})\nแจ้งรหัสรับเอกสาร ${p.claimCode} เมื่อมารับ ขออภัยในความไม่สะดวก`,
+      sentenceEn: `${leadIn(p, "en")}: the pickup place is now ${locLine(p.newLocation, "en")}${fromEn} (was ${locLine(p.oldLocation, "en")}).\nShow claim code ${p.claimCode} when you collect it. Sorry for the inconvenience.`,
+      highlight: { labelTh: "รหัสรับเอกสาร", labelEn: "Claim code", value: p.claimCode },
       details: [
         ...baseDetails(p),
-        { labelTh: "สถานที่เดิม", labelEn: "Previous location", valueTh: locLine(p.oldLocation, "th"), valueEn: locLine(p.oldLocation, "en") },
-        { labelTh: "สถานที่ใหม่", labelEn: "New location", valueTh: locLine(p.newLocation, "th"), valueEn: locLine(p.newLocation, "en") }
+        { labelTh: "ที่ใหม่", labelEn: "New place", valueTh: locLine(p.newLocation, "th"), valueEn: locLine(p.newLocation, "en") },
+        { labelTh: "ที่เดิม", labelEn: "Previous place", valueTh: locLine(p.oldLocation, "th"), valueEn: locLine(p.oldLocation, "en") },
+        { labelTh: "เวลาทำการ", labelEn: "Opening hours", valueTh: hoursOf(p.newLocation, "th"), valueEn: hoursOf(p.newLocation, "en") }
       ]
     };
   },
 
   cancelled(p) {
     return {
-      titleTh: "คำขอถูกยกเลิกโดยผู้ขอ",
-      titleEn: "Request cancelled by requester",
-      sentenceTh: `${p.requesterName} ยกเลิกคำขอ ${p.idLabel} (${p.itemList}) แล้ว ไม่ต้องดำเนินการต่อ`,
-      sentenceEn: `${p.requesterName} has cancelled request ${p.idLabel} (${p.itemList}) — no further action needed.`,
+      titleTh: "ผู้ขอยกเลิกคำขอ",
+      titleEn: "Request cancelled",
+      sentenceTh: `${p.requesterName} ยกเลิกคำขอ ${p.idLabel} (${p.itemList}) ไม่ต้องดำเนินการต่อ`,
+      sentenceEn: `${p.requesterName} cancelled request ${p.idLabel} (${p.itemList}). No action needed.`,
       details: [
         { labelTh: "ผู้ขอ", labelEn: "Requester", value: p.requesterName },
         ...baseDetails(p)
@@ -345,7 +359,7 @@ function emailFor(type, params) {
   const content = render(type, params);
   if (!content) return null;
   return {
-    subject: `[ODPRS] ${content.titleTh} / ${content.titleEn} (${params.refNo})`,
+    subject: `[ODPR] ${content.titleTh} / ${content.titleEn} (${params.refNo})`,
     html: buildEmailHtml(content),
     text: buildEmailText(content)
   };

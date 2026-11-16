@@ -28,7 +28,7 @@
             <div class="field">
               <label data-i18n="profile.prefixLabel">คำนำหน้า</label>
               <select name="prefix" id="profile-prefix">
-                <option value="" data-i18n="profile.prefix.none">— ไม่ระบุ —</option>
+                <option value="" data-i18n="profile.prefix.none">ไม่ระบุ</option>
                 <option value="นาย" data-i18n="profile.prefix.mr">นาย</option>
                 <option value="นาง" data-i18n="profile.prefix.mrs">นาง</option>
                 <option value="นางสาว" data-i18n="profile.prefix.miss">นางสาว</option>
@@ -69,7 +69,7 @@
             <div class="field">
               <label data-i18n="profile.workplaceUnitLabel">หน่วยงาน</label>
               <select id="profile-workplace-unit-select"></select>
-              <input type="text" id="profile-workplace-unit-text" data-i18n-placeholder="field.agencyUnit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
+              <input type="text" id="profile-workplace-unit-text" data-i18n-placeholder="field.unit.placeholder" placeholder="พิมพ์ชื่อหน่วยงาน" style="display:none;" disabled>
             </div>
 
             <div class="field span-2">
@@ -80,7 +80,7 @@
         </div>
       </div>
 
-      <div class="form-actions" style="justify-content:flex-start; align-items:center; gap:14px;">
+      <div class="form-actions profile-savebar">
         <button type="submit" class="btn btn-primary" id="save-btn" data-i18n="profile.saveBtn">บันทึกโปรไฟล์</button>
         <svg id="save-status-icon" class="save-status-icon" viewBox="0 0 36 36" width="22" height="22" hidden style="display:none;" aria-hidden="true">
           <circle id="save-status-ring" class="save-status-ring" cx="18" cy="18" r="14" fill="none" stroke-width="3"></circle>
@@ -129,18 +129,18 @@
     if (!isOther) prefixOther.value = "";
   });
 
-  // Agency directory (src/agencies.js) — same dependent-dropdown pattern as
-  // requester/new-request.ejs's agencyCategory/agencyUnit fields, reused
+  // Unit directory (src/units.js) — same dependent-dropdown pattern as
+  // requester/new-request.ejs's unitType/unit fields, reused
   // here so "ที่ทำงาน / หน่วยงาน" is selectable the same way — not
   // required here, so no placeholder/required wiring, just optional fields.
-  const AGENCIES = <%- JSON.stringify(typeof agencyCategories !== "undefined" ? agencyCategories : []).replace(/</g, "\\u003c") %>;
+  const UNITS = <%- safeJson(typeof unitTypes !== "undefined" ? unitTypes : []) %>;
 
-  function agencyCategoryById(id) {
-    return AGENCIES.find(function (c) { return c.id === id; });
+  function unitTypeById(id) {
+    return UNITS.find(function (c) { return c.id === id; });
   }
 
   function renderWorkplaceUnitOptions() {
-    const category = agencyCategoryById(Number(workplaceCategorySelect.value));
+    const category = unitTypeById(Number(workplaceCategorySelect.value));
 
     if (category && category.allowsFreeText) {
       workplaceUnitSelect.style.display = "none";
@@ -182,7 +182,7 @@
     workplaceCategorySelect.appendChild(placeholder);
 
     const lang = getLang();
-    AGENCIES.forEach(function (category) {
+    UNITS.forEach(function (category) {
       const opt = document.createElement("option");
       opt.value = String(category.id);
       opt.textContent = pickLang(category.nameTh, category.nameEn, lang);
@@ -200,7 +200,7 @@
   function applyWorkplaceValue(categoryId, unitId, unitText) {
     workplaceCategorySelect.value = categoryId ? String(categoryId) : "";
     renderWorkplaceUnitOptions();
-    const category = categoryId ? agencyCategoryById(categoryId) : null;
+    const category = categoryId ? unitTypeById(categoryId) : null;
     if (category && category.allowsFreeText) {
       workplaceUnitText.value = unitText || "";
     } else {
@@ -257,9 +257,9 @@
           prefixOther: prefixOther.value,
           name: nameInput.value,
           phone: phoneInput.value,
-          agencyCategoryId: workplaceCategorySelect.value,
-          agencyUnitId: workplaceUnitSelect.value,
-          agencyUnitText: workplaceUnitText.value,
+          unitTypeId: workplaceCategorySelect.value,
+          unitId: workplaceUnitSelect.value,
+          unitText: workplaceUnitText.value,
           position: positionInput.value
         })
       });

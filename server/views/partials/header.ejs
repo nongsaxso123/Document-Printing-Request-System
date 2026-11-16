@@ -1,4 +1,41 @@
   <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+  <%# Floating "manuals" button: bottom-right by default, can be dragged
+      (it snaps to the nearest side) and hidden into the sidebar dock (see
+      sidebar.ejs). Position/hidden state is per browser — initManualFab()
+      in app.js. Only rendered when this role has an uploaded manual. %>
+  <% if (typeof sidebarManuals !== "undefined" && sidebarManuals.length) { %>
+  <div class="manual-fab" id="manual-fab">
+    <div class="manual-fab-menu" id="manual-fab-menu" role="menu" hidden>
+      <div class="manual-fab-title" data-i18n="nav.manuals">คู่มือการใช้งาน</div>
+      <% sidebarManuals.forEach(function (audience) { %>
+        <a class="manual-fab-item" data-manual="<%= audience %>" href="/manual/<%= audience %>/th" target="_blank" rel="noopener">
+          <span class="icon" data-icon="book-open"><%- icon('book-open') %></span>
+          <span data-i18n="nav.manual.<%= audience %>"><%= { requester: "คู่มือผู้ขอ", officer: "คู่มือเจ้าหน้าที่", admin: "คู่มือผู้ดูแลระบบ" }[audience] %></span>
+        </a>
+        <% }); %>
+      <button type="button" class="manual-fab-hide" id="manual-fab-hide">
+        <span data-i18n="manualFab.hide">ซ่อนปุ่มนี้ (ย้ายไปไว้ที่เมนูข้าง)</span>
+      </button>
+    </div>
+    <button type="button" class="manual-fab-btn" id="manual-fab-btn" aria-haspopup="true" aria-expanded="false" aria-controls="manual-fab-menu" data-i18n-title="manualFab.title" title="คู่มือการใช้งาน (ลากเพื่อย้ายได้)">
+      <span class="icon" data-icon="book-open"><%- icon('book-open') %></span>
+    </button>
+  </div>
+  <div class="manual-dock-pop" id="manual-dock-pop" role="menu" hidden>
+    <div class="manual-fab-title" data-i18n="nav.manuals">คู่มือการใช้งาน</div>
+    <% sidebarManuals.forEach(function (audience) { %>
+    <a class="manual-fab-item" role="menuitem" data-manual="<%= audience %>" href="/manual/<%= audience %>/th" target="_blank" rel="noopener">
+      <span class="icon" data-icon="book-open"><%- icon('book-open') %></span>
+      <span data-i18n="nav.manual.<%= audience %>"><%= { requester: "คู่มือผู้ขอ", officer: "คู่มือเจ้าหน้าที่", admin: "คู่มือผู้ดูแลระบบ" }[audience] %></span>
+    </a>
+    <% }); %>
+    <button type="button" class="manual-fab-hide" id="manual-dock-show" data-i18n="manualFab.show">แสดงปุ่มลอยอีกครั้ง</button>
+  </div>
+  <script>
+    // Apply the saved hidden state before first paint so the button doesn't flash.
+    try { if (JSON.parse(localStorage.getItem("odprs_manualFab") || "{}").hidden) document.documentElement.classList.add("manual-fab-docked"); } catch (e) {}
+  </script>
+  <% } %>
   <header class="app-header">
     <div class="header-lead">
       <button type="button" class="nav-toggle" id="nav-toggle" aria-controls="app-sidebar" aria-expanded="false" data-i18n-title="nav.menu" title="เมนู">

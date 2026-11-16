@@ -77,8 +77,8 @@
                 <dl class="rd-rows">
                   <div class="rd-row"><dt data-i18n="summary.name">ชื่อผู้ขอ</dt><dd><span id="d-name">—</span><span class="identity-email" id="d-name-email"></span></dd></div>
                   <div class="rd-row"><dt data-i18n="summary.tel">เบอร์โทรศัพท์</dt><dd id="d-tel">—</dd></div>
-                  <div class="rd-row"><dt data-i18n="summary.agencyCategory">ประเภทหน่วยงาน</dt><dd id="d-agency-category">—</dd></div>
-                  <div class="rd-row"><dt data-i18n="summary.agencyUnit">หน่วยงาน</dt><dd id="d-agency-unit">—</dd></div>
+                  <div class="rd-row"><dt data-i18n="summary.unitType">ประเภทหน่วยงาน</dt><dd id="d-unit-type">—</dd></div>
+                  <div class="rd-row"><dt data-i18n="summary.unit">หน่วยงาน</dt><dd id="d-unit">—</dd></div>
                   <div class="rd-row"><dt data-i18n="detail.dropoffLocationLabel">สถานที่ส่งเอกสารต้นฉบับ</dt><dd id="d-dropoff-location">—</dd></div>
                 </dl>
               </div>
@@ -139,7 +139,7 @@
           <div class="card rd-outcome" id="approved-result" style="display:none;">
             <div class="rd-outcome-band tone-success">
               <span class="icon" data-icon="check-circle"><%- icon('check-circle') %></span>
-              <span data-i18n="detail.approvedBand">อนุมัติแล้ว — รับต้นฉบับเรียบร้อย</span>
+              <span data-i18n="detail.approvedBand">อนุมัติแล้ว รับต้นฉบับเรียบร้อย</span>
             </div>
             <div class="rd-outcome-body">
               <div class="rd-code-pair">
@@ -248,10 +248,10 @@
 
     document.getElementById("d-name").textContent = record.requesterName;
     document.getElementById("d-name-email").textContent = record.requesterEmail ? "(" + record.requesterEmail + ")" : "";
-    document.getElementById("d-agency-category").textContent = lang === "en"
-      ? (record.agencyCategoryNameEn || record.agencyCategory)
-      : record.agencyCategory;
-    document.getElementById("d-agency-unit").textContent = record.agencyUnit;
+    document.getElementById("d-unit-type").textContent = lang === "en"
+      ? (record.unitTypeNameEn || record.unitType)
+      : record.unitType;
+    document.getElementById("d-unit").textContent = record.unit;
     document.getElementById("d-tel").textContent = record.tel;
     document.getElementById("d-dropoff-location").textContent = record.dropoffLocation ? formatLocation(record.dropoffLocation, lang) : "—";
     document.getElementById("d-pickup-row").style.display = record.pickupLocation ? "" : "none";

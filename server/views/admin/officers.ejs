@@ -4,7 +4,7 @@
 
   <main class="app-main">
     <h1 class="page-title" data-i18n="admin.title">จัดการบัญชีเจ้าหน้าที่</h1>
-    <p class="page-subtitle" data-i18n="admin.subtitle">กำหนดว่าอีเมลมหาวิทยาลัยใดได้รับสิทธิ์เป็นเจ้าหน้าที่ (Officer) — อีเมลที่ไม่อยู่ในรายชื่อนี้จะเป็นสิทธิ์ผู้ขอ (Requester) โดยอัตโนมัติ</p>
+    <p class="page-subtitle" data-i18n="admin.subtitle">อีเมลที่อยู่ในรายชื่อนี้ได้สิทธิ์เจ้าหน้าที่ (Officer) และตั้งให้บางคนเป็นผู้ดูแลระบบได้ ส่วนอีเมลอื่นเป็นผู้ขอ (Requester) โดยอัตโนมัติ</p>
 
     <div class="card admin-card">
       <div class="card-header"><span data-i18n="admin.addTitle">เพิ่มเจ้าหน้าที่ใหม่</span></div>
@@ -79,7 +79,7 @@
     officers = await res.json();
   }
 
-  const SELF_EMAIL = <%- JSON.stringify(String(user.email || "").toLowerCase()) %>;
+  const SELF_EMAIL = <%- safeJson(String(user.email || "").toLowerCase()) %>;
   const adminCheck = document.getElementById("new-officer-admin");
 
   function esc(v) {
