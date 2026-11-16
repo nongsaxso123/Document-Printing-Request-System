@@ -1089,6 +1089,8 @@ const TRANSLATIONS = {
   "detail.confirmDateLabel": { th: "วันที่รับเอกสารจริง (ยืนยัน/ปรับ)", en: "Confirmed Completion Date" },
   "detail.approveBtn": { th: "อนุมัติและรับต้นฉบับ", en: "Approve and Receive Master" },
   "detail.rejectTitle": { th: "ปฏิเสธคำขอ", en: "Reject Request" },
+  "detail.bar.approve": { th: "ไปอนุมัติ", en: "Go to approve" },
+  "detail.bar.reject": { th: "ปฏิเสธ", en: "Reject" },
   "detail.rejectHint": { th: "ใช้เมื่อเอกสารต้นฉบับไม่ตรงกับสเปกที่ยื่นไว้ในระบบ", en: "Use this when the physical originals do not match the submitted specification." },
   "detail.rejectReasonLabel": { th: "เหตุผลที่ปฏิเสธ *", en: "Rejection Reason *" },
   "detail.rejectReasonPlaceholder": { th: "เช่น จำนวนหน้าต้นฉบับไม่ตรงกับที่ระบุไว้", en: "e.g. Original page count does not match what was submitted" },

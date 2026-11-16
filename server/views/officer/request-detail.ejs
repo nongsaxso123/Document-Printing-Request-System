@@ -214,6 +214,13 @@
       </div>
     </div>
 
+    <!-- Phones/tablets: the approve card sits at the very bottom, so while it
+         is off screen this bar offers a way to it. It only scrolls there:
+         approving needs the confirmed date, which is set in the card. -->
+    <div class="rd-mobile-bar" id="rd-mobile-bar" hidden>
+      <button type="button" class="btn btn-secondary" id="rd-bar-reject" data-i18n="detail.bar.reject">ปฏิเสธ</button>
+      <button type="button" class="btn btn-primary" id="rd-bar-approve" data-i18n="detail.bar.approve">ไปอนุมัติ</button>
+    </div>
   </main>
 
 <%- include("../partials/foot") %>
@@ -356,6 +363,32 @@
       hideProcessing();
       btn.disabled = false;
     }
+  });
+
+  // ---- mobile bar: shown while the approve card is off screen ----
+  const mobileBar = document.getElementById("rd-mobile-bar");
+  // .app-main has an entrance transform, which would pin a fixed bar to it
+  document.body.appendChild(mobileBar);
+  const actionCard = document.querySelector("#action-panels .card");
+  let cardInView = true;
+  function syncMobileBar() {
+    const awaiting = document.getElementById("action-panels").style.display !== "none";
+    mobileBar.hidden = !awaiting || cardInView || !window.matchMedia("(max-width: 1000px)").matches;
+  }
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) { cardInView = entries[0].isIntersecting; syncMobileBar(); }, { threshold: 0.35 }).observe(actionCard);
+  }
+  window.addEventListener("resize", syncMobileBar);
+  function goToCard(then) {
+    actionCard.scrollIntoView({ behavior: "smooth", block: "center" });
+    actionCard.classList.remove("rd-flash"); void actionCard.offsetWidth; actionCard.classList.add("rd-flash");
+    if (then) setTimeout(then, 450);
+  }
+  document.getElementById("rd-bar-approve").addEventListener("click", function () { goToCard(); });
+  document.getElementById("rd-bar-reject").addEventListener("click", function () {
+    const box = document.getElementById("reject-box");
+    if (box.hidden) document.getElementById("reject-toggle").click();
+    goToCard(function () { document.getElementById("reject-reason").focus({ preventScroll: true }); });
   });
 
   // Reject is the exception path, so its form stays tucked away until asked for.
