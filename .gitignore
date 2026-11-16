@@ -6,8 +6,13 @@ node_modules/
 .env.*
 !.env.example
 
-# Claude Code local-only settings (personal tool-permission allowlist)
-.claude/settings.local.json
+# AI assistant (Claude Code) settings and notes: local only, not part of the system
+/.claude/
+/CLAUDE.md
+
+# Mock-data generators for local testing only. generate-demo-data.js wipes
+# every request, so it must never reach the production server.
+server/scripts/generate-demo-*.js
 
 # OS / editor junk
 Thumbs.db

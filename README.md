@@ -46,8 +46,6 @@ docker compose exec app npx prisma migrate deploy
 
 Go to http://localhost:3000. While developing, the server restarts by itself whenever you change something in `server/src`.
 
-For sample data to look at on the dashboard, run `docker compose exec app node scripts/generate-demo-data.js`. Be careful: it deletes every existing request first.
-
 To change the database structure, edit `server/prisma/schema.prisma` and run `docker compose exec app npx prisma migrate dev --name <name>`.
 
 ## Putting it on a server
