@@ -50,7 +50,13 @@ To change the database structure, edit `server/prisma/schema.prisma` and run `do
 
 ## Putting it on a server
 
-It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough. Install Docker with `sudo bash deploy/install-docker.sh`, fill in `server/.env` (domain name, database password, Google OAuth credentials), then run `bash deploy/deploy.sh`. Caddy gets the HTTPS certificate for you.
+It targets Ubuntu with Docker, and a machine with 2GB of RAM is enough.
+
+1. Install Docker: `sudo bash deploy/install-docker.sh`
+2. Put the production settings file at `server/.env`. It is handed over separately and is never in Git. `server/.env.example` lists every key.
+3. Start or update: `bash deploy/deploy.sh`. It checks the settings first, builds the app, applies database migrations and starts it. `bash deploy/deploy.sh logs` follows the log.
+
+Caddy listens on plain HTTP port 80 behind the university reverse proxy, which handles HTTPS for the domain. Put the proxy's IP address in `TRUSTED_PROXIES` so the app sees each visitor's real IP.
 
 ## About the data
 

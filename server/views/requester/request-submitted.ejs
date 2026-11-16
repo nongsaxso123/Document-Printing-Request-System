@@ -4,8 +4,8 @@
 
   <main class="app-main">
     <div class="no-print">
-      <h1 class="page-title" data-i18n="submitted.title">ส่งคำขอสำเร็จ</h1>
-      <p class="page-subtitle" data-i18n="submitted.subtitle">กรุณานำใบคำขอด้านล่างไปแสดงต่อเจ้าหน้าที่พร้อมกับเอกสารต้นฉบับ</p>
+      <h1 class="page-title" id="submitted-title" data-i18n="submitted.title">ส่งคำขอสำเร็จ</h1>
+      <p class="page-subtitle" id="submitted-subtitle" data-i18n="submitted.subtitle">กรุณานำใบคำขอด้านล่างไปแสดงต่อเจ้าหน้าที่พร้อมกับเอกสารต้นฉบับ</p>
 
       <div class="handoff handoff-warning" id="deadline-notice">
         <div class="handoff-head">
@@ -210,8 +210,28 @@
     return { date: deadlineDate, sameDay };
   }
 
+  // Heading and line under it follow the request as it moves on, since this
+  // page is also where "My requests" links to later on.
+  const HEAD_KEYS = {
+    awaiting: ["submitted.title", "submitted.subtitle"],
+    printing: ["submitted.head.printing", "submitted.sub.printing"],
+    ready: ["submitted.head.ready", "submitted.sub.ready"],
+    completed: ["submitted.head.completed", "submitted.sub.completed"],
+    rejected: ["submitted.head.rejected", "submitted.sub.rejected"],
+    cancelled: ["submitted.head.cancelled", "submitted.sub.cancelled"]
+  };
+  function renderHeading() {
+    const keys = HEAD_KEYS[data.statusCode] || HEAD_KEYS.awaiting;
+    [["submitted-title", keys[0]], ["submitted-subtitle", keys[1]]].forEach(function (pair) {
+      const el = document.getElementById(pair[0]);
+      el.setAttribute("data-i18n", pair[1]); // so a language switch keeps the right text
+      el.textContent = t(pair[1]);
+    });
+  }
+
   function render() {
     const lang = getLang();
+    renderHeading();
     renderDeadlineNotice(lang);
     renderPrintForm(data);
     // Edit and cancel are both only possible while the request is still
