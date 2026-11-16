@@ -409,6 +409,21 @@ function translateValueEn(value) {
 /** "Thai (English)" for the print form's bilingual body text — omits the
  * parenthetical when there's no distinct English form (free text, or a
  * value like "A4" that reads the same in both languages). */
+/** A unit is stored on requests as "<Thai> (<English>)". Split it so the
+ * screen can show one language. A name typed by the requester (no English
+ * part, or Thai inside the brackets) is used as-is for both. */
+function splitUnitName(stored) {
+  const s = stored == null ? "" : String(stored);
+  const m = /^(.*\S)\s*\(([^()]*)\)\s*$/.exec(s);
+  if (m && m[2].trim() && !/[฀-๿]/.test(m[2])) return { th: m[1], en: m[2].trim() };
+  return { th: s, en: s };
+}
+/** The unit in the current language. */
+function unitDisplay(stored) {
+  const u = splitUnitName(stored);
+  return pickLang(u.th, u.en);
+}
+
 function bilingual(th, en) {
   return en && en !== th ? `${th} (${en})` : th;
 }
@@ -468,7 +483,8 @@ function renderPrintForm(record) {
 
   document.getElementById("pf-name").textContent = record.requesterName;
   document.getElementById("pf-tel").textContent = record.tel;
-  document.getElementById("pf-unit").textContent = record.unit;
+  const unitName = splitUnitName(record.unit);
+  pfSetBi(document.getElementById("pf-unit"), unitName.th, unitName.en);
   pfSetBi(document.getElementById("pf-unit-type"), record.unitType, record.unitTypeNameEn || UNIT_TYPE_EN[record.unitType]);
 
   pfSetBi(document.getElementById("pf-documenttype"), record.documentType, translateValueEn(record.documentType));

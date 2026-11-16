@@ -258,7 +258,7 @@
     document.getElementById("d-unit-type").textContent = lang === "en"
       ? (record.unitTypeNameEn || record.unitType)
       : record.unitType;
-    document.getElementById("d-unit").textContent = record.unit;
+    document.getElementById("d-unit").textContent = unitDisplay(record.unit);
     document.getElementById("d-tel").textContent = record.tel;
     document.getElementById("d-dropoff-location").textContent = record.dropoffLocation ? formatLocation(record.dropoffLocation, lang) : "—";
     document.getElementById("d-pickup-row").style.display = record.pickupLocation ? "" : "none";
