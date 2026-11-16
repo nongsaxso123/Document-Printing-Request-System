@@ -412,6 +412,10 @@
     title.textContent = text;
   }
 
+  // Leaving the page with an open, edited form asks first (guardUnsavedChanges in app.js).
+  let formSnap = null;
+  guardUnsavedChanges(function () { return formSnap !== null && !formCard.hidden && formSnapshot(locationForm) !== formSnap; });
+
   function openForm(loc) {
     clearFormError();
     hideBanner();
@@ -431,11 +435,13 @@
     formCard.hidden = false;
     formCard.scrollIntoView({ behavior: "smooth", block: "start" });
     byId("loc-nameTh").focus({ preventScroll: true });
+    formSnap = formSnapshot(locationForm);
   }
 
   function closeForm() {
     formCard.hidden = true;
     editingId = null;
+    formSnap = null;
     clearFormError();
   }
 

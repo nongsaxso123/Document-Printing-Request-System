@@ -260,6 +260,13 @@
       : t("adminUnits.unitForm.addTitle");
   }
 
+  // Leaving the page with an open, edited form asks first (guardUnsavedChanges in app.js).
+  let categorySnap = null, unitSnap = null;
+  guardUnsavedChanges(function () {
+    return (categorySnap !== null && !categoryFormCard.hidden && formSnapshot(categoryForm) !== categorySnap) ||
+      (unitSnap !== null && !unitFormCard.hidden && formSnapshot(unitForm) !== unitSnap);
+  });
+
   function openCategoryForm(category) {
     clearCategoryError();
     hideBannerNow();
@@ -274,6 +281,7 @@
     categoryFormCard.hidden = false;
     revealForm(categoryFormCard);
     byId("category-nameTh").focus({ preventScroll: true });
+    categorySnap = formSnapshot(categoryForm);
   }
 
   // Guide the eye: open form → scroll to it and pulse its border; save or
@@ -320,6 +328,7 @@
 
   function closeCategoryForm() {
     categoryFormCard.hidden = true;
+    categorySnap = null;
     editingCategoryId = null;
     clearCategoryError();
   }
@@ -523,10 +532,12 @@
     unitFormCard.hidden = false;
     revealForm(unitFormCard);
     byId("unit-nameTh").focus({ preventScroll: true });
+    unitSnap = formSnapshot(unitForm);
   }
 
   function closeUnitForm() {
     unitFormCard.hidden = true;
+    unitSnap = null;
     editingUnitId = null;
     clearUnitError();
   }

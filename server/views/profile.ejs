@@ -276,16 +276,21 @@
       // than silently claiming success or leaving stale ids in the form.
       hideSaveIcon();
       saveBtn.disabled = false;
-      showActionResult(false, t("profile.saveError"), { onClose: function () { window.location.reload(); } });
+      showActionResult(false, t("profile.saveError"), { onClose: function () { savedSnap = null; window.location.reload(); } });
       return;
     }
+    savedSnap = formSnapshot(form);
     showSaveCheckmark();
     showActionResult(true, t("profile.saveSuccess"));
     savedMsg.style.display = "inline";
     setTimeout(function () { savedMsg.style.display = "none"; }, 10000);
   });
 
-  loadProfile();
+  // Leaving with edits that were not saved asks first (guardUnsavedChanges in app.js).
+  // The baseline is the form as loaded, then as last saved.
+  let savedSnap = null;
+  guardUnsavedChanges(function () { return savedSnap !== null && formSnapshot(form) !== savedSnap; });
+  loadProfile().catch(function () {}).then(function () { savedSnap = formSnapshot(form); });
 </script>
 </body>
 </html>

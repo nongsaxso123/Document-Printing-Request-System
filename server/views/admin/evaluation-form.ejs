@@ -154,7 +154,15 @@
   byId("window-form").addEventListener("change", updateWindowDirty);
 
   // Leaving with unsaved changes asks first (see guardUnsavedChanges in app.js).
-  guardUnsavedChanges(isWindowDirty, "evalForm.leaveTitle");
+  // An open section/question editor with typed changes counts too.
+  let editorSnap = null;
+  function isEditorDirty() {
+    const ed = byId("ef-editor");
+    return !!(editing && ed && editorSnap !== null && formSnapshot(ed) !== editorSnap);
+  }
+  function snapEditor() { const ed = byId("ef-editor"); editorSnap = ed ? formSnapshot(ed) : null; }
+  guardUnsavedChanges(function () { return isWindowDirty() || isEditorDirty(); },
+    function () { return isWindowDirty() ? "evalForm.leaveTitle" : "unsaved.leaveTitle"; });
 
   // Same rule as evaluationForm.deadlineFor (months are calendar months).
   function addWindow(from, value, unit) {
@@ -441,12 +449,14 @@
   function openSectionEditor(id) {
     editing = { kind: "section", id: id };
     render();
+    snapEditor();
   }
   function openQuestionEditor(id, sectionId) {
     const q = id != null ? findQuestion(id) : null;
     editing = { kind: "question", id: id, sectionId: q ? q.sectionId : sectionId, type: q ? q.type : "rating" };
     draftOptions = q && q.options.length ? q.options.map(function (o) { return { key: o.key, th: o.th, en: o.en }; }) : [{ th: "", en: "" }, { th: "", en: "" }];
     render();
+    snapEditor();
   }
 
   // ---------------------------------------------------------------- saving

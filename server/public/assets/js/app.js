@@ -2446,6 +2446,14 @@ function hideProcessing() {
  * browser's prompt (its wording can't be changed).
  * isDirty: () => boolean. titleKey: i18n key for the dialog title.
  */
+// Every field of a form as one string, to tell later whether anything changed:
+//   const snap = formSnapshot(form); ... formSnapshot(form) !== snap
+function formSnapshot(form) {
+  return JSON.stringify(Array.from(form.querySelectorAll("input, select, textarea")).map(function (el) {
+    return (el.type === "checkbox" || el.type === "radio") ? el.checked : el.value;
+  }));
+}
+
 function guardUnsavedChanges(isDirty, titleKey) {
   let leaving = false;
   document.addEventListener("click", function (e) {
@@ -2456,7 +2464,7 @@ function guardUnsavedChanges(isDirty, titleKey) {
     if (!href || href.charAt(0) === "#" || /^javascript:/i.test(href)) return;
     e.preventDefault();
     showConfirmModal({
-      title: t(titleKey || "unsaved.leaveTitle"),
+      title: t((typeof titleKey === "function" ? titleKey() : titleKey) || "unsaved.leaveTitle"),
       message: t("unsaved.leaveMessage"),
       confirmText: t("unsaved.leaveConfirm"),
       cancelText: t("unsaved.leaveStay"),
