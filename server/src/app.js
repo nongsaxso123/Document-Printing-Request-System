@@ -52,7 +52,17 @@ app.disable("etag"); // dev/demo instance — always serve fresh content on relo
 // bypasses the MFU proxy: Caddy only keeps X-Forwarded-For from
 // TRUSTED_PROXIES and overwrites it for everyone else. Left off in dev,
 // where the app is hit directly on :3000.
-if (process.env.NODE_ENV === "production") app.set("trust proxy", 2);
+// TRUST_PROXY_HOPS = how many proxies sit in front of the app. Set it to 1
+// if Caddy is removed and the MFU proxy forwards straight to the app;
+// leaving 2 there would let a user fake their IP via X-Forwarded-For.
+if (process.env.NODE_ENV === "production") {
+  const hops = Number.parseInt(process.env.TRUST_PROXY_HOPS || "2", 10);
+  if (!Number.isInteger(hops) || hops < 1) {
+    console.error("TRUST_PROXY_HOPS must be a whole number of 1 or more (got " + JSON.stringify(process.env.TRUST_PROXY_HOPS) + ").");
+    process.exit(1);
+  }
+  app.set("trust proxy", hops);
+}
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../views"));
 app.locals.icon = icon; // every EJS view can call icon('name') — see src/icons.js
