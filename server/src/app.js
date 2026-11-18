@@ -68,6 +68,37 @@ app.locals.safeJson = function safeJson(value) {
 app.use(express.static(path.join(__dirname, "../public")));
 app.use(express.urlencoded({ extended: false }));
 
+// CSRF guard. sameSite=lax already stops other websites from sending our
+// cookie on a POST, but browsers treat every *.mfu.ac.th site as the "same
+// site", so a hacked page elsewhere on the university domain could still
+// make a signed-in user's browser change things here. Every state-changing
+// request (and /logout, which is a plain link) must come from one of our
+// own pages:
+// - Sec-Fetch-Site is set by the browser itself and can't be faked by a
+//   page: "same-origin" = our page, "none" = typed/bookmarked by the user.
+// - Older browsers without it: fall back to the Origin header, compared to
+//   the public address taken from GOOGLE_CALLBACK_URL (not the Host header,
+//   which a reverse proxy may rewrite).
+// - Neither header (curl, scripts): allowed. CSRF needs a victim's browser,
+//   and every browser sends at least one of them.
+const PUBLIC_ORIGIN = new URL(process.env.GOOGLE_CALLBACK_URL).origin;
+app.use(function (req, res, next) {
+  const changesState = !["GET", "HEAD", "OPTIONS"].includes(req.method) || req.path === "/logout";
+  if (!changesState) return next();
+  const site = req.get("Sec-Fetch-Site");
+  const origin = req.get("Origin");
+  let ok;
+  if (site) ok = site === "same-origin" || (site === "none" && req.method === "GET");
+  else if (origin) ok = origin === PUBLIC_ORIGIN || origin === req.protocol + "://" + req.get("host");
+  else ok = true;
+  if (ok) return next();
+  console.warn("[csrf] blocked", req.method, req.path, "site=" + (site || "-"), "origin=" + (origin || "-"));
+  res.status(403).type("text/plain; charset=utf-8").send(
+    "คำขอนี้ไม่ได้มาจากหน้าเว็บของระบบ จึงถูกปฏิเสธ กรุณากลับไปที่หน้าระบบแล้วลองใหม่\n" +
+    "This request did not come from this site's own pages, so it was refused. Please go back to the site and try again."
+  );
+});
+
 app.use(session({
   store: new PgSession({
     pool: new Pool({ connectionString: process.env.DATABASE_URL }),
