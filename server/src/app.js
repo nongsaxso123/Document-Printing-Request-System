@@ -30,7 +30,22 @@ const manuals = require("./manuals");
 
 const PORT = process.env.PORT || 3000;
 
-for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SESSION_SECRET", "GOOGLE_CALLBACK_URL", "DATABASE_URL"]) {
+// Demo copy (made-up data, one-click role buttons, see auth.js DEMO_MODE).
+// Refuse outright on anything that looks like the real university server,
+// whichever way it was deployed.
+if (auth.DEMO_MODE) {
+  const where = [process.env.DOMAIN, process.env.GOOGLE_CALLBACK_URL, process.env.PUBLIC_URL].join(" ").toLowerCase();
+  if (where.includes("mfu.ac.th")) {
+    console.error("DEMO_MODE=true is not allowed on a mfu.ac.th address. Remove DEMO_MODE from .env.");
+    process.exit(1);
+  }
+  console.warn("⚠️  DEMO_MODE=true: anyone can sign in as requester/officer/admin with one click. Demo data only.");
+}
+
+const requiredEnv = auth.DEMO_MODE
+  ? ["SESSION_SECRET", "DATABASE_URL"]
+  : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SESSION_SECRET", "GOOGLE_CALLBACK_URL", "DATABASE_URL"];
+for (const key of requiredEnv) {
   if (!process.env[key]) {
     console.error(`Missing ${key} in .env — copy .env.example to .env and fill it in.`);
     process.exit(1);
@@ -92,7 +107,9 @@ app.use(express.urlencoded({ extended: false }));
 //   which a reverse proxy may rewrite).
 // - Neither header (curl, scripts): allowed. CSRF needs a victim's browser,
 //   and every browser sends at least one of them.
-const PUBLIC_ORIGIN = new URL(process.env.GOOGLE_CALLBACK_URL).origin;
+// A demo copy may have no Google callback; the request's own host is then
+// the only allowed origin.
+const PUBLIC_ORIGIN = process.env.GOOGLE_CALLBACK_URL ? new URL(process.env.GOOGLE_CALLBACK_URL).origin : null;
 app.use(function (req, res, next) {
   const changesState = !["GET", "HEAD", "OPTIONS"].includes(req.method) || req.path === "/logout";
   if (!changesState) return next();
@@ -241,7 +258,9 @@ app.get("/", async function (req, res, next) {
       // The "user manual" link only shows once the admin has uploaded one.
       hasRequesterManual: (await manuals.listInfo()).some((m) => m.id.startsWith("requester-")),
       // Registrar Division contact, editable at /admin/settings.
-      contact: await settings.get()
+      contact: await settings.get(),
+      demoMode: auth.DEMO_MODE,
+      returnTo: safeReturnTo(req.query.returnTo) || ""
     });
   } catch (err) { next(err); }
 });
@@ -290,9 +309,17 @@ app.get("/manual/:audience/:lang", async function (req, res, next) {
 // behind one campus NAT address may sign in at the start of a class.
 const loginLimiter = createLimiter({ windowMs: 5 * 60 * 1000, max: 60 });
 
+function safeReturnTo(returnTo) {
+  return typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
+}
+
 app.get("/auth/google", loginLimiter, function (req, res, next) {
-  const returnTo = req.query.returnTo;
-  req.session.returnTo = typeof returnTo === "string" && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
+  // Demo copy without Google: the role buttons on the login page sign in instead.
+  if (auth.DEMO_MODE && !process.env.GOOGLE_CLIENT_ID) {
+    const back = safeReturnTo(req.query.returnTo);
+    return res.redirect(back ? "/?returnTo=" + encodeURIComponent(back) : "/");
+  }
+  req.session.returnTo = safeReturnTo(req.query.returnTo);
   passport.authenticate("google", { scope: ["profile", "email"] })(req, res, next);
 });
 
@@ -325,6 +352,23 @@ app.get("/auth/google/callback", loginLimiter,
   }
 );
 
+// Demo copy only: one-click sign-in as a fixed demo account per role.
+if (auth.DEMO_MODE) {
+  app.post("/auth/demo", loginLimiter, function (req, res, next) {
+    const account = auth.DEMO_ACCOUNTS[req.body.role];
+    if (!account) return res.redirect("/");
+    auth.resolveRole(account.email).then(function (role) {
+      const user = { email: account.email, name: account.name, picture: null, isRealAllowedDomain: true, role: role };
+      req.logIn(user, function (err) {
+        if (err) return next(err);
+        req.session.loginAt = Date.now();
+        audit.record({ actorEmail: user.email, action: "auth.login", entityType: "auth", entityLabel: user.role });
+        res.redirect(safeReturnTo(req.body.returnTo) || "/");
+      });
+    }).catch(next);
+  });
+}
+
 app.get("/logout", function (req, res) {
   if (req.user) audit.record({ actorEmail: req.user.email, action: "auth.logout", entityType: "auth", entityLabel: req.user.role });
   req.logout(function () {
@@ -354,4 +398,7 @@ app.listen(PORT, function () {
   ensureDefaults(prisma)
     .then((filled) => { if (filled.length) console.log("Filled empty reference tables with defaults:", filled.join(", ")); })
     .catch((err) => console.error("[defaults] could not fill defaults:", err.message));
+  if (auth.DEMO_MODE) {
+    auth.ensureDemoAccounts().catch((err) => console.error("[demo] could not create demo accounts:", err.message));
+  }
 });

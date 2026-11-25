@@ -30,6 +30,33 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
+// DEMO_MODE: a separate showcase copy with made-up data only (for the
+// project advisor). The login page then shows one button per role instead
+// of Google sign-in. app.js refuses to start in this mode on a real
+// mfu.ac.th address, so it can never be switched on in production.
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+const DEMO_ACCOUNTS = {
+  requester: { email: "requester.demo@mfu.ac.th", name: "ผู้ขอ ทดลอง" },
+  officer: { email: "officer.demo@mfu.ac.th", name: "เจ้าหน้าที่ ทดลอง" },
+  admin: { email: "admin.demo@mfu.ac.th", name: "ผู้ดูแลระบบ ทดลอง" }
+};
+
+// Makes sure the demo officer/admin accounts exist (Officer rows), so the
+// roles come from the normal resolveRole path below.
+async function ensureDemoAccounts() {
+  const rows = [
+    { ...DEMO_ACCOUNTS.officer, isAdmin: false },
+    { ...DEMO_ACCOUNTS.admin, isAdmin: true }
+  ];
+  for (const r of rows) {
+    await prisma.officer.upsert({
+      where: { email: r.email },
+      create: { email: r.email, name: r.name, assignedBy: "demo-setup", isAdmin: r.isAdmin },
+      update: { isAdmin: r.isAdmin }
+    });
+  }
+}
+
 // Admin comes from either ADMIN_EMAILS (server .env — the fallback that can
 // never be locked out from inside the app) or an Officer row with isAdmin,
 // granted at /admin/officers. app.js re-runs this on every request, so a
@@ -43,6 +70,12 @@ async function resolveRole(email) {
 }
 
 function configure(passport) {
+  passport.serializeUser(function (user, done) { done(null, user); });
+  passport.deserializeUser(function (user, done) { done(null, user); });
+
+  // A demo copy may run without a Google OAuth client at all.
+  if (DEMO_MODE && !process.env.GOOGLE_CLIENT_ID) return;
+
   passport.use(new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
@@ -82,9 +115,6 @@ function configure(passport) {
       }
     }
   ));
-
-  passport.serializeUser(function (user, done) { done(null, user); });
-  passport.deserializeUser(function (user, done) { done(null, user); });
 }
 
 // Not signed in (logged out, session expired) → back to the login page.
@@ -177,4 +207,7 @@ const officers = {
   }
 };
 
-module.exports = { configure, requireAdmin, requireRole, resolveRole, officers, ALLOWED_EMAIL_DOMAIN };
+module.exports = {
+  configure, requireAdmin, requireRole, resolveRole, officers, ALLOWED_EMAIL_DOMAIN,
+  DEMO_MODE, DEMO_ACCOUNTS, ensureDemoAccounts
+};

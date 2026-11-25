@@ -38,6 +38,7 @@ case "$(val ADMIN_EMAILS)" in name.surname@*) problems+=("ADMIN_EMAILS ยัง
   || problems+=("GOOGLE_CALLBACK_URL ต้องเป็น https://$(val DOMAIN)/auth/google/callback")
 [ "$(val ALLOW_LAMDUAN_FOR_TESTING)" != "true" ] || problems+=("ALLOW_LAMDUAN_FOR_TESTING ต้องเป็น false (นักศึกษาจะเข้าได้)")
 [ -z "$(val TEST_ALLOWED_EMAILS)" ] || problems+=("TEST_ALLOWED_EMAILS ต้องว่าง (อีเมลทดสอบจะเข้าได้)")
+[ "$(val DEMO_MODE)" != "true" ] || problems+=("DEMO_MODE ต้องเป็น false หรือลบออก (ใครก็เข้าเป็นผู้ดูแลระบบได้)")
 
 if [ ${#problems[@]} -gt 0 ]; then
   echo "❌ แก้ server/.env ก่อน (nano server/.env):"
