@@ -575,6 +575,9 @@ body:has(.profile-savebar) .manual-fab,
 body:has(.submitted-actions) .manual-fab,
 body:has(.rd-mobile-bar:not([hidden])) .manual-fab,
 body:has(.loc-form-card:not([hidden])) .manual-fab { bottom: 96px; }
+/* New/edit request: the summary card turns into a bottom bar at 900px and
+   below (see .request-summary), and the button must not cover "Submit". */
+@media (max-width: 900px) { body:has(.request-summary) .manual-fab { bottom: 120px; } }
 .manual-fab-btn {
   width: 48px;
   height: 48px;
@@ -3420,6 +3423,16 @@ p.hint { margin: 0; }
     line-height: 1.3;
     color: #1a1a1a;
   }
+  /* iPhone/iPad (Safari, and every iOS browser, which all run on WebKit):
+     printing ignores "@page { margin: 0 }" and adds its own page margins on
+     top of our 15mm body padding, so the page-filling 265mm form spilled
+     onto a 2nd page. There, drop our padding (iOS supplies the margins)
+     and let the form take its natural height. -webkit-touch-callout is
+     only supported by iOS WebKit, so desktop and Android are unaffected. */
+  @supports (-webkit-touch-callout: none) {
+    body { padding: 0 !important; }
+    .print-doc { min-height: 0; }
+  }
 
   .print-header {
     display: flex;
@@ -4439,10 +4452,22 @@ tr.row-flash td { animation: loc-row-flash 3s ease-out both; }
 .ef-page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 20px; flex-wrap: wrap; }
 .ef-preview-btn { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .ef-preview-btn .icon { width: 17px; height: 17px; }
+/* Officer "full request form" page: title left, PDF/Print right; stacked on phones. */
+.rfv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.rfv-head h1 { overflow-wrap: anywhere; }
+.rfv-actions { display: flex; gap: 10px; }
+@media (max-width: 640px) {
+  .rfv-head { flex-direction: column; align-items: stretch; }
+  .rfv-actions .btn { flex: 1 1 0; justify-content: center; }
+}
 .ef-preview-banner { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .ef-preview-banner > div { flex: 1; min-width: 0; }
 .ef-preview-banner .btn { white-space: nowrap; }
-@media (max-width: 640px) { .ef-preview-banner { flex-wrap: wrap; } }
+@media (max-width: 640px) {
+  .ef-preview-banner { flex-wrap: wrap; }
+  .ef-preview-banner > div { flex-basis: calc(100% - 40px); }
+  .ef-preview-banner .btn { flex: 1 1 100%; }
+}
 /* "Time to evaluate" card: choice → amount → plain-words example → hint,
    with Save in the card's footer like the other admin forms. */
 .ef-window { display: flex; flex-direction: column; gap: 16px; }

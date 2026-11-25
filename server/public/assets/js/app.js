@@ -3259,6 +3259,7 @@ function initFilterCollapse(opts) {
 (function () {
   let openPanel = null;
   const SEARCH_FROM = 15;
+  const TOUCH = window.matchMedia("(hover: none) and (pointer: coarse)");
 
   function labelOf(opt) { return (opt.textContent || "").replace(/\s+/g, " ").trim(); }
 
@@ -3378,10 +3379,12 @@ function initFilterCollapse(opts) {
           if (e.key === "ArrowDown") { e.preventDefault(); const f = panel.querySelector(".dd-opt:not(:disabled)"); if (f) f.focus(); }
           else if (e.key === "Enter") { e.preventDefault(); const f = panel.querySelector(".dd-opt:not(:disabled)"); if (f) f.click(); }
         });
-        search.focus();
+        // Not on touch screens: the keyboard would pop up over the list
+        // (and resize the page) before anyone could tap an option.
+        if (!TOUCH.matches) search.focus();
       }
       const chosen = panel.querySelector(".dd-opt.is-selected:not(:disabled)") || panel.querySelector(".dd-opt:not(:disabled)");
-      if (chosen) { chosen.scrollIntoView({ block: "nearest" }); if (!search) chosen.focus(); }
+      if (chosen) { chosen.scrollIntoView({ block: "nearest" }); if (!search && !TOUCH.matches) chosen.focus(); }
     }
 
     function close(focus) {
@@ -3458,7 +3461,16 @@ function initFilterCollapse(opts) {
     const r = openPanel.wrap.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight) openPanel.close(); else openPanel.place();
   }, true);
-  window.addEventListener("resize", () => { if (openPanel) openPanel.close(); });
+  // A width change (rotating the phone) closes the panel. A height-only
+  // change is the on-screen keyboard opening for the search box: keep the
+  // panel open and move it, or it would close the moment someone taps "search".
+  let lastWidth = innerWidth;
+  window.addEventListener("resize", () => {
+    const widthChanged = innerWidth !== lastWidth;
+    lastWidth = innerWidth;
+    if (!openPanel) return;
+    if (widthChanged) openPanel.close(); else openPanel.place();
+  });
   document.addEventListener("odprs:langchange", () => {
     document.querySelectorAll("select").forEach((s) => { if (s.__dd) s.__dd.sync(); });
     if (openPanel) openPanel.close();
