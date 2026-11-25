@@ -4325,6 +4325,10 @@ tr.row-flash td { animation: loc-row-flash 3s ease-out both; }
   .print-doc .print-approval-table tr { display: contents; }
   .print-doc .print-approval-table th,
   .print-doc .print-approval-table td { display: block; width: auto; }
+  /* The 44px from the screen rule above is only a minimum inside a table;
+     on a block it is a fixed height, and the sign-off lines spilled over
+     the Receiver box. Grow with the content instead. */
+  .print-doc .print-approval-table td { height: auto; }
   .print-doc .print-approval-table tr:first-child > :nth-child(1) { order: 1; }
   .print-doc .print-approval-table tr:last-child > :nth-child(1) { order: 2; margin-bottom: 10px; }
   .print-doc .print-approval-table tr:first-child > :nth-child(2) { order: 3; }

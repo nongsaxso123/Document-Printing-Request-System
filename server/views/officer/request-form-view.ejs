@@ -20,7 +20,7 @@
             <span class="icon" data-icon="download"><%- icon('download') %></span>
             <span data-i18n="submitted.downloadPdfBtn">ดาวน์โหลด PDF</span>
           </a>
-          <button class="btn btn-primary" onclick="window.print()">
+          <button class="btn btn-primary" onclick="printRequestForm('/officer/request-form-view/pdf?ref=<%= encodeURIComponent(ref) %>')">
             <span class="icon" data-icon="printer"><%- icon('printer') %></span>
             <span data-i18n="submitted.printBtn">พิมพ์ใบคำขอ</span>
           </button>

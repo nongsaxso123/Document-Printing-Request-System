@@ -92,7 +92,8 @@ router.get("/request-form-view/pdf", async (req, res, next) => {
     const buffer = await pdf.renderPagePdf(`/officer/request-form-view?ref=${encodeURIComponent(ref)}`, req.headers.cookie);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${record.referenceNo}.pdf"`
+      // ?inline=1 opens it in the browser instead (the iPhone "Print" button, see printRequestForm in app.js)
+      "Content-Disposition": `${req.query.inline ? "inline" : "attachment"}; filename="${record.referenceNo}.pdf"`
     });
     res.send(buffer);
   } catch (err) {
