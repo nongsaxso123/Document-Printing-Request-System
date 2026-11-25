@@ -340,6 +340,10 @@
           </div>
         </div>
       </div>
+      <p class="privacy-note">
+        <span data-i18n="privacy.formNote">ข้อมูลในคำขอใช้เพื่อดำเนินการพิมพ์และส่งมอบเอกสารเท่านั้น</span>
+        <a href="/privacy" target="_blank" rel="noopener" data-i18n="privacy.formLink">อ่านประกาศความเป็นส่วนตัว</a>
+      </p>
       </div>
 
         <aside class="request-summary">
@@ -1004,7 +1008,12 @@
       err.setAttribute("role", "alert");
       err.innerHTML = '<span class="icon">' + ICONS["alert-circle"] + '</span><span class="field-error-text"></span>';
       const control = field === dateField ? datePicker : (fieldControls(field)[0] || field.lastElementChild);
-      const anchor = control.closest(".radio-group") || control;
+      // Insert as a direct child of the field, after whatever wraps the
+      // control (a radio group, or the custom dropdown's .dd box around a
+      // <select>). Inserted inside a wrapper, the ":scope >" lookup above
+      // never found it again, so every change added another copy.
+      let anchor = control;
+      while (anchor.parentElement && anchor.parentElement !== field) anchor = anchor.parentElement;
       anchor.insertAdjacentElement("afterend", err);
     }
     err.setAttribute("data-kind", kind);

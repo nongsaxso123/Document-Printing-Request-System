@@ -9,7 +9,11 @@
     <div class="card filter-panel">
       <div class="card-body">
         <div class="filter-top">
-          <span class="filter-top-title" data-i18n="auditLog.filterHint">กรองตามหมวด ผู้แก้ไข การดำเนินการ หรือช่วงวันที่</span>
+          <div class="filter-search">
+            <span class="icon filter-search-icon" data-icon="search"><%- icon('search') %></span>
+            <input type="text" id="search-input" data-i18n-placeholder="auditLog.searchPlaceholder"
+                   placeholder="ค้นหาอีเมล IP หรือชื่อรายการ">
+          </div>
           <button type="button" class="btn btn-secondary filter-toggle" id="audit-filter-toggle" aria-expanded="false" aria-controls="audit-filter-body">
               <span data-i18n="filter.toggle">ตัวกรอง</span>
               <span class="filter-toggle-count" id="audit-filter-count" hidden></span>
@@ -23,14 +27,6 @@
             <div class="filter-head"><span class="filter-label" data-i18n="filter.category">หมวด</span></div>
             <div class="filter-controls">
               <select id="type-filter" class="toolbar-select"></select>
-            </div>
-          </div>
-          <div class="filter-group">
-            <div class="filter-head"><span class="filter-label" data-i18n="filter.actor">ผู้แก้ไข</span></div>
-            <div class="filter-controls">
-              <select id="actor-filter" class="toolbar-select">
-                <option value="" data-i18n="auditLog.filterActor.all">ผู้แก้ไขทั้งหมด</option>
-              </select>
             </div>
           </div>
 
@@ -108,6 +104,9 @@
     location: "auditLog.type.location", unit_type: "auditLog.type.unitType", unit: "auditLog.type.unit", evaluation_form: "auditLog.type.evaluationForm",
     system: "auditLog.type.system"
   };
+  // Sign-ins and request steps live on their own page (admin/access-log.ejs),
+  // so with no category picked this page still asks only for admin changes.
+  const ALL_TYPES = CATEGORIES.map(function (c) { return c.types; }).join(",");
 
   // action -> [category, i18n key]
   const ACTIONS = {
@@ -194,7 +193,7 @@
 
   const typeFilter = document.getElementById("type-filter");
   const actionFilter = document.getElementById("action-filter");
-  const actorFilter = document.getElementById("actor-filter");
+  const searchInput = document.getElementById("search-input");
   const fromDateInput = document.getElementById("from-date");
   const toDateInput = document.getElementById("to-date");
   const pageSizeSelect = document.getElementById("page-size-select");
@@ -224,15 +223,13 @@
     actionFilter.value = actions.indexOf(keep) >= 0 ? keep : "";
   }
 
-  async function loadActors() {
-    const res = await fetch("/api/admin/audit-log/actors");
-    const actors = res.ok ? await res.json() : [];
-    actors.forEach(function (email) {
-      const opt = document.createElement("option");
-      opt.value = email;
-      opt.textContent = email;
-      actorFilter.appendChild(opt);
-    });
+  // Wait until typing pauses before asking the server again.
+  function debounce(fn, delay) {
+    let timer;
+    return function () {
+      clearTimeout(timer);
+      timer = setTimeout(fn, delay);
+    };
   }
 
   function escHtml(value) {
@@ -285,7 +282,8 @@
       const type = TYPE_LABEL[row.entityType] ? t(TYPE_LABEL[row.entityType]) : row.entityType;
       return "<tr>" +
         '<td style="white-space:nowrap;">' + escHtml(formatDateTime(new Date(row.createdAt), lang)) + "</td>" +
-        "<td>" + escHtml(row.actorEmail) + "</td>" +
+        "<td>" + escHtml(row.actorEmail) +
+          (row.ipAddress ? '<div style="font-size:12px; color:var(--color-muted);">IP ' + escHtml(row.ipAddress) + "</div>" : "") + "</td>" +
         "<td>" + escHtml(action) + "</td>" +
         '<td><span class="audit-type">' + escHtml(type) + "</span>" + escHtml(row.entityLabel && row.entityLabel !== "—" ? row.entityLabel : "") + "</td>" +
         "<td>" + diffHtml(row) + "</td>" +
@@ -301,9 +299,9 @@
     const cat = CATEGORIES.find(function (c) { return c.id === typeFilter.value; });
 
     const params = new URLSearchParams();
-    if (cat) params.set("entityType", cat.types);
+    params.set("entityType", cat ? cat.types : ALL_TYPES);
     if (actionFilter.value) params.set("action", actionFilter.value);
-    if (actorFilter.value) params.set("actorEmail", actorFilter.value);
+    if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
     if (fromDateInput.value) params.set("dateFrom", fromDateInput.value);
     if (toDateInput.value) params.set("dateTo", toDateInput.value);
     params.set("page", currentPage);
@@ -342,7 +340,6 @@
     typeFilter.value = "";
     fillActionOptions();
     actionFilter.value = "";
-    actorFilter.value = "";
     fromDateInput.value = "";
     toDateInput.value = "";
     onFilterChange();
@@ -350,7 +347,7 @@
 
   typeFilter.addEventListener("change", function () { fillActionOptions(); onFilterChange(); });
   actionFilter.addEventListener("change", onFilterChange);
-  actorFilter.addEventListener("change", onFilterChange);
+  searchInput.addEventListener("input", debounce(onFilterChange, 300));
   fromDateInput.addEventListener("change", onFilterChange);
   toDateInput.addEventListener("change", onFilterChange);
   document.getElementById("filter-clear-btn").addEventListener("click", clearFilters);
@@ -361,7 +358,6 @@
     count: function () {
       let n = 0;
       if (typeFilter.value) n++;
-      if (actorFilter.value) n++;
       if (actionFilter.value) n++;
       if (document.getElementById("from-date").value || document.getElementById("to-date").value) n++;
       return n;
@@ -374,7 +370,6 @@
   document.addEventListener("odprs:langchange", function () { fillTypeOptions(); fillActionOptions(); renderRows(); });
   fillTypeOptions();
   fillActionOptions();
-  loadActors();
   loadAuditLog();
 </script>
 </body>

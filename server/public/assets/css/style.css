@@ -841,6 +841,10 @@ body:has(.loc-form-card:not([hidden])) .manual-fab { bottom: 96px; }
 
 .card-footer .btn { min-width: 120px; }
 
+/* PDPA note under the last section of the new-request form (links to /privacy). */
+.privacy-note { margin: 4px 4px 0; font-size: 13px; line-height: 1.6; color: var(--color-muted); }
+.privacy-note a { color: var(--color-primary); white-space: nowrap; }
+
 @media (max-width: 560px) {
   .card-footer { flex-direction: column-reverse; align-items: stretch; }
   .card-footer .btn { width: 100%; }

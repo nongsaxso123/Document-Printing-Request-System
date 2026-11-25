@@ -26,6 +26,7 @@
 const express = require("express");
 const requests = require("../requests");
 const { requireRole } = require("../auth");
+const audit = require("../audit");
 const { createLimiter } = require("../rateLimit");
 
 const router = express.Router();
@@ -97,6 +98,7 @@ router.post("/confirm/:code", requireRole("Officer", "Admin"), claimLookupLimite
     // e.g. a double submit, or somehow no longer READY_FOR_PICKUP) between
     // the lookup above and this confirm.
     if (!updated) return res.status(409).json({ error: "not-ready" });
+    await audit.recordRequest(req.user.email, "handover", record.referenceNo);
     // referenceNo for the success popup — /lookup above doesn't expose it.
     res.json({ ok: true, referenceNo: record.referenceNo });
   } catch (err) { next(err); }

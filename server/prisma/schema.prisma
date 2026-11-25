@@ -490,10 +490,16 @@ model AuditLog {
   entityLabel String?  @map("entity_label")
   before      Json?
   after       Json?
+  // Visitor's IP address (src/audit.js). With actorEmail, action and
+  // createdAt this is the s.26 traffic data: who, what, when, from where.
+  ipAddress   String?  @map("ip_address")
   createdAt   DateTime @default(now()) @map("created_at")
 
+  // Append-only, every row kept at least 90 days: enforced by a database
+  // trigger, see migration 20261126090000_audit_log_ip_and_retention.
   @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([actorEmail, createdAt])
   @@map("audit_log")
 }
 

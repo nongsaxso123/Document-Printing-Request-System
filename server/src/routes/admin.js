@@ -26,6 +26,12 @@ router.get("/audit-log", (req, res) => {
   res.render("admin/audit-log", { user: req.user, active: "adminAuditLog" });
 });
 
+// Sign-ins and request steps (s.26 traffic data), kept apart from the
+// Change History page above, which is only for admin edits.
+router.get("/access-log", (req, res) => {
+  res.render("admin/access-log", { user: req.user, active: "adminAccessLog" });
+});
+
 router.get("/units", (req, res) => {
   res.render("admin/units", { user: req.user, active: "adminUnits" });
 });

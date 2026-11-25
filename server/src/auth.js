@@ -59,7 +59,7 @@ function configure(passport) {
         const isTemporarilyAllowedTestEmail = TEST_ALLOWED_EMAILS.includes(emailLower);
 
         if (!isRealAllowedDomain && !isTemporarilyAllowedLamduan && !isTemporarilyAllowedTestEmail) {
-          return done(null, false, { message: "domain-not-allowed" });
+          return done(null, false, { message: "domain-not-allowed", email: emailLower || undefined });
         }
 
         // Role lookup runs even for the temporary lamduan allowance so the

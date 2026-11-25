@@ -10,7 +10,22 @@
  * duplicate updatedByAdminEmail/updatedAt inside the JSON too.
  */
 
+const { AsyncLocalStorage } = require("node:async_hooks");
 const prisma = require("./prisma");
+
+// The visitor's IP address for whatever HTTP request is running right now,
+// so every audit row records "from where" without each caller having to
+// pass req down (Computer Crime Act s.26 traffic data: who, what, when,
+// from where). app.js wraps each request with context.run({ ip: req.ip }).
+// req.ip is the real client address because app.js sets "trust proxy".
+// Outside a request (a script) there is no store and ipAddress stays null.
+const context = new AsyncLocalStorage();
+function currentIp() {
+  const store = context.getStore();
+  const ip = (store && store.ip) || null;
+  // "::ffff:203.0.113.7" is just an IPv4 address written the IPv6 way.
+  return ip && ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+}
 
 // `tx` lets a caller write the audit row inside its own transaction (so a
 // rolled-back change never leaves a log entry behind); omit it to write
@@ -24,9 +39,29 @@ async function write(tx, { actorEmail, action, entityType, entityId, entityLabel
       entityId: entityId == null ? null : Number(entityId),
       entityLabel: entityLabel || null,
       before: before === undefined ? null : before,
-      after: after === undefined ? null : after
+      after: after === undefined ? null : after,
+      ipAddress: currentIp()
     }
   });
+}
+
+// For events logged after the real work has already succeeded (a login,
+// an approved request): a failed log write is reported in the server log
+// but must not turn the user's successful action into an error page.
+async function record(entry) {
+  try {
+    await write(null, entry);
+  } catch (err) {
+    console.error("[audit] could not write", entry.action, err.message);
+  }
+}
+
+// One step of a printing request's workflow ("request.approve", ...).
+// Only the reference number is kept, not the request's contents: s.26
+// asks for traffic data (who, what, when, from where), and PDPA data
+// minimisation says not to copy names or phone numbers into the log.
+function recordRequest(actorEmail, step, referenceNo) {
+  return record({ actorEmail, action: "request." + step, entityType: "request", entityLabel: referenceNo });
 }
 
 // entityType may be a comma-separated list ("unit_type,unit").
@@ -36,8 +71,15 @@ function typeWhere(entityType) {
   return types.length === 1 ? types[0] : { in: types };
 }
 
-function buildWhere({ entityType, action, actorEmail, dateFrom, dateTo }) {
+function buildWhere({ entityType, action, actorEmail, q, dateFrom, dateTo }) {
   const where = {};
+  // Free-text search (Access Log page): part of an email, an IP address or
+  // a request reference number, ignoring case.
+  const text = String(q || "").trim().slice(0, 100);
+  if (text) {
+    const contains = { contains: text, mode: "insensitive" };
+    where.OR = [{ actorEmail: contains }, { ipAddress: contains }, { entityLabel: contains }];
+  }
   if (entityType) where.entityType = typeWhere(entityType);
   if (action) where.action = action;
   if (actorEmail) where.actorEmail = actorEmail;
@@ -55,8 +97,8 @@ function buildWhere({ entityType, action, actorEmail, dateFrom, dateTo }) {
 // Paginated (page is 1-indexed, same convention as requests.searchHistory)
 // — the admin page's page-size selector and prev/next controls need
 // `total` to know how many pages exist, not just the current page's rows.
-async function list({ entityType, action, actorEmail, dateFrom, dateTo, page, pageSize } = {}) {
-  const where = buildWhere({ entityType, action, actorEmail, dateFrom, dateTo });
+async function list({ entityType, action, actorEmail, q, dateFrom, dateTo, page, pageSize } = {}) {
+  const where = buildWhere({ entityType, action, actorEmail, q, dateFrom, dateTo });
   const take = Math.max(1, Math.min(200, parseInt(pageSize, 10) || 50));
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
   const skip = (currentPage - 1) * take;
@@ -77,6 +119,7 @@ async function list({ entityType, action, actorEmail, dateFrom, dateTo, page, pa
       entityLabel: r.entityLabel,
       before: r.before,
       after: r.after,
+      ipAddress: r.ipAddress,
       createdAt: r.createdAt.toISOString()
     }))
   };
@@ -95,4 +138,4 @@ async function listActors({ entityType } = {}) {
   return rows.map((r) => r.actorEmail);
 }
 
-module.exports = { write, list, listActors };
+module.exports = { context, write, record, recordRequest, list, listActors };

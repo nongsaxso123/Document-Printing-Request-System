@@ -240,6 +240,9 @@
     transition: background .15s ease, border-color .15s ease;
   }
   .login-pill .icon { width: 15px; height: 15px; color: var(--login-gold); }
+  /* PDPA privacy notice link, right under the sign-in hint inside the card. */
+  .login-privacy { display: block; width: fit-content; margin: 4px auto 0; font-size: 12.5px; color: var(--color-primary); text-decoration: none; }
+  .login-privacy:hover { text-decoration: underline; }
   .login-pill:hover { background: var(--login-gold-faint); border-color: var(--login-gold); }
 
   /* "Contact us" — native <dialog> styled like the login card (Esc / ✕ / backdrop closes). */
@@ -332,6 +335,7 @@
         <span data-i18n="login.btn">เข้าสู่ระบบด้วย Google</span>
       </a>
       <p class="hint" data-i18n="login.hint">เข้าสู่ระบบด้วยบัญชี Google ของมหาวิทยาลัย (@mfu.ac.th)</p>
+      <a class="login-privacy" href="/privacy" data-i18n="privacy.formLink">อ่านประกาศความเป็นส่วนตัว</a>
 
       <div class="login-divider"><span data-i18n="login.staffOnly">สำหรับเจ้าหน้าที่เท่านั้น</span></div>
 

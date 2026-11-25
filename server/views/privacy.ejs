@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ประกาศความเป็นส่วนตัว | ฝ่ายทะเบียน มฟล.</title>
+<link rel="stylesheet" href="/assets/css/style.css">
+<style>
+  /* Public page (no login needed): readable single column, same fonts and
+     colours as the rest of the app via style.css. */
+  body { margin: 0; background: var(--color-bg); }
+  .privacy-wrap { max-width: 760px; margin: 0 auto; padding: 28px 16px 56px; }
+  .privacy-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  .privacy-brand { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+  .privacy-brand img { width: 44px; height: 44px; }
+  .privacy-brand strong { display: block; font-size: 15px; }
+  .privacy-brand span { font-size: 13px; color: var(--color-muted); }
+  .privacy-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border); border-radius: 14px; padding: 28px 28px 20px; }
+  .privacy-card h1 { margin: 0 0 6px; font-size: 24px; }
+  .privacy-updated { margin: 0 0 22px; font-size: 13px; color: var(--color-muted); }
+  .privacy-card h2 { margin: 24px 0 8px; font-size: 17px; }
+  .privacy-card p, .privacy-card li { line-height: 1.7; font-size: 15px; }
+  .privacy-card ul { margin: 0; padding-left: 22px; }
+  .privacy-card li + li { margin-top: 4px; }
+  .privacy-contact { margin-top: 8px; padding: 12px 14px; border-radius: 10px; background: var(--color-bg); }
+  .privacy-contact div + div { margin-top: 4px; }
+  /* <button> does not inherit the page font on its own (it falls back to Arial). */
+  .privacy-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; font-family: inherit; }
+  .privacy-back .icon { width: 16px; height: 16px; }
+  /* Round "back to top" button, bottom right, shown once the reader has scrolled down. */
+  .privacy-to-top { position: fixed; right: 20px; bottom: 20px; width: 48px; height: 48px; border-radius: 50%; border: none; background: var(--color-primary); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); }
+  .privacy-to-top[hidden] { display: none; }
+  .privacy-to-top .icon { width: 22px; height: 22px; transform: rotate(180deg); }
+  .privacy-to-top:hover { background: var(--color-primary-dark, var(--color-primary)); }
+  [data-lang-block] { display: none; }
+  [data-lang-block].is-active { display: block; }
+  @media (max-width: 560px) { .privacy-card { padding: 22px 18px 14px; } }
+</style>
+</head>
+<body>
+<%
+  // Change PRIVACY_UPDATED whenever the text below changes, so anyone can
+  // tell which version of the notice they read (and when it changed).
+  const PRIVACY_UPDATED = { th: "26 พฤศจิกายน 2569", en: "26 November 2026" };
+  const phones = (contact.contactPhone || "").split(/[,;\n]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+%>
+<div class="privacy-wrap">
+  <div class="privacy-top">
+    <a class="privacy-brand" href="/">
+      <img src="/assets/images/mfu-logo.png" alt="Mae Fah Luang University">
+      <div>
+        <strong data-i18n="login.title">ระบบขอพิมพ์เอกสารออนไลน์</strong>
+        <span data-i18n="login.subtitle">ฝ่ายทะเบียน มหาวิทยาลัยแม่ฟ้าหลวง</span>
+      </div>
+    </a>
+    <div class="lang-toggle">
+      <span data-lang="en">EN</span><span data-lang="th" class="active">TH</span>
+    </div>
+  </div>
+
+  <button type="button" class="btn btn-secondary privacy-back" id="privacy-back">
+    <span class="icon" data-icon="arrow-left"><%- icon('arrow-left') %></span>
+    <span data-i18n="privacy.back">กลับไปหน้าก่อนหน้า</span>
+  </button>
+
+  <article class="privacy-card">
+
+    <section data-lang-block="th" class="is-active">
+      <h1>ประกาศความเป็นส่วนตัว</h1>
+      <p class="privacy-updated">ปรับปรุงล่าสุด <%= PRIVACY_UPDATED.th %></p>
+
+      <p>ประกาศนี้อธิบายว่าระบบขอพิมพ์เอกสารออนไลน์เก็บข้อมูลส่วนบุคคลอะไร ใช้เพื่ออะไร เก็บนานแค่ไหน และคุณมีสิทธิ์อะไรบ้าง ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</p>
+
+      <h2>ใครดูแลข้อมูล</h2>
+      <p>มหาวิทยาลัยแม่ฟ้าหลวง โดยฝ่ายทะเบียน เป็นผู้ดูแลข้อมูลในระบบนี้</p>
+
+      <h2>ข้อมูลที่เก็บ</h2>
+      <ul>
+        <li>ข้อมูลบัญชี ได้แก่ อีเมลมหาวิทยาลัยและชื่อจากบัญชี Google ที่ใช้เข้าสู่ระบบ</li>
+        <li>ข้อมูลผู้ขอ ได้แก่ ชื่อ คำนำหน้า เบอร์โทร หน่วยงาน และตำแหน่ง ที่คุณกรอกในคำขอหรือในหน้าโปรไฟล์</li>
+        <li>รายละเอียดคำขอ ได้แก่ ชื่อเอกสาร จำนวนหน้า จำนวนชุด และวันที่ต้องการรับ</li>
+        <li>ข้อมูลผู้รับเอกสาร ได้แก่ ชื่อ ตำแหน่ง ที่ทำงาน และเบอร์โทร ซึ่งเจ้าหน้าที่บันทึกตอนส่งมอบ</li>
+        <li>คำตอบแบบประเมินความพึงพอใจ</li>
+        <li>บันทึกการใช้งานระบบ ได้แก่ อีเมล การดำเนินการ เวลา และ IP address</li>
+      </ul>
+
+      <h2>ใช้ข้อมูลเพื่ออะไร</h2>
+      <ul>
+        <li>รับคำขอ พิมพ์เอกสาร และส่งมอบเอกสารให้ถูกคน</li>
+        <li>แจ้งสถานะคำขอให้คุณทราบในระบบและทางอีเมล</li>
+        <li>สรุปปริมาณการใช้กระดาษของแต่ละหน่วยงานเพื่อรายงานภายในมหาวิทยาลัย</li>
+        <li>ปรับปรุงบริการจากผลแบบประเมิน</li>
+        <li>รักษาความปลอดภัยของระบบ และเก็บบันทึกการใช้งานตามพระราชบัญญัติว่าด้วยการกระทำความผิดเกี่ยวกับคอมพิวเตอร์ มาตรา 26</li>
+      </ul>
+      <p>ระบบไม่ใช้ข้อมูลของคุณเพื่อโฆษณา และไม่ขายหรือส่งต่อให้บุคคลภายนอก เว้นแต่กฎหมายกำหนด</p>
+
+      <h2>เหตุผลทางกฎหมายที่เก็บข้อมูล</h2>
+      <p>มหาวิทยาลัยเก็บข้อมูลเพื่อให้บริการพิมพ์เอกสารซึ่งเป็นงานตามหน้าที่ของมหาวิทยาลัย และเก็บบันทึกการใช้งานเพราะกฎหมายกำหนด ระบบจึงไม่ได้ขอความยินยอมแยก ส่วนแบบประเมินความพึงพอใจใช้เพื่อปรับปรุงบริการเท่านั้น</p>
+
+      <h2>ใครเห็นข้อมูลของคุณ</h2>
+      <ul>
+        <li>คุณเห็นคำขอของตัวเองเท่านั้น</li>
+        <li>เจ้าหน้าที่ฝ่ายทะเบียนเห็นคำขอเพื่อดำเนินการ</li>
+        <li>ผู้ดูแลระบบเห็นบันทึกการใช้งานเพื่อดูแลความปลอดภัย</li>
+        <li>Google ใช้ยืนยันตัวตนตอนเข้าสู่ระบบเท่านั้น ระบบไม่ได้ส่งข้อมูลคำขอให้ Google</li>
+      </ul>
+
+      <h2>เก็บข้อมูลนานแค่ไหน</h2>
+      <ul>
+        <li>คำขอ ข้อมูลผู้รับเอกสาร และแบบประเมิน เก็บตามระยะเวลาที่มหาวิทยาลัยกำหนดสำหรับเอกสารของหน่วยงาน</li>
+        <li>บันทึกการใช้งานเก็บอย่างน้อย 90 วันตามที่กฎหมายกำหนด และลบหรือแก้ไขไม่ได้ก่อนครบกำหนด</li>
+        <li>ระบบไม่เก็บไฟล์ PDF ของคำขอไว้ แต่สร้างใหม่ทุกครั้งที่ดาวน์โหลด</li>
+      </ul>
+
+      <h2>สิทธิ์ของคุณ</h2>
+      <ul>
+        <li>ขอดูหรือขอสำเนาข้อมูลของคุณ</li>
+        <li>แก้ไขข้อมูลให้ถูกต้อง โดยแก้ข้อมูลส่วนตัวได้เองในหน้าโปรไฟล์ และแก้คำขอได้เองจนกว่าจะส่งเอกสารต้นฉบับ</li>
+        <li>ขอให้ลบ ระงับการใช้ หรือคัดค้านการใช้ข้อมูล ในกรณีที่กฎหมายเปิดให้ทำได้ ยกเว้นข้อมูลที่กฎหมายบังคับให้เก็บ เช่น บันทึกการใช้งาน 90 วัน</li>
+        <li>ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (สคส.) ถ้าเห็นว่าข้อมูลของคุณถูกใช้ไม่ถูกต้อง</li>
+      </ul>
+
+      <h2>ติดต่อ</h2>
+      <p>ใช้สิทธิ์หรือสอบถามเรื่องข้อมูลส่วนบุคคลได้ที่ฝ่ายทะเบียน</p>
+      <% if (phones.length || contact.contactEmail) { %>
+      <div class="privacy-contact">
+        <% if (phones.length) { %><div>โทรศัพท์ <%= phones.join(", ") %></div><% } %>
+        <% if (contact.contactEmail) { %><div>อีเมล <a href="mailto:<%= contact.contactEmail %>"><%= contact.contactEmail %></a></div><% } %>
+      </div>
+      <% } %>
+    </section>
+
+    <section data-lang-block="en">
+      <h1>Privacy Notice</h1>
+      <p class="privacy-updated">Last updated <%= PRIVACY_UPDATED.en %></p>
+
+      <p>This notice explains what personal data the Online Document Printing Request System collects, why, how long it is kept, and your rights under Thailand's Personal Data Protection Act B.E. 2562 (2019).</p>
+
+      <h2>Who looks after your data</h2>
+      <p>Mae Fah Luang University, through the Registrar Division, looks after the data in this system.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li>Account data: your university email and the name on the Google account you sign in with.</li>
+        <li>Requester data: name, title, phone number, unit and position that you enter on a request or on your profile.</li>
+        <li>Request details: document names, number of pages, number of copies and the pickup date you want.</li>
+        <li>Receiver data: name, position, workplace and phone number, recorded by the officer at handover.</li>
+        <li>Your answers to the satisfaction survey.</li>
+        <li>Access log: email, action, time and IP address.</li>
+      </ul>
+
+      <h2>Why we use it</h2>
+      <ul>
+        <li>To receive requests, print documents and hand them to the right person.</li>
+        <li>To tell you about your request's status in the app and by email.</li>
+        <li>To report paper usage per unit inside the university.</li>
+        <li>To improve the service based on survey answers.</li>
+        <li>To keep the system secure and keep an access log as required by the Computer Crime Act, Section 26.</li>
+      </ul>
+      <p>Your data is not used for advertising and is not sold or passed to anyone outside the university unless the law requires it.</p>
+
+      <h2>Legal basis</h2>
+      <p>The university collects this data to provide the printing service as part of its official duties, and keeps the access log because the law requires it, so no separate consent is asked for. Survey answers are used only to improve the service.</p>
+
+      <h2>Who can see your data</h2>
+      <ul>
+        <li>You can see only your own requests.</li>
+        <li>Registrar Division officers see requests in order to process them.</li>
+        <li>System administrators see the access log to keep the system secure.</li>
+        <li>Google is used only to confirm who you are at sign-in. Request data is not sent to Google.</li>
+      </ul>
+
+      <h2>How long we keep it</h2>
+      <ul>
+        <li>Requests, receiver data and survey answers are kept for the period the university sets for its unit records.</li>
+        <li>The access log is kept for at least 90 days as the law requires, and cannot be changed or deleted before then.</li>
+        <li>Request PDFs are not stored. A new one is generated each time you download it.</li>
+      </ul>
+
+      <h2>Your rights</h2>
+      <ul>
+        <li>Ask to see or get a copy of your data.</li>
+        <li>Correct your data. You can edit your own details on your profile, and edit a request yourself until the original documents are handed in.</li>
+        <li>Ask for your data to be deleted, restricted, or not used, where the law allows. Data the law requires us to keep, such as the 90-day access log, is kept until that period ends.</li>
+        <li>Complain to the Personal Data Protection Committee (PDPC) if you think your data has been misused.</li>
+      </ul>
+
+      <h2>Contact</h2>
+      <p>To use your rights or ask about your personal data, contact the Registrar Division.</p>
+      <% if (phones.length || contact.contactEmail) { %>
+      <div class="privacy-contact">
+        <% if (phones.length) { %><div>Phone <%= phones.join(", ") %></div><% } %>
+        <% if (contact.contactEmail) { %><div>Email <a href="mailto:<%= contact.contactEmail %>"><%= contact.contactEmail %></a></div><% } %>
+      </div>
+      <% } %>
+    </section>
+
+  </article>
+</div>
+
+<button type="button" class="privacy-to-top" id="privacy-to-top" data-i18n-title="privacy.toTop" title="กลับขึ้นด้านบน" aria-label="กลับขึ้นด้านบน" hidden>
+  <span class="icon" data-icon="chevron-down"><%- icon('chevron-down') %></span>
+</button>
+
+<script src="/assets/js/app.js"></script>
+<script>
+  // Show the notice in the page's language (the EN/TH toggle above).
+  function syncPrivacyLang() {
+    const lang = getLang() === "en" ? "en" : "th";
+    document.querySelectorAll("[data-lang-block]").forEach(function (el) {
+      el.classList.toggle("is-active", el.getAttribute("data-lang-block") === lang);
+    });
+  }
+  document.addEventListener("odprs:langchange", syncPrivacyLang);
+
+  // "Back to top" appears after scrolling down about one screen.
+  (function () {
+    const btn = document.getElementById("privacy-to-top");
+    function sync() { btn.hidden = window.scrollY < 400; }
+    window.addEventListener("scroll", sync, { passive: true });
+    btn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+    sync();
+  })();
+
+  // Back to wherever the person came from:
+  // - opened in the same tab (from the login page): go back one step;
+  // - opened in a new tab (from the request form, so the half-filled form
+  //   is kept): close this tab, which returns them to the form;
+  // - opened directly (typed or bookmarked): go to the home page.
+  document.getElementById("privacy-back").addEventListener("click", function () {
+    const fromHere = document.referrer && new URL(document.referrer).origin === location.origin;
+    if (fromHere && history.length > 1) return history.back();
+    if (fromHere) {
+      window.close();
+      // Some browsers refuse to close a tab; fall back to the page they came from.
+      return setTimeout(function () { location.href = document.referrer; }, 200);
+    }
+    location.href = "/";
+  });
+  document.addEventListener("DOMContentLoaded", syncPrivacyLang);
+</script>
+</body>
+</html>

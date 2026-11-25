@@ -31,6 +31,7 @@ router.post("/my-requests/:ref/cancel", async (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: "not-logged-in" });
     const updated = await requests.cancel(req.params.ref, { requesterEmail: req.user.email });
     if (!updated) return res.status(409).json({ error: "not-cancellable" });
+    await audit.recordRequest(req.user.email, "cancel", req.params.ref);
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -271,6 +272,7 @@ router.post("/requests/:ref/approve", async (req, res, next) => {
       officerName: await profile.resolveDisplayName(req.user.email, req.user.name)
     });
     if (!updated) return res.status(409).json({ error: "not-awaiting" });
+    await audit.recordRequest(req.user.email, "approve", req.params.ref);
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -283,6 +285,7 @@ router.post("/requests/:ref/reject", async (req, res, next) => {
       officerName: await profile.resolveDisplayName(req.user.email, req.user.name)
     });
     if (!updated) return res.status(409).json({ error: "not-awaiting" });
+    await audit.recordRequest(req.user.email, "reject", req.params.ref);
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -305,6 +308,7 @@ router.post("/requests/:ref/ready", async (req, res, next) => {
     });
     if (!updated) return res.status(409).json({ error: "not-printing" });
     if (updated.error) return res.status(400).json({ error: updated.error });
+    await audit.recordRequest(req.user.email, "ready", req.params.ref);
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -320,6 +324,7 @@ router.post("/requests/:ref/handover", async (req, res, next) => {
       officerName: await profile.resolveDisplayName(req.user.email, req.user.name)
     });
     if (!updated) return res.status(409).json({ error: "not-ready" });
+    await audit.recordRequest(req.user.email, "handover", req.params.ref);
     res.json(updated);
   } catch (err) { next(err); }
 });
@@ -677,6 +682,7 @@ router.get("/admin/audit-log", auth.requireAdmin, async (req, res, next) => {
       entityType: req.query.entityType,
       action: req.query.action,
       actorEmail: req.query.actorEmail,
+      q: req.query.q,
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
       page: req.query.page,

@@ -13,6 +13,7 @@ const { Pool } = require("pg");
 const passport = require("passport");
 
 const auth = require("./auth");
+const audit = require("./audit");
 const profile = require("./profile");
 const unitDirectory = require("./units");
 const settings = require("./settings");
@@ -124,6 +125,12 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+// Every audit-log row written while handling this request records the
+// visitor's IP (see src/audit.js). Placed after the session store so its
+// pg callbacks can't drop the context before the route handlers run.
+app.use(function (req, res, next) {
+  audit.context.run({ ip: req.ip || null }, next);
+});
 // Signed-in pages must never come back from the browser cache: otherwise
 // pressing Back after logout shows the old page (with someone's data) as if
 // still logged in. no-store also keeps them out of the back/forward cache,
@@ -239,6 +246,14 @@ app.get("/", async function (req, res, next) {
   } catch (err) { next(err); }
 });
 
+// PDPA privacy notice. Public on purpose: people must be able to read what
+// is collected before they sign in. Contact details come from /admin/settings.
+app.get("/privacy", async function (req, res, next) {
+  try {
+    res.render("privacy", { contact: await settings.get() });
+  } catch (err) { next(err); }
+});
+
 // The requester manual is public on purpose — linked from the login page,
 // before anyone signs in. Officer/admin manuals need a signed-in user with
 // that role (manuals.canView). Falls back to the other language when the
@@ -287,6 +302,12 @@ app.get("/auth/google/callback", loginLimiter,
       if (err) return next(err);
       if (!user) {
         const reason = (info && info.message) || "unknown";
+        // A refused sign-in (e.g. an account outside the allowed domain)
+        // is logged too: repeated attempts are exactly what s.26 logs are for.
+        audit.record({
+          actorEmail: (info && info.email) || "unknown", action: "auth.loginFailed",
+          entityType: "auth", entityLabel: reason
+        });
         return res.redirect("/?error=" + encodeURIComponent(reason));
       }
       // keepSessionInfo: passport >=0.6 regenerates the session on login by
@@ -295,6 +316,7 @@ app.get("/auth/google/callback", loginLimiter,
       req.logIn(user, { keepSessionInfo: true }, function (err) {
         if (err) return next(err);
         req.session.loginAt = Date.now(); // starts the SESSION_MAX_AGE_MS clock above
+        audit.record({ actorEmail: user.email, action: "auth.login", entityType: "auth", entityLabel: user.role });
         const dest = req.session.returnTo || "/";
         delete req.session.returnTo;
         return res.redirect(dest);
@@ -304,6 +326,7 @@ app.get("/auth/google/callback", loginLimiter,
 );
 
 app.get("/logout", function (req, res) {
+  if (req.user) audit.record({ actorEmail: req.user.email, action: "auth.logout", entityType: "auth", entityLabel: req.user.role });
   req.logout(function () {
     res.redirect("/");
   });

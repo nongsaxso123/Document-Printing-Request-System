@@ -25,6 +25,9 @@
       <a class="nav-item <%= active === "adminAuditLog" ? "active" : "" %>" href="/admin/audit-log">
         <span class="icon" data-icon="clock"><%- icon('clock') %></span> <span data-i18n="nav.adminAuditLog">ประวัติการแก้ไข</span>
       </a>
+      <a class="nav-item <%= active === "adminAccessLog" ? "active" : "" %>" href="/admin/access-log">
+        <span class="icon" data-icon="user-check"><%- icon('user-check') %></span> <span data-i18n="nav.adminAccessLog">บันทึกการใช้งานระบบ</span>
+      </a>
       <div class="nav-subhead" data-i18n="nav.group.reference">ข้อมูลพื้นฐาน</div>
       <a class="nav-item <%= active === "adminLocations" ? "active" : "" %>" href="/admin/locations">
         <span class="icon" data-icon="map-pin"><%- icon('map-pin') %></span> <span data-i18n="nav.adminLocations">สถานที่รับ-ส่งเอกสาร</span>

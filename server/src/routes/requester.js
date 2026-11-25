@@ -5,6 +5,7 @@ const profile = require("../profile");
 const locations = require("../locations");
 const unitDirectory = require("../units");
 const { requireRole } = require("../auth");
+const audit = require("../audit");
 const pdf = require("../pdf");
 const { createLimiter } = require("../rateLimit");
 
@@ -129,6 +130,7 @@ router.post("/new-request", submitLimiter, requireNoPendingEvaluation, async (re
       });
     }
 
+    await audit.recordRequest(req.user.email, "submit", result.referenceNo);
     res.redirect("/requester/request-submitted/" + encodeURIComponent(result.referenceNo) + "?result=submitted");
   } catch (err) {
     next(err);
@@ -180,6 +182,7 @@ router.post("/request-submitted/:ref/edit", editLimiter, async (req, res, next) 
       if (!prefill) return res.redirect(submittedUrl);
       return renderEditForm(req, res, prefill, { error: result.error });
     }
+    await audit.recordRequest(req.user.email, "edit", req.params.ref);
     res.redirect(submittedUrl + "?result=edited");
   } catch (err) { next(err); }
 });
