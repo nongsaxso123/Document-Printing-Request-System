@@ -220,7 +220,8 @@ router.get("/request-submitted/:ref/pdf", async (req, res, next) => {
     const buffer = await pdf.renderPagePdf(`/requester/request-submitted/${encodeURIComponent(req.params.ref)}`, req.headers.cookie);
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${record.referenceNo}.pdf"`
+      // ?inline=1 opens it in the browser instead (the iPhone "Print" button, see printRequestForm in app.js)
+      "Content-Disposition": `${req.query.inline ? "inline" : "attachment"}; filename="${record.referenceNo}.pdf"`
     });
     res.send(buffer);
   } catch (err) {

@@ -2466,6 +2466,20 @@ function initNavDrawer() {
   window.matchMedia("(min-width: 1025px)").addEventListener("change", function (e) { if (e.matches) setOpen(false); });
 }
 
+// "Print request form" button. iPhone/iPad (every iOS browser is WebKit)
+// ignores the form's A4 page setup when printing a web page and adds its own
+// margins, so the one-page form spilled onto a 2nd page. There, open the
+// server-made PDF instead: it is a fixed one-page A4 that iOS prints as is.
+// Everywhere else the browser's own print keeps working as before.
+function printRequestForm(pdfUrl) {
+  const isIOS = window.CSS && CSS.supports && CSS.supports("-webkit-touch-callout", "none");
+  if (isIOS && pdfUrl) {
+    window.open(pdfUrl + (pdfUrl.indexOf("?") >= 0 ? "&" : "?") + "inline=1", "_blank");
+  } else {
+    window.print();
+  }
+}
+
 // Every data table gets a horizontal-scroll wrapper, so on a narrow screen
 // the table scrolls sideways inside its card instead of squeezing columns
 // into unreadable slivers or pushing the whole page wider than the screen.
