@@ -8,6 +8,7 @@
     "start": "node src/app.js",
     "dev": "nodemon --legacy-watch src/app.js",
     "test": "node --test",
+    "test:integration": "node --test \"test/integration/*.test.js\"",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js"

@@ -10,12 +10,12 @@
     </div>
 
     <div id="form-content" style="display:none;">
-      <div class="no-print" style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px;">
+      <div class="no-print rfv-head">
         <div>
           <h1 class="page-title" style="margin-bottom:4px;" id="f-title">—</h1>
           <p class="page-subtitle" style="margin:0;" data-i18n="requestForm.subtitle">ใบคำขอพิมพ์เอกสารฉบับเต็ม สำหรับตรวจสอบหรือพิมพ์ซ้ำ</p>
         </div>
-        <div style="display:flex; gap:10px;">
+        <div class="rfv-actions">
           <a class="btn btn-secondary" href="/officer/request-form-view/pdf?ref=<%= encodeURIComponent(ref) %>" target="_blank">
             <span class="icon" data-icon="download"><%- icon('download') %></span>
             <span data-i18n="submitted.downloadPdfBtn">ดาวน์โหลด PDF</span>
