@@ -3308,7 +3308,13 @@ function initFilterCollapse(opts) {
       const forced = sel.getAttribute("data-dd-cols");
       if (forced != null) return Number(forced) || 0;
       if (sel.querySelector("optgroup") || real.length < 5) return 0;
-      if (real.every((o) => labelOf(o).length <= 9)) return real.length === 12 ? 3 : 4;
+      // Measure translated options in BOTH languages, so the same select is
+      // a grid (or a list) in Thai and English alike, not one in each.
+      const longest = (o) => {
+        const tr = TRANSLATIONS[o.getAttribute("data-i18n")];
+        return tr ? Math.max(tr.th.length, tr.en.length) : labelOf(o).length;
+      };
+      if (real.every((o) => longest(o) <= 9)) return real.length === 12 ? 3 : 4;
       return 0;
     }
 
