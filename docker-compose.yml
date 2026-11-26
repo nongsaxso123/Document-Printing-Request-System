@@ -13,7 +13,9 @@ services:
       # (not 5432/5433: this machine already has native PostgreSQL 16/17 services on those)
 
   app:
-    build: ./server
+    build:
+      context: ./server
+      target: dev # full install incl. nodemon; production uses the last stage (non-root)
     restart: unless-stopped
     env_file:
       - ./server/.env

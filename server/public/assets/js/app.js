@@ -1425,6 +1425,7 @@ const TRANSLATIONS = {
   "adminLocations.err.purposeRequired": { th: "กรุณาเลือกอย่างน้อยหนึ่งอย่าง: ส่งเอกสารต้นฉบับ หรือ รับเอกสารที่พิมพ์เสร็จ", en: "Choose at least one: drop-off or pickup." },
   "adminLocations.err.lastDropoff": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่ส่งเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive. This is the last active drop-off location." },
   "adminLocations.err.lastPickup": { th: "ไม่สามารถเก็บถาวรได้ เพราะเป็นสถานที่รับเอกสารแห่งสุดท้ายที่ยังใช้งานอยู่", en: "Can't archive. This is the last active pickup location." },
+  "adminLocations.err.mapUrlInvalid": { th: "ลิงก์แผนที่ต้องขึ้นต้นด้วย http:// หรือ https://", en: "The map link must start with http:// or https://" },
   "adminLocations.err.generic": { th: "บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", en: "Couldn't save. Please try again." },
   "adminLocations.empty": { th: "ยังไม่มีสถานที่", en: "No locations yet." },
   "newRequest.error.unit": { th: "ประเภทหน่วยงาน/หน่วยงานไม่ถูกต้อง", en: "Invalid unit type/unit" },
@@ -1534,6 +1535,16 @@ const TRANSLATIONS = {
   "auditLog.action.requestReject": { th: "ไม่อนุมัติคำขอ", en: "Rejected a request" },
   "auditLog.action.requestReady": { th: "แจ้งพร้อมรับเอกสาร", en: "Marked ready for pickup" },
   "auditLog.action.requestHandover": { th: "ส่งมอบเอกสาร", en: "Handed over documents" },
+  "auditLog.type.report": { th: "การส่งออกรายงาน", en: "Report exports" },
+  "auditLog.type.security": { th: "ความปลอดภัย", en: "Security" },
+  "auditLog.action.authKioskLock": { th: "เปิดโหมด Kiosk (ใช้ได้เฉพาะหน้ารับเอกสาร)", en: "Kiosk mode on (pickup page only)" },
+  "auditLog.action.reportExport": { th: "ดาวน์โหลดรายงาน Excel", en: "Downloaded Excel report" },
+  "auditLog.action.authForbidden": { th: "ถูกปฏิเสธสิทธิ์ (403)", en: "Access refused (403)" },
+  "auditLog.action.rateLimitExceeded": { th: "ใช้งานถี่เกินกำหนด (429)", en: "Too many requests (429)" },
+  "auditLog.reason.emailNotVerified": { th: "อีเมลยังไม่ได้ยืนยันกับ Google", en: "Email not verified by Google" },
+  "auditLog.report.history": { th: "ประวัติคำขอ", en: "Request history" },
+  "auditLog.report.dashboard": { th: "สรุปการใช้กระดาษ", en: "Paper usage" },
+  "auditLog.report.evaluations": { th: "ผลประเมินความพึงพอใจ", en: "Satisfaction results" },
   "auditLog.reason.domainNotAllowed": { th: "อีเมลนอกโดเมนที่อนุญาต", en: "Email outside the allowed domain" },
   "auditLog.action.officerAdd": { th: "เพิ่มเจ้าหน้าที่", en: "Added officer" },
   "auditLog.action.officerRemove": { th: "เพิกถอนสิทธิ์เจ้าหน้าที่", en: "Removed officer" },
@@ -2294,9 +2305,7 @@ document.addEventListener("click", function (e) {
     message: t("user.logoutModalMessage"),
     confirmText: t("user.logoutBtn"),
     danger: true,
-    onConfirm: function () {
-      window.location.href = link.href;
-    }
+    onConfirm: postLogout
   });
 });
 
@@ -3497,3 +3506,24 @@ function initFilterCollapse(opts) {
     }).observe(document.body, { childList: true, subtree: true });
   });
 })();
+
+// Sign-out sends a POST instead of a GET, so a link or image on another
+// page can never sign someone out. The links keep their look; without
+// JavaScript the GET route still works.
+function postLogout() {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/logout";
+  document.body.appendChild(form);
+  form.submit();
+}
+// Other sign-out links (kiosk, maintenance page) have no confirm step. The
+// header's .logout-link is left to its confirm popup above, which calls
+// postLogout() only after "Log out" is pressed.
+document.addEventListener("click", function (e) {
+  const link = e.target.closest && e.target.closest('a[href="/logout"]');
+  if (!link || link.classList.contains("logout-link") || e.defaultPrevented) return;
+  if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  postLogout();
+});

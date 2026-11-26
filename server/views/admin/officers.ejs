@@ -217,7 +217,7 @@
         }
         if (!res.ok) {
           const body = await res.json().catch(function () { return {}; });
-          showActionResult(false, body.error === "duplicate" ? t("admin.emailError.duplicate") : t("result.generic"));
+          showActionResult(false, body.error === "duplicate" ? t("admin.emailError.duplicate") : body.error === "email-invalid" ? t("admin.emailError.invalid") : t("result.generic"));
           return;
         }
         const madeAdmin = adminCheck.checked;

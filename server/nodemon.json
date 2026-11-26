@@ -1,3 +1,5 @@
 {
+  "watch": ["src"],
+  "ext": "js,json",
   "ignore": ["backups/**", "tmp_docx_build/**"]
 }

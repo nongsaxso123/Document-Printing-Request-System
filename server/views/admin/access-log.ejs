@@ -94,27 +94,33 @@
   // sign-in and printing-request rows (src/audit.js recordRequest / record).
   const CATEGORIES = [
     { id: "auth", types: "auth", label: "auditLog.type.auth" },
-    { id: "request", types: "request", label: "auditLog.type.request" }
+    { id: "request", types: "request", label: "auditLog.type.request" },
+    { id: "report", types: "report", label: "auditLog.type.report" },
+    { id: "security", types: "security", label: "auditLog.type.security" }
   ];
   const ALL_TYPES = CATEGORIES.map(function (c) { return c.types; }).join(",");
-  const TYPE_LABEL = { auth: "auditLog.type.auth", request: "auditLog.type.request" };
+  const TYPE_LABEL = { auth: "auditLog.type.auth", request: "auditLog.type.request", report: "auditLog.type.report", security: "auditLog.type.security" };
 
   // action -> [category, i18n key]
   const ACTIONS = {
     "auth.login": ["auth", "auditLog.action.authLogin"],
     "auth.logout": ["auth", "auditLog.action.authLogout"],
     "auth.loginFailed": ["auth", "auditLog.action.authLoginFailed"],
+    "auth.kioskLock": ["auth", "auditLog.action.authKioskLock"],
     "request.submit": ["request", "auditLog.action.requestSubmit"],
     "request.edit": ["request", "auditLog.action.requestEdit"],
     "request.cancel": ["request", "auditLog.action.requestCancel"],
     "request.approve": ["request", "auditLog.action.requestApprove"],
     "request.reject": ["request", "auditLog.action.requestReject"],
     "request.ready": ["request", "auditLog.action.requestReady"],
-    "request.handover": ["request", "auditLog.action.requestHandover"]
+    "request.handover": ["request", "auditLog.action.requestHandover"],
+    "report.export": ["report", "auditLog.action.reportExport"],
+    "auth.forbidden": ["security", "auditLog.action.authForbidden"],
+    "rateLimit.exceeded": ["security", "auditLog.action.rateLimitExceeded"]
   };
   // Refused sign-ins keep the reason code as their label.
-  const REASON_LABEL = { "domain-not-allowed": "auditLog.reason.domainNotAllowed" };
-  const ROLE_LABEL = { Admin: "Admin", Officer: "Officer", Requester: "Requester" };
+  const REASON_LABEL = { "domain-not-allowed": "auditLog.reason.domainNotAllowed", "email-not-verified": "auditLog.reason.emailNotVerified" };
+  const REPORT_LABEL = { history: "auditLog.report.history", dashboard: "auditLog.report.dashboard", evaluations: "auditLog.report.evaluations" };
 
   const typeFilter = document.getElementById("type-filter");
   const actionFilter = document.getElementById("action-filter");
@@ -162,7 +168,8 @@
 
   function itemText(row) {
     if (row.action === "auth.loginFailed") return REASON_LABEL[row.entityLabel] ? t(REASON_LABEL[row.entityLabel]) : (row.entityLabel || "");
-    if (row.entityType === "auth") return ROLE_LABEL[row.entityLabel] || "";
+    if (row.entityType === "auth") return (row.entityLabel || "").replace(" kiosk", " (Kiosk)");
+    if (row.entityType === "report") return REPORT_LABEL[row.entityLabel] ? t(REPORT_LABEL[row.entityLabel]) : (row.entityLabel || "");
     return row.entityLabel || ""; // request reference number
   }
 

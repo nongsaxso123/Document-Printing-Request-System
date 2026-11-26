@@ -11,7 +11,11 @@
  * "trust proxy" behind the MFU proxy + Caddy.
  */
 
-function createLimiter({ windowMs, max, key, onLimit }) {
+const audit = require("./audit");
+
+// `name` labels the limiter in the access log (rateLimit.exceeded), e.g.
+// "pdf". Also keeps URLs with claim codes in them out of the log.
+function createLimiter({ windowMs, max, key, onLimit, name }) {
   const hits = new Map(); // key -> { count, windowStart }
 
   // Drop finished windows now and then so the map can't grow forever.
@@ -33,6 +37,14 @@ function createLimiter({ windowMs, max, key, onLimit }) {
     entry.count += 1;
     if (entry.count <= max) return next();
 
+    // Logged once per key per window (the first refused hit), so a script
+    // hammering the endpoint can't flood the append-only audit table.
+    if (entry.count === max + 1) {
+      audit.record({
+        actorEmail: (req.user && req.user.email) || "anonymous", action: "rateLimit.exceeded",
+        entityType: "security", entityLabel: name || req.method + " " + req.originalUrl.split("?")[0]
+      });
+    }
     const retryAfterSec = Math.ceil((entry.windowStart + windowMs - now) / 1000);
     res.set("Retry-After", String(retryAfterSec));
     if (onLimit) return onLimit(req, res, retryAfterSec);

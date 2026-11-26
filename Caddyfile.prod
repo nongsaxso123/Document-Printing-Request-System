@@ -33,7 +33,12 @@
 		X-Content-Type-Options "nosniff"
 		# No other site may show our pages inside a frame (clickjacking).
 		X-Frame-Options "SAMEORIGIN"
-		Content-Security-Policy "frame-ancestors 'self'"
+		# Content Security Policy: pages may only load scripts, styles,
+		# images and connections from this site. Exceptions: Google Fonts
+		# (Kanit, style.css @import) and Google profile photos (header avatar).
+		# 'unsafe-inline' is still needed: page scripts are inline <script>
+		# blocks. object-src/base-uri/form-action close the remaining holes.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://lh3.googleusercontent.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'self'"
 		# Links to other sites get only our domain, never the full URL.
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# Pages never need camera, microphone, location, etc.

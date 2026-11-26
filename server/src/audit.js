@@ -138,4 +138,31 @@ async function listActors({ entityType } = {}) {
   return rows.map((r) => r.actorEmail);
 }
 
-module.exports = { context, write, record, recordRequest, list, listActors };
+// A signed-in user refused a page or API call (403). Logged at most once per
+// user + path per minute, so repeated clicks or a script can't flood the
+// append-only table. `reason` is a short code ("role", "kiosk-only").
+const FORBIDDEN_EVERY_MS = 60 * 1000;
+const lastForbidden = new Map(); // "email path" -> time
+function recordForbidden(req, reason) {
+  const actorEmail = (req.user && req.user.email) || "anonymous";
+  const path = String(req.originalUrl || req.url || "").split("?")[0].slice(0, 200);
+  const k = actorEmail + " " + path;
+  const now = Date.now();
+  if (now - (lastForbidden.get(k) || 0) < FORBIDDEN_EVERY_MS) return Promise.resolve();
+  lastForbidden.set(k, now);
+  if (lastForbidden.size > 5000) {
+    for (const [key, t] of lastForbidden) if (now - t >= FORBIDDEN_EVERY_MS) lastForbidden.delete(key);
+  }
+  const entry = { actorEmail, action: "auth.forbidden", entityType: "security", entityLabel: (reason ? reason + " " : "") + req.method + " " + path };
+  // The CSRF guard runs before app.js sets up the IP context; give it one.
+  if (!context.getStore()) return context.run({ ip: req.ip || null }, () => record(entry));
+  return record(entry);
+}
+
+// An Excel report was downloaded. `report` names which one
+// ("history", "dashboard", "evaluations").
+function recordExport(actorEmail, report) {
+  return record({ actorEmail, action: "report.export", entityType: "report", entityLabel: report });
+}
+
+module.exports = { context, write, record, recordRequest, recordForbidden, recordExport, list, listActors };

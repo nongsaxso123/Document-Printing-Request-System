@@ -16,6 +16,7 @@
 
 const ExcelJS = require("exceljs");
 const prisma = require("./prisma");
+const audit = require("./audit");
 const requests = require("./requests");
 
 const EXPORT_ROW_LIMIT = 200000;
@@ -113,12 +114,35 @@ function localTs(d) { return d ? new Date(d.getTime() - d.getTimezoneOffset() * 
 function yearLabel(y, lang) { return lang === "en" ? y : y + 543; }
 
 // ---------------------------------------------------------------- workbook helpers
-function newWorkbook(creator) {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = creator || "ODPRS";
-  wb.created = new Date();
-  return wb;
+// Every report is written with ExcelJS's streaming writer straight into the
+// HTTP response (see streamWorkbook below): rows are flushed as they are
+// written, so memory stays flat however many rows there are. The in-memory
+// Workbook kept every cell as an object: 20,000 history rows took about
+// 1.1 GB and a full export ran the 1 GB production container out of memory.
+//
+// Streaming rules the code below follows:
+// - Rows are written top to bottom only; a written row can't be changed.
+// - Frozen panes and page setup are fixed when the sheet is created
+//   (addSheet), and column widths must be set before the first data row.
+// - Each sheet is finished before the next one starts (addSheet commits the
+//   previous one), so sheets never pile up in memory.
+const TABLE_START = 6; // writeHeaderBlock always fills rows 1-4; tables start here
+const LANDSCAPE = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+function addSheet(wb, name, { freeze = true, xSplit = 0, landscape = false } = {}) {
+  const prev = wb._odprsLastSheet;
+  if (prev && typeof prev.commit === "function" && !prev.committed) prev.commit();
+  const ws = wb.addWorksheet(name, {
+    views: freeze ? [{ state: "frozen", xSplit, ySplit: TABLE_START }] : [],
+    ...(landscape ? { pageSetup: LANDSCAPE } : {})
+  });
+  wb._odprsLastSheet = ws;
+  return ws;
 }
+
+// Lets the server answer other users between batches of a long export.
+const breathe = () => new Promise((resolve) => setImmediate(resolve));
+const BATCH = 2000;
 
 // Title block (rows 1-4): report title, organisation, generated at/by,
 // then the filters in effect — so a printed or forwarded file explains
@@ -145,7 +169,7 @@ function writeHeaderBlock(ws, { title, lang, user, filters, span }) {
   f.value = t.filters + ": " + (filters.length ? filters.join("    ") : t.none);
   f.font = { size: 10, color: { argb: "FF7A716A" } };
   f.alignment = { wrapText: true };
-  return 6;
+  return TABLE_START;
 }
 
 function formatStamp(d, lang) {
@@ -164,60 +188,92 @@ function styleHeaderRow(row) {
   });
 }
 
-// A real table: header row + data rows with zebra stripes, frozen header,
-// autofilter, per-column widths / number formats. `columns` =
-// [{ header, key, width, numFmt, align }]; `rows` = array of objects.
-function writeTable(ws, startRow, columns, rows, { totalRow } = {}) {
+// Excel (and LibreOffice/Sheets) may treat text that starts with = + - @
+// tab or CR as a formula, so a requester typing "=HYPERLINK(...)" into a
+// form field could plant a live formula in an officer's export. Such text
+// gets a leading ' so it always stays plain text. Numbers and dates pass
+// through untouched.
+function sanitizeCell(v) {
+  if (typeof v !== "string" || v === "") return v;
+  return v.length > 1 && /^[=+\-@\t\r]/.test(v) ? "'" + v : v; // a lone "-" can't be a formula
+}
+
+// Column widths + header row. Big tables (tens of thousands of rows) are
+// styled per column instead of per cell, without zebra stripes: per-cell
+// styling made a 100k-row export take about 25 seconds.
+function startTable(ws, startRow, columns, big) {
   columns.forEach((c, i) => {
     const col = ws.getColumn(i + 1);
     col.width = Math.max(col.width || 0, c.width || 14);
+    if (big && c.numFmt) col.numFmt = c.numFmt;
+    if (big && (c.align || c.wrap)) col.alignment = { vertical: "top", horizontal: c.align, wrapText: !!c.wrap };
   });
   const header = ws.getRow(startRow);
   columns.forEach((c, i) => { header.getCell(i + 1).value = c.header; });
   styleHeaderRow(header);
+}
 
-  // Big tables (tens of thousands of rows) are styled per column instead of
-  // per cell, without zebra stripes: per-cell styling made a 100k-row
-  // export take about 25 seconds.
-  const big = rows.length > 3000;
-  if (big) columns.forEach((c, i) => {
-    const col = ws.getColumn(i + 1);
-    if (c.numFmt) col.numFmt = c.numFmt;
-    if (c.align || c.wrap) col.alignment = { vertical: "top", horizontal: c.align, wrapText: !!c.wrap };
-  });
-  rows.forEach((r, idx) => {
-    const row = ws.getRow(startRow + 1 + idx);
-    if (big) {
-      row.values = columns.map((c) => { const v = r[c.key]; return v === undefined || v === "" ? null : v; });
-      return;
-    }
+function writeDataRow(ws, rowNum, columns, r, idx, big) {
+  const row = ws.getRow(rowNum);
+  if (big) {
+    row.values = columns.map((c) => { const v = r[c.key]; return v === undefined || v === "" ? null : sanitizeCell(v); });
+  } else {
     columns.forEach((c, i) => {
       const cell = row.getCell(i + 1);
       const v = r[c.key];
-      cell.value = v === undefined || v === null || v === "" ? null : v;
+      cell.value = v === undefined || v === null || v === "" ? null : sanitizeCell(v);
       if (c.numFmt) cell.numFmt = c.numFmt;
       cell.alignment = { vertical: "top", horizontal: c.align || (typeof v === "number" ? "right" : "left"), wrapText: !!c.wrap };
       if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ZEBRA } };
     });
-  });
+  }
+  row.commit(); // streaming: written out now (rows above it too) and freed
+}
 
-  let last = startRow + rows.length;
+// A real table: header row + data rows with zebra stripes, autofilter,
+// per-column widths / number formats. `columns` =
+// [{ header, key, width, numFmt, align }]; `rows` = array of objects.
+// Frozen header panes come from addSheet().
+function writeTable(ws, startRow, columns, rows, { totalRow, filter = true } = {}) {
+  const big = rows.length > 3000;
+  startTable(ws, startRow, columns, big);
+  rows.forEach((r, idx) => writeDataRow(ws, startRow + 1 + idx, columns, r, idx, big));
+  return finishTable(ws, startRow, columns, rows.length, { totalRow, filter });
+}
+
+// Same table, for row counts that must not sit in memory at once:
+// nextBatch(offset) returns the next array of row objects ([] when done).
+async function writeTableInBatches(ws, startRow, columns, total, nextBatch) {
+  const big = total > 3000;
+  startTable(ws, startRow, columns, big);
+  let n = 0;
+  for (;;) {
+    const batch = await nextBatch(n);
+    if (!batch.length) break;
+    batch.forEach((r) => { writeDataRow(ws, startRow + 1 + n, columns, r, n, big); n++; });
+    await breathe();
+  }
+  return finishTable(ws, startRow, columns, n, {});
+}
+
+function finishTable(ws, startRow, columns, count, { totalRow, filter = true }) {
+  let last = startRow + count;
   if (totalRow) {
     const row = ws.getRow(last + 1);
     columns.forEach((c, i) => {
       const cell = row.getCell(i + 1);
-      cell.value = totalRow[c.key] === undefined ? null : totalRow[c.key];
+      cell.value = totalRow[c.key] === undefined ? null : sanitizeCell(totalRow[c.key]);
       if (c.numFmt) cell.numFmt = c.numFmt;
       cell.font = { bold: true };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BRAND_TINT } };
       cell.border = { top: { style: "thin", color: { argb: BRAND } } };
       cell.alignment = { horizontal: typeof cell.value === "number" ? "right" : "left" };
     });
+    row.commit();
     last += 1;
   }
 
-  ws.views = [{ state: "frozen", ySplit: startRow }];
-  if (rows.length) ws.autoFilter = { from: { row: startRow, column: 1 }, to: { row: startRow + rows.length, column: columns.length } };
+  if (filter && count) ws.autoFilter = { from: { row: startRow, column: 1 }, to: { row: startRow + count, column: columns.length } };
   return last;
 }
 
@@ -226,9 +282,9 @@ function writePairs(ws, startRow, pairs, { numFmt } = {}) {
   pairs.forEach(([label, value], i) => {
     const row = ws.getRow(startRow + i);
     const a = row.getCell(1), b = row.getCell(2);
-    a.value = label;
+    a.value = sanitizeCell(label);
     a.font = { color: { argb: "FF7A716A" } };
-    b.value = value;
+    b.value = sanitizeCell(value);
     b.font = { bold: true, size: 12 };
     b.alignment = { horizontal: "right" };
     if (typeof value === "number" && numFmt) b.numFmt = numFmt;
@@ -272,11 +328,11 @@ function isoToLabel(iso, lang) {
 }
 
 // ---------------------------------------------------------------- history
-async function historyReport(params, { lang, user } = {}) {
+async function historyReport(wb, params, { lang, user } = {}) {
   lang = langOf(lang);
   const t = L[lang];
   const where = await requests.buildHistoryWhere(params);
-  const rows = await prisma.request.findMany({ where, orderBy: { submissionDate: "desc" }, take: EXPORT_ROW_LIMIT });
+  const total = Math.min(await prisma.request.count({ where }), EXPORT_ROW_LIMIT);
 
   const filters = describePeriod(params, lang);
   const statusEnum = params.status && requests.CODE_TO_STATUS[params.status];
@@ -284,8 +340,7 @@ async function historyReport(params, { lang, user } = {}) {
   if (params.unitType) filters.push(t.fUnit + ": " + params.unitType);
   if (params.q) filters.push(t.fSearch + ": " + params.q);
 
-  const wb = newWorkbook(user);
-  const ws = wb.addWorksheet(t.historySheet, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const ws = addSheet(wb, t.historySheet, { landscape: true });
   const columns = [
     { header: t.hRef, key: "ref", width: 18 },
     { header: t.hRun, key: "run", width: 16 },
@@ -313,9 +368,13 @@ async function historyReport(params, { lang, user } = {}) {
     { header: t.hHandedBy, key: "handedBy", width: 22 },
     { header: t.hReject, key: "reject", width: 30, wrap: true }
   ];
-  const start = writeHeaderBlock(ws, { title: t.historyTitle, lang, user, filters: filters.concat([t.rowsCount + ": " + rows.length.toLocaleString("en-US")]), span: 8 });
+  const start = writeHeaderBlock(ws, { title: t.historyTitle, lang, user, filters: filters.concat([t.rowsCount + ": " + total.toLocaleString("en-US")]), span: 8 });
   const printed = new Set(requests.PRINTED_STATUS_ENUMS);
-  writeTable(ws, start, columns, rows.map((r) => ({
+  // Read from the database a batch at a time, never the whole table at once.
+  // The reference number breaks ties so batches never overlap or skip rows.
+  const nextBatch = async (offset) => offset >= total ? [] : (await prisma.request.findMany({
+    where, orderBy: [{ submissionDate: "desc" }, { requestReferenceNo: "desc" }], skip: offset, take: Math.min(BATCH, total - offset)
+  })).map((r) => ({
     ref: r.requestReferenceNo,
     run: r.runNumber,
     submitted: localTs(r.submissionDate),
@@ -342,8 +401,8 @@ async function historyReport(params, { lang, user } = {}) {
     approvedBy: r.reviewedByOfficerName,
     handedBy: r.handedOverByOfficerName,
     reject: r.rejectionReason
-  })));
-  return wb;
+  }));
+  await writeTableInBatches(ws, start, columns, total, nextBatch);
 }
 
 // ---------------------------------------------------------------- dashboard
@@ -433,7 +492,7 @@ function bucketText(k, bucket, lang, crossesYear) {
 }
 const ratio = (a, b) => (b ? (a - b) / b : null);
 
-async function dashboardReport(params, { lang, user } = {}) {
+async function dashboardReport(wb, params, { lang, user } = {}) {
   lang = langOf(lang);
   const t = L[lang], D = DASH_L[lang];
   const q = {
@@ -459,12 +518,11 @@ async function dashboardReport(params, { lang, user } = {}) {
   if (params.documentType) filters.push(t.fDocType + ": " + valueName(params.documentType));
   if (params.paperSource) filters.push(t.fPaper + ": " + valueName(params.paperSource));
 
-  const wb = newWorkbook(user);
   const header = (ws, name, span) => writeHeaderBlock(ws, { title: D.title + (name ? " (" + name + ")" : ""), lang, user, filters, span });
   const changeCols = hasPrev ? [{ header: D.cPrev, key: "prev", width: 16, numFmt: NUM }, { header: D.cChange, key: "chg", width: 13, numFmt: CHANGE }] : [];
 
   // 1. Summary: key figures against last year, then highlights
-  const ws1 = wb.addWorksheet(D.sSummary);
+  const ws1 = addSheet(wb, D.sSummary, { freeze: false });
   let r = header(ws1, "", 4);
   sectionTitle(ws1, r, D.keyFigures);
   const A = R.totals, B = R.prevTotals;
@@ -480,9 +538,7 @@ async function dashboardReport(params, { lang, user } = {}) {
     { header: D.metric, key: "metric", width: 36 },
     { header: D.selected, key: "a", width: 20, numFmt: NUM },
     ...(hasPrev ? [{ header: D.lastYear, key: "b", width: 22, numFmt: NUM }, { header: D.change, key: "chg", width: 14, numFmt: CHANGE }] : [])
-  ], kpis);
-  ws1.autoFilter = null;
-  ws1.views = [];
+  ], kpis, { filter: false });
   r += 2;
   sectionTitle(ws1, r, D.highlights);
   const real = R.series.filter((s) => s.sheets != null);
@@ -502,7 +558,7 @@ async function dashboardReport(params, { lang, user } = {}) {
   if (hasPrev) note(ws1, r + 2, D.noteCompare.replace("{p}", prevLabel), 4);
 
   // 2. Over time (day / month / year, as the chart)
-  const ws2 = wb.addWorksheet(D.sTime[R.bucket]);
+  const ws2 = addSheet(wb, D.sTime[R.bucket]);
   r = header(ws2, D.sTime[R.bucket], 5);
   const timeRows = real.map((s) => ({
     k: bucketText(s.k, R.bucket, lang, crosses), req: s.requests, sheets: s.sheets,
@@ -517,7 +573,7 @@ async function dashboardReport(params, { lang, user } = {}) {
   if (hasPrev) note(ws2, tEnd + 2, D.noteCompare.replace("{p}", prevLabel), 5);
 
   // 3. By unit (every unit in the period, as the table on the page)
-  const ws3 = wb.addWorksheet(D.sUnits);
+  const ws3 = addSheet(wb, D.sUnits);
   r = header(ws3, D.sUnits, 7);
   const unitList = R.units.filter((u) => u.sheets > 0);
   const unitTotal = unitList.reduce((a, u) => a + u.sheets, 0) || 1;
@@ -539,7 +595,7 @@ async function dashboardReport(params, { lang, user } = {}) {
 
   // 4-6. By unit type, document type, paper source
   function breakdownSheet(name, list, keyHeader, label, withUnits) {
-    const ws = wb.addWorksheet(name);
+    const ws = addSheet(wb, name);
     const rr = header(ws, name, 6);
     const total = list.reduce((a, x) => a + x.sheets, 0) || 1;
     writeTable(ws, rr, [
@@ -560,7 +616,7 @@ async function dashboardReport(params, { lang, user } = {}) {
   breakdownSheet(D.sSrcs, R.breakdown.srcs, D.cSrc, valueName, false);
 
   // 7. Unit x period: who used how much in each day / month / year
-  const ws7 = wb.addWorksheet(D.sMatrix[R.bucket]);
+  const ws7 = addSheet(wb, D.sMatrix[R.bucket], { xSplit: 1 });
   const keys = real.map((s) => s.k);
   r = header(ws7, D.sMatrix[R.bucket], Math.min(8, keys.length + 3));
   const cell = new Map();
@@ -579,10 +635,9 @@ async function dashboardReport(params, { lang, user } = {}) {
     ...keys.map((k, i) => ({ header: bucketText(k, R.bucket, lang, crosses), key: "k" + i, width: R.bucket === "day" ? 9 : 11, numFmt: NUM })),
     { header: D.cTotal, key: "total", width: 14, numFmt: NUM }
   ], mRows, { totalRow: mTotal });
-  ws7.views = [{ state: "frozen", xSplit: 1, ySplit: r }];
 
   // 8. Every request counted
-  const ws8 = wb.addWorksheet(D.sRows, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const ws8 = addSheet(wb, D.sRows, { landscape: true });
   r = header(ws8, D.sRows, 8);
   const rows = R.requestRows || [];
   if (R.totals.requests > DASH_ROWS_MAX) {
@@ -590,7 +645,7 @@ async function dashboardReport(params, { lang, user } = {}) {
     // History page exports any date range of requests on its own
     note(ws8, r, D.noteTooMany.replace("{n}", R.totals.requests.toLocaleString("en-US")).replace("{max}", DASH_ROWS_MAX.toLocaleString("en-US")), 8);
     ws8.getRow(r).height = 48;
-    return wb;
+    return;
   }
   writeTable(ws8, r, [
     { header: D.rRef, key: "ref", width: 18 },
@@ -613,34 +668,30 @@ async function dashboardReport(params, { lang, user } = {}) {
     type: typeName(x.type), unit: unitName(x.unit, lang), doc: valueName(x.doc), src: valueName(x.src),
     size: x.paperSize, color: valueName(x.color), side: valueName(x.side), pages: x.pages, copies: x.copies, sheets: x.sheets
   })), { totalRow: { ref: D.cTotal, sheets: rows.reduce((a, x) => a + x.sheets, 0) } });
-
-  return wb;
 }
 
 // ---------------------------------------------------------------- evaluations
 // The questions are admin-editable (src/evaluationForm.js): the summary sheet
 // lists every question of the current form (plus removed ones answered in
 // the period), and the list sheet gets one column per current question.
-async function evaluationsReport(params, { lang, user } = {}) {
+async function evaluationsReport(wb, params, { lang, user } = {}) {
   lang = langOf(lang);
   const t = L[lang];
   const pick = (th, en) => (lang === "en" && en ? en : th);
   const summary = await requests.evaluationsSummary({ year: params.year });
   const where = await requests.buildEvaluationsWhere(params);
-  const rows = await prisma.evaluation.findMany({
-    where,
-    orderBy: requests.evaluationsOrderBy(params.sort),
-    take: EXPORT_ROW_LIMIT,
+  const total = Math.min(await prisma.evaluation.count({ where }), EXPORT_ROW_LIMIT);
+  const order = [].concat(requests.evaluationsOrderBy(params.sort), { id: "desc" }); // id: stable batches
+  const fetchBatch = (offset) => prisma.evaluation.findMany({
+    where, orderBy: order, skip: offset, take: Math.min(BATCH, total - offset),
     include: {
       request: { select: { runNumber: true, requesterName: true, itemList: true, reviewedByOfficerName: true, handedOverByOfficerName: true } },
       answers: { select: { questionId: true, rating: true, text: true, choices: true } }
     }
   });
 
-  const wb = newWorkbook(user);
-
   // ---- summary sheet ----
-  const ws1 = wb.addWorksheet(t.evalSummarySheet);
+  const ws1 = addSheet(wb, t.evalSummarySheet, { freeze: false });
   const yearFilter = params.year ? [t.fYear + " " + yearLabel(Number(params.year), lang)] : [];
   let r = writeHeaderBlock(ws1, { title: t.evalTitle, lang, user, filters: yearFilter, span: 5 });
   r = writePairs(ws1, r, [
@@ -670,9 +721,7 @@ async function evaluationsReport(params, { lang, user } = {}) {
     { header: t.eChoice, key: "choice", width: 26, wrap: true },
     { header: t.eAnswers, key: "answers", width: 14, numFmt: NUM },
     { header: t.eAverage, key: "avg", width: 18, numFmt: "0.0" }
-  ], qRows);
-  ws1.views = [];
-  ws1.autoFilter = undefined;
+  ], qRows, { filter: false });
 
   // ---- list sheet: one column per current question ----
   const questions = (summary.sections || []).flatMap((sec) => sec.questions);
@@ -682,14 +731,14 @@ async function evaluationsReport(params, { lang, user } = {}) {
     if (q.type === "text") return a.text;
     return Array.isArray(a.choices) ? a.choices.map((c) => pick(c.th, c.en)).join(", ") : null;
   };
-  const ws2 = wb.addWorksheet(t.evalListSheet, { pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const ws2 = addSheet(wb, t.evalListSheet, { landscape: true });
   const listFilters = describePeriod(params, lang);
   if (params.q) listFilters.push(t.fSearch + ": " + params.q);
   if (params.hasComment) listFilters.push(t.fHasComment + ": " + t.yes);
   listFilters.push(t.fSort + ": " + (params.sort === "lowest" ? t.sortLowest : t.sortRecent));
-  listFilters.push(t.rowsCount + ": " + rows.length.toLocaleString("en-US"));
+  listFilters.push(t.rowsCount + ": " + total.toLocaleString("en-US"));
   r = writeHeaderBlock(ws2, { title: t.evalTitle + " (" + t.evalListSheet + ")", lang, user, filters: listFilters, span: 8 });
-  writeTable(ws2, r, [
+  const listColumns = [
     { header: t.eRef, key: "ref", width: 18 },
     { header: t.eRun, key: "run", width: 16 },
     { header: t.eName, key: "name", width: 24 },
@@ -702,7 +751,8 @@ async function evaluationsReport(params, { lang, user } = {}) {
       wrap: q.type !== "rating", align: q.type === "rating" ? "center" : undefined
     })),
     { header: t.eSubmitted, key: "submitted", width: 17, numFmt: dateFmt(lang, true) }
-  ], rows.map((e) => {
+  ];
+  const toRow = (e) => {
     const out = {
       ref: e.requestReferenceNo,
       run: e.request.runNumber,
@@ -714,8 +764,8 @@ async function evaluationsReport(params, { lang, user } = {}) {
     };
     questions.forEach((q) => { out["q" + q.id] = answerText(e.answers.find((a) => a.questionId === q.id), q); });
     return out;
-  }));
-  return wb;
+  };
+  await writeTableInBatches(ws2, r, listColumns, total, async (offset) => offset >= total ? [] : (await fetchBatch(offset)).map(toRow));
 }
 
 // ---------------------------------------------------------------- download helper
@@ -725,7 +775,12 @@ const FILE_BASE = {
   evaluations: { th: "รายงานผลประเมินความพึงพอใจ", en: "satisfaction-report" }
 };
 
-async function sendWorkbook(res, wb, kind, lang) {
+const BUILDERS = { history: historyReport, dashboard: dashboardReport, evaluations: evaluationsReport };
+
+// Builds report `kind` straight into the HTTP response. If something fails
+// after the first bytes went out, the connection is cut so the browser sees
+// a failed download (the page shows "export failed"), never a broken file.
+async function streamWorkbook(res, kind, params, { lang, user } = {}) {
   lang = langOf(lang);
   const d = new Date();
   const pad = (n) => String(n).padStart(2, "0");
@@ -735,8 +790,25 @@ async function sendWorkbook(res, wb, kind, lang) {
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   // ASCII fallback + RFC 5987 UTF-8 name, so browsers keep the Thai filename.
   res.setHeader("Content-Disposition", `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`);
-  const buffer = await wb.xlsx.writeBuffer();
-  res.send(Buffer.from(buffer));
+  // useSharedStrings: false keeps no table of every text seen (it would grow
+  // with the row count); the file is a little bigger instead.
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res, useStyles: true, useSharedStrings: false });
+  wb.creator = user || "ODPRS";
+  wb.created = d;
+  try {
+    await BUILDERS[kind](wb, params, { lang, user });
+    await wb.commit();
+  } catch (err) {
+    if (!res.headersSent) {
+      res.removeHeader("Content-Disposition");
+      throw err; // nothing sent yet: the normal error handler answers
+    }
+    console.error("[reports] export failed midway:", kind, err && err.stack ? err.stack : err);
+    res.destroy(err);
+    return;
+  }
+  // Access log: who downloaded which report (kind = history/dashboard/evaluations).
+  if (res.req && res.req.user) audit.recordExport(res.req.user.email, kind);
 }
 
-module.exports = { historyReport, dashboardReport, evaluationsReport, sendWorkbook };
+module.exports = { historyReport, dashboardReport, evaluationsReport, streamWorkbook, sanitizeCell };

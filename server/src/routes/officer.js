@@ -83,7 +83,7 @@ router.get("/request-form-view", (req, res) => {
 
 // FR-06 — real PDF of the same page above (print media), for re-download
 // after RUN NUMBER/Claim Code have been assigned.
-router.get("/request-form-view/pdf", async (req, res, next) => {
+router.get("/request-form-view/pdf", pdf.pdfLimiter, async (req, res, next) => {
   try {
     const ref = req.query.ref || "";
     const record = await requests.getByRef(ref);

@@ -22,6 +22,17 @@ const TEST_ALLOWED_EMAILS = (process.env.TEST_ALLOWED_EMAILS || "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
+// Same rule as sign-in: the allowed domain, plus the temporary testing
+// allowances when they are switched on. Also used to check emails an admin
+// types in at /admin/officers, so nobody outside the domain gets a role.
+function isAllowedEmail(email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) || e.length > 254) return false;
+  return e.endsWith(ALLOWED_EMAIL_DOMAIN) ||
+    (ALLOW_LAMDUAN_FOR_TESTING && e.endsWith(LAMDUAN_DOMAIN)) ||
+    TEST_ALLOWED_EMAILS.includes(e);
+}
+
 // No FR covers self-service creation of the first Admin (file.md FR-02 only
 // covers Admin managing Officers) — the Admin role is bootstrapped from env,
 // same idea as a seeded superuser.
@@ -55,10 +66,14 @@ function configure(passport) {
         const emailLower = email.toLowerCase();
 
         const isRealAllowedDomain = emailLower.endsWith(ALLOWED_EMAIL_DOMAIN);
-        const isTemporarilyAllowedLamduan = ALLOW_LAMDUAN_FOR_TESTING && emailLower.endsWith(LAMDUAN_DOMAIN);
-        const isTemporarilyAllowedTestEmail = TEST_ALLOWED_EMAILS.includes(emailLower);
 
-        if (!isRealAllowedDomain && !isTemporarilyAllowedLamduan && !isTemporarilyAllowedTestEmail) {
+        // Google marks whether it has verified the address. An unverified
+        // address could belong to someone else, so it is refused.
+        if (profile._json && profile._json.email_verified === false) {
+          return done(null, false, { message: "email-not-verified", email: emailLower || undefined });
+        }
+
+        if (!isAllowedEmail(emailLower)) {
           return done(null, false, { message: "domain-not-allowed", email: emailLower || undefined });
         }
 
@@ -69,13 +84,14 @@ function configure(passport) {
 
         const picture = (profile.photos && profile.photos[0] && profile.photos[0].value) || null;
 
+        // Only what the app uses goes into the session (not Google's whole
+        // profile).
         return done(null, {
           email: email,
           name: profile.displayName || email,
           picture: picture,
           isRealAllowedDomain: isRealAllowedDomain,
-          role: role,
-          raw: profile._json
+          role: role
         });
       } catch (err) {
         return done(err);
@@ -91,7 +107,10 @@ function configure(passport) {
 // Signed in but the wrong role → 403, that's a real permission problem.
 function requireAdmin(req, res, next) {
   if (!req.user) return res.redirect("/");
-  if (req.user.role !== "Admin") return res.status(403).send("Forbidden — Admin role required.");
+  if (req.user.role !== "Admin") {
+    audit.recordForbidden(req, "role");
+    return res.status(403).send("Forbidden: Admin role required.");
+  }
   next();
 }
 
@@ -101,7 +120,10 @@ function requireAdmin(req, res, next) {
 function requireRole(...allowed) {
   return function (req, res, next) {
     if (!req.user) return res.redirect("/");
-    if (!allowed.includes(req.user.role)) return res.status(403).send("Forbidden — insufficient role.");
+    if (!allowed.includes(req.user.role)) {
+      audit.recordForbidden(req, "role");
+      return res.status(403).send("Forbidden: insufficient role.");
+    }
     next();
   };
 }
@@ -177,4 +199,4 @@ const officers = {
   }
 };
 
-module.exports = { configure, requireAdmin, requireRole, resolveRole, officers, ALLOWED_EMAIL_DOMAIN };
+module.exports = { configure, requireAdmin, requireRole, resolveRole, isAllowedEmail, officers, ALLOWED_EMAIL_DOMAIN };

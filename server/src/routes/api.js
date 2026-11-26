@@ -106,44 +106,40 @@ router.post("/notifications/mark-all-read", async (req, res, next) => {
 
 router.use(requireRole("Officer", "Admin"));
 
-router.get("/requests", async (req, res, next) => {
-  try {
-    res.json(await requests.list());
-  } catch (err) { next(err); }
-});
+// There is deliberately no "GET /requests" returning the whole table: no
+// page needs it, it exposed every requester's details at once, and on a
+// large table it ran the 1 GB production container out of memory. Pages
+// use the filtered, paged endpoints below.
 
 // ---- Excel report exports (src/reports.js) — same filter params as the
 // JSON endpoints each page already calls, plus `lang` for the headings.
 router.get("/reports/history.xlsx", async (req, res, next) => {
   try {
     const q = req.query;
-    const wb = await reports.historyReport({
+    await reports.streamWorkbook(res, "history", {
       status: q.status, unitType: q.unitType, year: q.year, month: q.month,
       q: q.q, fromDate: q.fromDate, toDate: q.toDate
     }, { lang: q.lang, user: req.user.email });
-    await reports.sendWorkbook(res, wb, "history", q.lang);
   } catch (err) { next(err); }
 });
 
 router.get("/reports/dashboard.xlsx", async (req, res, next) => {
   try {
     const q = req.query;
-    const wb = await reports.dashboardReport({
+    await reports.streamWorkbook(res, "dashboard", {
       year: q.year, month: q.month, documentType: q.documentType, paperSource: q.paperSource,
       fromDate: q.fromDate, toDate: q.toDate, unitType: q.unitType, unit: q.unit
     }, { lang: q.lang, user: req.user.email });
-    await reports.sendWorkbook(res, wb, "dashboard", q.lang);
   } catch (err) { next(err); }
 });
 
 router.get("/reports/evaluations.xlsx", async (req, res, next) => {
   try {
     const q = req.query;
-    const wb = await reports.evaluationsReport({
+    await reports.streamWorkbook(res, "evaluations", {
       year: q.year, month: q.month, q: q.q, hasComment: q.hasComment, sort: q.sort,
       fromDate: q.fromDate, toDate: q.toDate
     }, { lang: q.lang, user: req.user.email });
-    await reports.sendWorkbook(res, wb, "evaluations", q.lang);
   } catch (err) { next(err); }
 });
 
@@ -352,7 +348,9 @@ router.get("/admin/officers", auth.requireAdmin, async (req, res, next) => {
 router.post("/admin/officers", auth.requireAdmin, async (req, res, next) => {
   try {
     const { name, email, isAdmin } = req.body;
-    if (!name || !email) return res.status(400).json({ error: "name-and-email-required" });
+    if (!name || !email || typeof name !== "string" || typeof email !== "string") return res.status(400).json({ error: "name-and-email-required" });
+    // The page checks this too, but a direct API call must not get past it.
+    if (!auth.isAllowedEmail(email)) return res.status(400).json({ error: "email-invalid" });
     const result = await auth.officers.add(email, name, req.user.email, { isAdmin: !!isAdmin });
     if (result.error) return res.status(400).json({ error: result.error });
     res.json(officerToJSON(result.officer));

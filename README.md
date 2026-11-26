@@ -14,7 +14,7 @@ Admins manage officers, departments and pickup/drop-off locations from inside th
 
 ## Built with
 
-Node.js 20 and Express, with EJS for the pages. Data lives in PostgreSQL through Prisma. Login uses Google OAuth via Passport, PDFs are rendered with Puppeteer, and email goes out through Nodemailer. Everything runs in Docker Compose, with Caddy in front handling HTTPS.
+Node.js 22 and Express, with EJS for the pages. Data lives in PostgreSQL through Prisma. Login uses Google OAuth via Passport, PDFs are rendered with Puppeteer, and email goes out through Nodemailer. Everything runs in Docker Compose, with Caddy in front handling HTTPS.
 
 The app itself is in `server/`:
 
@@ -47,6 +47,23 @@ docker compose exec app npx prisma migrate deploy
 Go to http://localhost:3000. While developing, the server restarts by itself whenever you change something in `server/src`.
 
 To change the database structure, edit `server/prisma/schema.prisma` and run `docker compose exec app npx prisma migrate dev --name <name>`.
+
+## Tests
+
+Run these in `server/`:
+
+```
+npm test                    # unit tests, no database needed
+npm audit --omit=dev        # should report 0 vulnerabilities
+
+# integration tests: needs a throwaway PostgreSQL (see the top of the test file)
+TEST_DATABASE_URL=postgresql://odprs:it@localhost:55433/odprs npm run test:integration
+
+# security end-to-end tests against the running dev stack
+E2E_BASE_URL=http://localhost:3000 E2E_DATABASE_URL=postgresql://odprs:odprs@localhost:5434/odprs npm run test:e2e
+```
+
+The e2e file `test/e2e/security.e2e.test.js` explains the optional CSP check, which uses Caddy with `Caddyfile.prod` and a local Chrome.
 
 ## Putting it on a server
 

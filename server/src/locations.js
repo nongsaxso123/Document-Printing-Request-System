@@ -208,6 +208,10 @@ function readInput(input) {
   if (hours.error) return { error: hours.error };
   if (!hours.keep && !hours.th) return { error: "hours-required" };
   if (!clean(input.phone)) return { error: "phone-required" };
+  // The map link is shown to requesters as a clickable link, so only real
+  // web addresses are accepted (no javascript:, data:, etc.).
+  const mapUrl = clean(input.mapUrl);
+  if (mapUrl && !isWebUrl(mapUrl)) return { error: "map-url-invalid" };
 
   return {
     data: {
@@ -221,13 +225,22 @@ function readInput(input) {
         hoursOpenTime: hours.open, hoursCloseTime: hours.close
       }),
       phone: clean(input.phone),
-      mapUrl: clean(input.mapUrl),
+      mapUrl,
       acceptsDropoff,
       acceptsPickup
     },
     wantsDefaultDropoff: !!input.isDefaultDropoff,
     wantsDefaultPickup: !!input.isDefaultPickup
   };
+}
+
+function isWebUrl(s) {
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch (e) {
+    return false;
+  }
 }
 
 function preferredDefaults(parsed, id) {

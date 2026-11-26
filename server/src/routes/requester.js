@@ -17,8 +17,8 @@ router.use(express.urlencoded({ extended: false }));
 // NAT/VPN address never share a bucket. Generous enough for a real busy
 // day, but stops a script or a stuck double-submit from flooding the queue.
 const byAccount = (req) => req.user && req.user.email;
-const submitLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 15, key: byAccount });
-const editLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 30, key: byAccount });
+const submitLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 15, key: byAccount, name: "submit" });
+const editLimiter = createLimiter({ windowMs: 10 * 60 * 1000, max: 30, key: byAccount, name: "edit" });
 
 // Blocks new-request submission while a completed request of theirs still
 // lacks its post-completion satisfaction evaluation — the Requester can
@@ -211,7 +211,7 @@ router.get("/request-submitted/:ref", async (req, res, next) => {
 // FR-06 — same authorization as the page above; renders that exact page
 // (print media) to a real PDF rather than relying on the browser's own
 // print dialog.
-router.get("/request-submitted/:ref/pdf", async (req, res, next) => {
+router.get("/request-submitted/:ref/pdf", pdf.pdfLimiter, async (req, res, next) => {
   try {
     const record = await requests.getByRef(req.params.ref);
     if (!record || (record.requesterEmail !== req.user.email && req.user.role !== "Admin")) {

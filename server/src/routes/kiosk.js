@@ -37,6 +37,7 @@ router.use(express.json());
 const claimLookupLimiter = createLimiter({
   windowMs: 60 * 1000,
   max: 20,
+  name: "claimLookup",
   onLimit: (req, res) => res.status(429).json({ error: "too-many-requests" })
 });
 
@@ -50,6 +51,16 @@ function clean(value) {
 // anyone, is currently signed in on this browser.
 router.get("/", (req, res) => {
   const authorized = !!(req.user && (req.user.role === "Officer" || req.user.role === "Admin"));
+  // Whichever way the officer got signed in on this browser (through
+  // /kiosk's own sign-in button, or a normal sign-in made earlier), once
+  // the kiosk is working here the browser is locked to /kiosk until someone
+  // signs out (see kioskAllows() in app.js). Otherwise an officer already
+  // signed in at the counter PC who opens /kiosk would leave /officer/* and
+  // /admin/* one new tab away from whoever walks up.
+  if (authorized && !req.session.kioskOnly) {
+    req.session.kioskOnly = true;
+    audit.record({ actorEmail: req.user.email, action: "auth.kioskLock", entityType: "auth", entityLabel: req.user.role });
+  }
   res.render("kiosk/claim-lookup", {
     authorized,
     loggedIn: !!req.user,

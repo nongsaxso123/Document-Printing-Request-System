@@ -104,13 +104,21 @@ app.use(function (req, res, next) {
   else ok = true;
   if (ok) return next();
   console.warn("[csrf] blocked", req.method, req.path, "site=" + (site || "-"), "origin=" + (origin || "-"));
+  audit.recordForbidden(req, "csrf");
   res.status(403).type("text/plain; charset=utf-8").send(
     "คำขอนี้ไม่ได้มาจากหน้าเว็บของระบบ จึงถูกปฏิเสธ กรุณากลับไปที่หน้าระบบแล้วลองใหม่\n" +
     "This request did not come from this site's own pages, so it was refused. Please go back to the site and try again."
   );
 });
 
+// Lifetime of a sign-in. The cookie gets the same maxAge (so the browser
+// drops it too) and the server-side check below ends the session at this
+// age even if the browser keeps sending the cookie.
+const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+const SESSION_COOKIE = "connect.sid";
+
 app.use(session({
+  name: SESSION_COOKIE,
   store: new PgSession({
     pool: new Pool({ connectionString: process.env.DATABASE_URL }),
     createTableIfMissing: true
@@ -121,7 +129,7 @@ app.use(session({
   // "auto": Secure-flagged cookie whenever the request came in over HTTPS
   // (MFU proxy says so via X-Forwarded-Proto, passed on by Caddy + trust
   // proxy above), plain cookie on http://localhost dev.
-  cookie: { secure: "auto", httpOnly: true, sameSite: "lax" }
+  cookie: { secure: "auto", httpOnly: true, sameSite: "lax", maxAge: SESSION_MAX_AGE_MS }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -145,15 +153,10 @@ app.use(function (req, res, next) {
   next();
 });
 
-// A session otherwise lives until the browser itself closes (no maxAge is
-// set on the cookie — see the session() config above), which is fine for a
-// normal office computer but not for a shared kiosk terminal that might
-// just get left open for days. Matches a full work shift: an Officer
-// signed in on the kiosk machine (see /kiosk) is automatically signed out
-// after this long even if the browser never closes. loginAt is set once,
-// in /auth/google/callback, right after a successful login.
-const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000;
-
+// Any sign-in ends after this long, counted from login (loginAt below), even
+// if the browser stays open. Matches a full work shift: an Officer signed in
+// on the kiosk machine (see /kiosk) is signed out after this long.
+// loginAt is set once, in /auth/google/callback, right after login.
 app.use(function (req, res, next) {
   if (req.user && req.session.loginAt && Date.now() - req.session.loginAt > SESSION_MAX_AGE_MS) {
     return req.logout(function (err) {
@@ -162,6 +165,24 @@ app.use(function (req, res, next) {
     });
   }
   next();
+});
+
+// A sign-in made on the kiosk machine (/auth/google?returnTo=/kiosk) only
+// opens /kiosk. Whoever walks up to that public screen could otherwise open
+// a new tab on /officer/* or /admin/* with the officer's session. Pages go
+// back to /kiosk; API calls get 403. /logout stays open so the officer can
+// sign out, and /auth/* is closed too: a fresh Google sign-in from here
+// would otherwise hand out a full session without signing out first.
+function kioskAllows(p) {
+  return p === "/kiosk" || p.startsWith("/kiosk/") || p === "/logout";
+}
+app.use(function (req, res, next) {
+  if (!req.user || !req.session.kioskOnly || kioskAllows(req.path)) return next();
+  audit.recordForbidden(req, "kiosk-only");
+  if (req.method === "GET" && !req.path.startsWith("/api/")) return res.redirect("/kiosk");
+  res.status(403).type("text/plain; charset=utf-8").send(
+    "เครื่องนี้ใช้ได้เฉพาะหน้ารับเอกสาร (Kiosk)\nThis sign-in can only use the pickup kiosk."
+  );
 });
 
 // The role is looked up again on every request (one primary-key query)
@@ -236,6 +257,10 @@ app.get("/", async function (req, res, next) {
   }
 
   try {
+    // Never cached: after signing in, pressing Back to this page must ask
+    // the server again (which sends a signed-in user to their own home page)
+    // instead of showing the old login page from the browser's cache.
+    res.set("Cache-Control", "no-store");
     res.render("login", {
       deniedDomain: req.query.error === "domain-not-allowed" ? auth.ALLOWED_EMAIL_DOMAIN : null,
       // The "user manual" link only shows once the admin has uploaded one.
@@ -262,7 +287,10 @@ app.get("/manual/:audience/:lang", async function (req, res, next) {
   try {
     if (!manuals.canView(req.params.audience, null)) {
       if (!req.user) return res.redirect("/");
-      if (!manuals.canView(req.params.audience, req.user.role)) return res.status(403).send("Forbidden — insufficient role.");
+      if (!manuals.canView(req.params.audience, req.user.role)) {
+        audit.recordForbidden(req, "role");
+        return res.status(403).send("Forbidden: insufficient role.");
+      }
     }
     const file = await manuals.getForDownload(req.params.audience, req.params.lang);
     if (!file) return res.status(404).send("Not found");
@@ -288,7 +316,7 @@ app.get("/manual/:audience/:lang", async function (req, res, next) {
 // nothing to brute-force here), but each attempt still costs a session row
 // and a round trip to Google. Per IP, and loose on purpose: a whole lab
 // behind one campus NAT address may sign in at the start of a class.
-const loginLimiter = createLimiter({ windowMs: 5 * 60 * 1000, max: 60 });
+const loginLimiter = createLimiter({ windowMs: 5 * 60 * 1000, max: 60, name: "login" });
 
 app.get("/auth/google", loginLimiter, function (req, res, next) {
   const returnTo = req.query.returnTo;
@@ -316,7 +344,10 @@ app.get("/auth/google/callback", loginLimiter,
       req.logIn(user, { keepSessionInfo: true }, function (err) {
         if (err) return next(err);
         req.session.loginAt = Date.now(); // starts the SESSION_MAX_AGE_MS clock above
-        audit.record({ actorEmail: user.email, action: "auth.login", entityType: "auth", entityLabel: user.role });
+        const kiosk = req.session.returnTo === "/kiosk";
+        if (kiosk) req.session.kioskOnly = true; // see kioskAllows() above
+        else delete req.session.kioskOnly;
+        audit.record({ actorEmail: user.email, action: "auth.login", entityType: "auth", entityLabel: kiosk ? user.role + " kiosk" : user.role });
         const dest = req.session.returnTo || "/";
         delete req.session.returnTo;
         return res.redirect(dest);
@@ -325,12 +356,23 @@ app.get("/auth/google/callback", loginLimiter,
   }
 );
 
-app.get("/logout", function (req, res) {
+// Ends the sign-in completely: passport's logout, then the session row is
+// deleted from the "session" table and the cookie is cleared, so an old
+// cookie can't be replayed. POST is what the sign-out buttons use; GET stays
+// for old links and bookmarks (the CSRF guard above covers both).
+function logout(req, res, next) {
   if (req.user) audit.record({ actorEmail: req.user.email, action: "auth.logout", entityType: "auth", entityLabel: req.user.role });
-  req.logout(function () {
-    res.redirect("/");
+  req.logout(function (err) {
+    if (err) return next(err);
+    req.session.destroy(function (err2) {
+      if (err2) return next(err2);
+      res.clearCookie(SESSION_COOKIE, { path: "/", httpOnly: true, sameSite: "lax" });
+      res.redirect("/");
+    });
   });
-});
+}
+app.get("/logout", logout);
+app.post("/logout", logout);
 
 // "My Profile" — any logged-in user, any role (see src/profile.js), so it
 // lives at the top level rather than under /requester, /officer, or /admin.
@@ -346,6 +388,23 @@ app.use("/requester", requesterRoutes);
 app.use("/admin", adminRoutes);
 app.use("/api", apiRoutes);
 app.use("/kiosk", kioskRoutes); // deliberately mounted with no login/role gate at all — see routes/kiosk.js
+
+// Last stop for any error passed to next(err). The details go to the server
+// log only; the visitor gets a short message with no stack trace, file
+// paths or SQL. err.status is kept for expected cases (400 bad JSON, 413 too
+// large, 503 PDF generator busy); everything else is a 500.
+app.use(function (err, req, res, next) {
+  const status = Number.isInteger(err.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error("[error]", req.method, req.originalUrl, err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  const busy = status === 503;
+  const th = busy ? "ระบบกำลังทำงานหนัก กรุณาลองใหม่อีกครั้งในอีกสักครู่" : status >= 500 ? "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง" : "คำขอไม่ถูกต้อง";
+  const en = busy ? "The system is busy. Please try again in a moment." : status >= 500 ? "Something went wrong. Please try again." : "Bad request.";
+  if (req.path.startsWith("/api/") || req.xhr || (req.get("Accept") || "").includes("application/json")) {
+    return res.status(status).json({ error: busy ? "busy" : status >= 500 ? "server-error" : "bad-request" });
+  }
+  res.status(status).type("text/plain; charset=utf-8").send(th + "\n" + en);
+});
 
 app.listen(PORT, function () {
   console.log(`ODPRS server (Postgres-backed) running at http://localhost:${PORT}`);

@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { Prisma } = require("@prisma/client");
 /**
  * Request queries + the DB-shape -> client-shape JSON mapper.
@@ -180,11 +181,6 @@ function toClientJSON(r) {
     pickupLocation: locationFor(r, r.pickupLocation, r.pickupLocationSnapshot),
     pickupAvailableFrom: r.pickupAvailableFrom ? r.pickupAvailableFrom.toISOString() : null
   };
-}
-
-async function list() {
-  const rows = await prisma.request.findMany({ orderBy: { submissionDate: "desc" } });
-  return rows.map(toClientJSON);
 }
 
 async function getByRef(ref) {
@@ -999,7 +995,7 @@ async function getEditPrefill(ref, requesterEmail) {
 // total request volume grows.
 async function generateUniqueClaimCode() {
   for (let attempt = 0; attempt < 20; attempt++) {
-    const code = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0"); // CSPRNG: codes cannot be predicted from earlier ones
     const clash = await prisma.request.findFirst({
       where: { claimCode: code, status: { in: ["PRINTING_IN_PROGRESS", "READY_FOR_PICKUP"] } }
     });
@@ -1625,7 +1621,8 @@ async function searchEvaluations({ year, month, q, page, pageSize, hasComment, s
 }
 
 module.exports = {
-  list, getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory,
+  generateUniqueClaimCode,
+  getByRef, getByClaimCode, listByRequester, listAwaiting, listPrinting, listAvailableYears, searchHistory,
   create, update, getEditPrefill, approve, reject, cancel, markReady, resolvePickupTime, handover, dashboardSummary, dashboardOptions, dashboardRange, getPendingEvaluation, getEvaluation, evaluationState, submitEvaluation,
   evaluationsSummary, searchEvaluations,
   buildHistoryWhere, buildEvaluationsWhere, evaluationsOrderBy, computeSheets, PRINTED_STATUS_ENUMS,
